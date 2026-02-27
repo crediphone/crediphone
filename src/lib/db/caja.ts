@@ -1,0 +1,365 @@
+/**
+ * FASE 18: Database Layer - Caja POS
+ * Funciones para gestión de sesiones de caja y movimientos
+ */
+
+import { createAdminClient } from "@/lib/supabase/server";
+import type { CajaSesion, CajaMovimiento } from "@/types";
+
+// =====================================================
+// MAPPERS
+// =====================================================
+
+function mapSesionFromDB(row: any): CajaSesion {
+  return {
+    id: row.id,
+    folio: row.folio,
+    usuarioId: row.usuario_id,
+    montoInicial: parseFloat(row.monto_inicial),
+    fechaApertura: new Date(row.fecha_apertura),
+    notasApertura: row.notas_apertura,
+    montoFinal: row.monto_final ? parseFloat(row.monto_final) : undefined,
+    montoEsperado: row.monto_esperado ? parseFloat(row.monto_esperado) : undefined,
+    diferencia: row.diferencia ? parseFloat(row.diferencia) : undefined,
+    fechaCierre: row.fecha_cierre ? new Date(row.fecha_cierre) : undefined,
+    notasCierre: row.notas_cierre,
+    estado: row.estado,
+    totalVentasEfectivo: parseFloat(row.total_ventas_efectivo || 0),
+    totalVentasTransferencia: parseFloat(row.total_ventas_transferencia || 0),
+    totalVentasTarjeta: parseFloat(row.total_ventas_tarjeta || 0),
+    totalRetiros: parseFloat(row.total_retiros || 0),
+    totalDepositos: parseFloat(row.total_depositos || 0),
+    numeroVentas: row.numero_ventas || 0,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+function mapMovimientoFromDB(row: any): CajaMovimiento {
+  return {
+    id: row.id,
+    sesionId: row.sesion_id,
+    tipo: row.tipo,
+    monto: parseFloat(row.monto),
+    concepto: row.concepto,
+    autorizadoPor: row.autorizado_por,
+    createdAt: new Date(row.created_at),
+  };
+}
+
+// =====================================================
+// QUERIES - SESIONES DE CAJA
+// =====================================================
+
+/**
+ * Obtiene la sesión activa de un usuario
+ */
+export async function getSesionActiva(usuarioId: string): Promise<CajaSesion | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("caja_sesiones")
+    .select("*")
+    .eq("usuario_id", usuarioId)
+    .eq("estado", "abierta")
+    .order("fecha_apertura", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      // No se encontró ninguna sesión activa
+      return null;
+    }
+    console.error("Error fetching sesion activa:", error);
+    throw new Error(`Error al obtener sesión activa: ${error.message}`);
+  }
+
+  return data ? mapSesionFromDB(data) : null;
+}
+
+/**
+ * Abre una nueva sesión de caja
+ */
+export async function abrirCaja(
+  usuarioId: string,
+  montoInicial: number,
+  notas?: string,
+  distribuidorId?: string
+): Promise<CajaSesion> {
+  const supabase = createAdminClient();
+
+  // Validar que no haya sesión activa
+  const sesionActiva = await getSesionActiva(usuarioId);
+  if (sesionActiva) {
+    throw new Error(
+      `Ya existe una sesión de caja abierta (${sesionActiva.folio}). Debe cerrarla antes de abrir una nueva.`
+    );
+  }
+
+  // Insertar nueva sesión (folio se genera automáticamente por trigger)
+  const { data, error } = await supabase
+    .from("caja_sesiones")
+    .insert({
+      folio: "", // El trigger lo genera
+      usuario_id: usuarioId,
+      distribuidor_id: distribuidorId || null,
+      monto_inicial: montoInicial,
+      notas_apertura: notas || null,
+      estado: "abierta",
+      fecha_apertura: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error("Error opening caja:", error);
+    throw new Error(`Error al abrir caja: ${error?.message || "Unknown error"}`);
+  }
+
+  return mapSesionFromDB(data);
+}
+
+/**
+ * Cierra una sesión de caja
+ */
+export async function cerrarCaja(
+  sesionId: string,
+  montoFinal: number,
+  notas?: string
+): Promise<CajaSesion & { payjoyStats?: { totalPagosPayjoy: number; montoTotalPayjoy: number; desglosePagos: Array<{ pagoId: string; transactionId: string; clienteNombre: string; monto: number; payjoyPaymentMethod: string; hora: Date }> } }> {
+  const supabase = createAdminClient();
+
+  // 1. Obtener sesión actual
+  const { data: sesionData, error: sesionError } = await supabase
+    .from("caja_sesiones")
+    .select("*")
+    .eq("id", sesionId)
+    .single();
+
+  if (sesionError || !sesionData) {
+    console.error("Error fetching sesion:", sesionError);
+    throw new Error(`Error al obtener sesión: ${sesionError?.message || "Unknown error"}`);
+  }
+
+  if (sesionData.estado === "cerrada") {
+    throw new Error("La sesión ya está cerrada");
+  }
+
+  // 2. Calcular totales de ventas por método de pago
+  const { data: ventasData } = await supabase
+    .from("ventas")
+    .select("metodo_pago, total, desglose_mixto")
+    .eq("sesion_caja_id", sesionId)
+    .eq("estado", "completada");
+
+  let totalVentasEfectivo = 0;
+  let totalVentasTransferencia = 0;
+  let totalVentasTarjeta = 0;
+  const numeroVentas = ventasData?.length || 0;
+
+  (ventasData || []).forEach((venta: any) => {
+    const total = parseFloat(venta.total);
+    switch (venta.metodo_pago) {
+      case "efectivo":
+        totalVentasEfectivo += total;
+        break;
+      case "transferencia":
+        totalVentasTransferencia += total;
+        break;
+      case "tarjeta":
+        totalVentasTarjeta += total;
+        break;
+      case "mixto":
+        if (venta.desglose_mixto) {
+          totalVentasEfectivo += parseFloat(venta.desglose_mixto.efectivo || 0);
+          totalVentasTransferencia += parseFloat(venta.desglose_mixto.transferencia || 0);
+          totalVentasTarjeta += parseFloat(venta.desglose_mixto.tarjeta || 0);
+        }
+        break;
+    }
+  });
+
+  // 3. Calcular totales de movimientos
+  const { data: movimientosData } = await supabase
+    .from("caja_movimientos")
+    .select("tipo, monto")
+    .eq("sesion_id", sesionId);
+
+  let totalDepositos = 0;
+  let totalRetiros = 0;
+
+  (movimientosData || []).forEach((mov: any) => {
+    const monto = parseFloat(mov.monto);
+    if (mov.tipo === "deposito" || mov.tipo === "entrada_anticipo") {
+      totalDepositos += monto;
+    } else if (mov.tipo === "retiro" || mov.tipo === "devolucion_anticipo") {
+      totalRetiros += monto;
+    }
+  });
+
+  // 4. Calcular monto esperado y diferencia
+  const montoInicial = parseFloat(sesionData.monto_inicial);
+  const montoEsperado =
+    montoInicial + totalVentasEfectivo + totalDepositos - totalRetiros;
+  const diferencia = montoFinal - montoEsperado;
+
+  // 5. Actualizar sesión
+  const { data: updatedData, error: updateError } = await supabase
+    .from("caja_sesiones")
+    .update({
+      monto_final: montoFinal,
+      monto_esperado: montoEsperado,
+      diferencia,
+      fecha_cierre: new Date().toISOString(),
+      notas_cierre: notas || null,
+      estado: "cerrada",
+      total_ventas_efectivo: totalVentasEfectivo,
+      total_ventas_transferencia: totalVentasTransferencia,
+      total_ventas_tarjeta: totalVentasTarjeta,
+      total_retiros: totalRetiros,
+      total_depositos: totalDepositos,
+      numero_ventas: numeroVentas,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sesionId)
+    .select()
+    .single();
+
+  if (updateError || !updatedData) {
+    console.error("Error closing caja:", updateError);
+    throw new Error(`Error al cerrar caja: ${updateError?.message || "Unknown error"}`);
+  }
+
+  // 6. FASE 20: Consultar pagos Payjoy del turno (informativo)
+  let payjoyStats = undefined;
+  try {
+    const { data: pagosPayjoy } = await supabase
+      .from("pagos")
+      .select("id, monto, fecha_pago, payjoy_transaction_id, payjoy_payment_method, payjoy_customer_name")
+      .eq("metodo_pago", "payjoy")
+      .gte("fecha_pago", sesionData.fecha_apertura)
+      .lte("fecha_pago", new Date().toISOString());
+
+    if (pagosPayjoy && pagosPayjoy.length > 0) {
+      payjoyStats = {
+        totalPagosPayjoy: pagosPayjoy.length,
+        montoTotalPayjoy: pagosPayjoy.reduce(
+          (sum: number, p: any) => sum + parseFloat(p.monto || 0),
+          0
+        ),
+        desglosePagos: pagosPayjoy.map((p: any) => ({
+          pagoId: p.id,
+          transactionId: p.payjoy_transaction_id || "N/A",
+          clienteNombre: p.payjoy_customer_name || "Desconocido",
+          monto: parseFloat(p.monto),
+          payjoyPaymentMethod: p.payjoy_payment_method || "N/A",
+          hora: new Date(p.fecha_pago),
+        })),
+      };
+    }
+  } catch (payjoyError) {
+    // No fallar el cierre de caja si falla la consulta de Payjoy
+    console.error("Error consultando pagos Payjoy:", payjoyError);
+  }
+
+  return { ...mapSesionFromDB(updatedData), payjoyStats };
+}
+
+/**
+ * Obtiene el historial de sesiones de caja
+ */
+export async function getSesionesCaja(limit = 50, distribuidorId?: string): Promise<CajaSesion[]> {
+  const supabase = createAdminClient();
+
+  let query = supabase
+    .from("caja_sesiones")
+    .select("*")
+    .order("fecha_apertura", { ascending: false })
+    .limit(limit);
+
+  if (distribuidorId) {
+    query = query.eq("distribuidor_id", distribuidorId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error fetching sesiones:", error);
+    throw new Error(`Error al obtener sesiones: ${error.message}`);
+  }
+
+  return (data || []).map(mapSesionFromDB);
+}
+
+// =====================================================
+// QUERIES - MOVIMIENTOS DE CAJA
+// =====================================================
+
+/**
+ * Agrega un movimiento de caja (depósito o retiro)
+ */
+export async function agregarMovimientoCaja(
+  sesionId: string,
+  tipo: "deposito" | "retiro",
+  monto: number,
+  concepto: string,
+  autorizadoPor?: string
+): Promise<CajaMovimiento> {
+  const supabase = createAdminClient();
+
+  // Validar que la sesión esté abierta
+  const { data: sesionData, error: sesionError } = await supabase
+    .from("caja_sesiones")
+    .select("estado")
+    .eq("id", sesionId)
+    .single();
+
+  if (sesionError || !sesionData) {
+    throw new Error("Sesión de caja no encontrada");
+  }
+
+  if (sesionData.estado !== "abierta") {
+    throw new Error("No se pueden agregar movimientos a una sesión cerrada");
+  }
+
+  // Insertar movimiento
+  const { data, error } = await supabase
+    .from("caja_movimientos")
+    .insert({
+      sesion_id: sesionId,
+      tipo,
+      monto,
+      concepto,
+      autorizado_por: autorizadoPor || null,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error("Error creating movimiento:", error);
+    throw new Error(`Error al crear movimiento: ${error?.message || "Unknown error"}`);
+  }
+
+  return mapMovimientoFromDB(data);
+}
+
+/**
+ * Obtiene los movimientos de una sesión
+ */
+export async function getMovimientosSesion(sesionId: string): Promise<CajaMovimiento[]> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("caja_movimientos")
+    .select("*")
+    .eq("sesion_id", sesionId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching movimientos:", error);
+    throw new Error(`Error al obtener movimientos: ${error.message}`);
+  }
+
+  return (data || []).map(mapMovimientoFromDB);
+}

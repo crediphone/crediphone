@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sin conexión — CREDIPHONE</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background-color: #EEF2F7;
+      background-image: radial-gradient(circle, rgba(9,36,74,0.04) 1px, transparent 1px);
+      background-size: 24px 24px;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #0B1929;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: #fff;
+      border: 1px solid #DAE5EE;
+      border-radius: 1rem;
+      box-shadow: 0 8px 32px rgba(9,36,74,0.12);
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+
+    .icon-wrap {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #FEF3C7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      font-size: 2rem;
+    }
+
+    .brand {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #0099B8;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: #0B1929;
+    }
+
+    p {
+      font-size: 0.875rem;
+      color: #5A7A90;
+      line-height: 1.6;
+      margin-bottom: 1.75rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.5rem;
+      border-radius: 0.5rem;
+      background: #09244A;
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 200ms;
+    }
+
+    .btn:hover { background: #0E3570; }
+
+    .status {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #5A7A90;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #B45309;
+      margin-right: 0.4rem;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-wrap">📡</div>
+    <div class="brand">CREDIPHONE ERP</div>
+    <h1>Sin conexión a internet</h1>
+    <p>
+      No se puede conectar al servidor en este momento.<br />
+      Verifica tu red y vuelve a intentarlo.
+    </p>
+    <a href="/dashboard" class="btn" onclick="location.reload(); return false;">
+      ↻ Reintentar
+    </a>
+    <div class="status">
+      <span class="dot"></span>
+      Buscando conexión…
+    </div>
+  </div>
+
+  <script>
+    // Cuando recupere conexión, recargar automáticamente
+    window.addEventListener("online", () => {
+      location.reload();
+    });
+  </script>
+</body>
+</html>

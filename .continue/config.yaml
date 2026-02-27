@@ -1,0 +1,231 @@
+# Continue Configuration for CREDIPHONE
+# Optimized for RTX 3060 12GB + Ollama + Claude Code
+# Last updated: 2026-02-15
+
+name: CREDIPHONE Multi-AI Workflow
+version: 0.0.1
+schema: v1
+
+# ==========================================
+# MODELS CONFIGURATION
+# ==========================================
+
+models:
+  # PRIMARY MODEL - Strong local model for implementation
+  - name: DeepSeek Local (Principal)
+    provider: ollama
+    model: deepseek-coder-v2:lite
+    apiBase: http://localhost:11434
+    roles: [chat, edit, apply]
+    contextLength: 16384
+    temperature: 0.1
+    completionOptions:
+      maxTokens: 2048
+      temperature: 0.1
+      topP: 0.95
+
+  # FAST MODEL - Quick autocomplete
+  - name: Qwen Fast (Autocompletado)
+    provider: ollama
+    model: qwen2.5-coder:7b-instruct-q4_K_M
+    apiBase: http://localhost:11434
+    roles: [autocomplete]
+    contextLength: 8192
+    temperature: 0.0
+    completionOptions:
+      maxTokens: 512
+      temperature: 0.0
+
+  # CLOUD MODEL - Claude for critical review (when needed)
+  # NOTE: Only use this for review, architecture, or debugging
+  # Uncomment and add your API key when you have credits
+  # - name: Claude Review (Solo Review)
+  #   provider: anthropic
+  #   model: claude-sonnet-4.5-20250929
+  #   apiKey: sk-ant-YOUR_KEY_HERE
+  #   roles: [chat]
+  #   contextLength: 200000
+  #   temperature: 0.1
+
+# ==========================================
+# SYSTEM PROMPTS
+# ==========================================
+
+systemMessage: |
+  Eres un experto desarrollador trabajando en CREDIPHONE, un sistema POS multi-tenant con Next.js 15, TypeScript y Supabase.
+
+  REGLAS CRÍTICAS:
+  1. Siempre lee CODE_PATTERNS.md antes de hacer cambios
+  2. TypeScript: camelCase
+  3. SQL: snake_case
+  4. NUNCA uses 'any' en TypeScript
+  5. NUNCA modifiques migraciones ya aplicadas
+  6. Usa createAdminClient() para operaciones server-side
+  7. Respeta la arquitectura multi-tenant (distribuidor_id)
+
+  WORKFLOW:
+  1. Lee docs/CURRENT_STATE.md para entender el estado
+  2. Lee docs/TASK_CHECKLIST.md para ver tareas pendientes
+  3. Implementa SOLO la tarea asignada
+  4. Actualiza documentación después de completar
+  5. NO hagas cambios fuera del scope de la tarea
+
+# ==========================================
+# CUSTOM COMMANDS
+# ==========================================
+
+customCommands:
+  - name: task
+    description: Implementar tarea del checklist
+    prompt: |
+      Lee estos archivos en orden:
+      1. docs/CURRENT_STATE.md (estado del proyecto)
+      2. docs/TASK_CHECKLIST.md (tareas pendientes)
+      3. CODE_PATTERNS.md (patrones obligatorios)
+
+      Ahora implementa esta tarea siguiendo los patrones exactos:
+      {{{ input }}}
+
+      Después de implementar:
+      - Actualiza TASK_CHECKLIST.md marcando la tarea como completada
+      - Actualiza CURRENT_STATE.md con el progreso
+      - NO modifiques nada fuera del scope
+
+  - name: fix
+    description: Corregir error siguiendo patrones
+    prompt: |
+      Analiza este error siguiendo CODE_PATTERNS.md:
+      {{{ input }}}
+
+      Proporciona:
+      1. Causa raíz del error
+      2. Solución que respeta los patrones
+      3. Código corregido
+
+  - name: review
+    description: Revisar cambios antes de commit
+    prompt: |
+      Revisa estos cambios buscando:
+      1. Violaciones de CODE_PATTERNS.md
+      2. Bugs potenciales
+      3. Edge cases no manejados
+      4. Problemas de seguridad
+      5. Inconsistencias de naming (camelCase vs snake_case)
+
+      Cambios a revisar:
+      {{{ input }}}
+
+  - name: phase20
+    description: Ayuda específica para FASE 20 (Payjoy)
+    prompt: |
+      Estoy trabajando en FASE 20: Integración Payjoy.
+
+      Lee docs/payjoy/FASE20-DECISIONS.md para entender las decisiones técnicas.
+
+      Tarea específica:
+      {{{ input }}}
+
+      Recuerda:
+      - Dual-field pattern: payjoy_payment_method (readonly) + metodo_pago_tienda (editable)
+      - Webhook con HMAC-SHA256
+      - Idempotencia por transaction_id
+
+  - name: phase22
+    description: Ayuda específica para FASE 22 (Inventario)
+    prompt: |
+      Estoy trabajando en FASE 22: Inventario Avanzado.
+
+      Contexto:
+      - Backend YA completo (categorias.ts, proveedores.ts)
+      - Tipos YA definidos
+      - Faltan: Formularios de crear/editar
+
+      Tarea específica:
+      {{{ input }}}
+
+      Recuerda:
+      - Multi-tenant: siempre incluir distribuidor_id
+      - RLS policies ya configuradas
+      - Usar getDistribuidorId() para obtener contexto
+
+# ==========================================
+# CONTEXT PROVIDERS
+# ==========================================
+
+contextProviders:
+  - name: codebase
+    params:
+      nRetrieve: 25
+      nFinal: 10
+      useReranking: true
+
+  - name: folder
+    params:
+      folders:
+        - docs
+        - src/types
+        - CODE_PATTERNS.md
+
+  - name: code
+    params:
+      includePatterns:
+        - "**/*.ts"
+        - "**/*.tsx"
+        - "**/*.sql"
+      excludePatterns:
+        - "**/node_modules/**"
+        - "**/.next/**"
+        - "**/dist/**"
+
+# ==========================================
+# SLASH COMMANDS
+# ==========================================
+
+slashCommands:
+  - name: edit
+    description: Editar código con contexto completo
+
+  - name: comment
+    description: Agregar comentarios al código
+
+  - name: share
+    description: Compartir conversación
+
+  - name: cmd
+    description: Ejecutar comando terminal
+
+  - name: commit
+    description: Generar mensaje de commit
+
+# ==========================================
+# EXPERIMENTAL FEATURES
+# ==========================================
+
+experimental:
+  modelRoles: true
+  multiFileEdit: true
+  contextReranking: true
+
+# ==========================================
+# TELEMETRY
+# ==========================================
+
+allowAnonymousTelemetry: false
+
+# ==========================================
+# NOTES
+# ==========================================
+# Para usar Claude Review:
+# 1. Descomentar el modelo Claude arriba
+# 2. Agregar tu API key
+# 3. Usar solo para review crítico, no para implementación
+#
+# Modelos Ollama instalados:
+# - deepseek-coder-v2:lite (~8.9GB VRAM)
+# - qwen2.5-coder:7b-instruct-q4_K_M (~4.5GB VRAM)
+#
+# Workflow recomendado:
+# 1. /task "T20: Modificar configuracion/page.tsx" (usa DeepSeek local)
+# 2. npm run build (validar)
+# 3. git commit
+# 4. /review (opcional, con Claude si tienes créditos)

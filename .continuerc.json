@@ -1,0 +1,126 @@
+{
+  "$schema": "https://continue.dev/config-schema.json",
+  "models": [
+    {
+      "title": "Google Gemini 2.0 Flash (Free)",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash-exp",
+      "apiKey": "YOUR_GOOGLE_API_KEY_HERE",
+      "apiBase": "https://generativelanguage.googleapis.com/v1beta/"
+    },
+    {
+      "title": "Claude Sonnet 4.5",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-5-20250929",
+      "apiKey": "YOUR_ANTHROPIC_API_KEY_HERE"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Gemini Flash",
+    "provider": "gemini",
+    "model": "gemini-2.0-flash-exp",
+    "apiKey": "YOUR_GOOGLE_API_KEY_HERE"
+  },
+  "embeddingsProvider": {
+    "provider": "gemini",
+    "model": "text-embedding-004",
+    "apiKey": "YOUR_GOOGLE_API_KEY_HERE"
+  },
+  "contextProviders": [
+    {
+      "name": "code",
+      "params": {}
+    },
+    {
+      "name": "docs",
+      "params": {}
+    },
+    {
+      "name": "diff",
+      "params": {}
+    },
+    {
+      "name": "terminal",
+      "params": {}
+    },
+    {
+      "name": "problems",
+      "params": {}
+    },
+    {
+      "name": "folder",
+      "params": {}
+    },
+    {
+      "name": "codebase",
+      "params": {}
+    }
+  ],
+  "slashCommands": [
+    {
+      "name": "edit",
+      "description": "Edit selected code"
+    },
+    {
+      "name": "comment",
+      "description": "Write comments for the selected code"
+    },
+    {
+      "name": "share",
+      "description": "Export the current chat session to markdown"
+    },
+    {
+      "name": "cmd",
+      "description": "Generate a shell command"
+    },
+    {
+      "name": "commit",
+      "description": "Generate a commit message for current changes"
+    }
+  ],
+  "customCommands": [
+    {
+      "name": "task",
+      "prompt": "Lee docs/CURRENT_STATE.md y docs/TASK_CHECKLIST.md. Dime qué tareas están pendientes de FASE 20 y cuál debería hacer primero.",
+      "description": "Ver próxima tarea de FASE 20"
+    },
+    {
+      "name": "patterns",
+      "prompt": "Lee CODE_PATTERNS.md y revisa el código seleccionado. Identifica:\n1. ¿Está usando camelCase (TS) y snake_case (SQL) correctamente?\n2. ¿Hay algún 'any'?\n3. ¿Los imports están organizados?\n4. ¿Falta algún tipo?\nMuestra solo problemas encontrados.",
+      "description": "Revisar código contra patrones"
+    },
+    {
+      "name": "implement",
+      "prompt": "Lee docs/TASK_CHECKLIST.md y busca la tarea {{{input}}}. Implementa esa tarea siguiendo CODE_PATTERNS.md. Al terminar, actualiza docs/CURRENT_STATE.md y marca la tarea en TASK_CHECKLIST.md.",
+      "description": "Implementar tarea específica (ej: /implement T03)"
+    },
+    {
+      "name": "review",
+      "prompt": "Revisa el código seleccionado:\n1. Lee CODE_PATTERNS.md primero\n2. Verifica naming conventions\n3. Verifica tipos (no 'any')\n4. Verifica imports\n5. Verifica error handling\nDa feedback específico y sugerencias de mejora.",
+      "description": "Revisar código contra estándares"
+    }
+  ],
+  "allowAnonymousTelemetry": false,
+  "docs": [
+    {
+      "title": "Next.js 15",
+      "startUrl": "https://nextjs.org/docs"
+    },
+    {
+      "title": "Supabase",
+      "startUrl": "https://supabase.com/docs"
+    },
+    {
+      "title": "Payjoy API",
+      "startUrl": "https://www.payjoy.com/apidocs/"
+    },
+    {
+      "title": "TypeScript",
+      "startUrl": "https://www.typescriptlang.org/docs/"
+    },
+    {
+      "title": "Tailwind CSS",
+      "startUrl": "https://tailwindcss.com/docs"
+    }
+  ]
+}

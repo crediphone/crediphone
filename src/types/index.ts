@@ -1,0 +1,1056 @@
+// Tipos principales del sistema CREDIPHONE
+
+// Roles de usuario/empleado
+export type UserRole = "super_admin" | "admin" | "vendedor" | "cobrador" | "tecnico";
+
+export interface Distribuidor {
+  id: string;
+  nombre: string;
+  slug: string;
+  logoUrl?: string;
+  activo: boolean;
+  configuracion?: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  distribuidorId?: string; // FASE 21: Multi-tenant
+  // Campos de RH (FASE 7)
+  telefono?: string;
+  direccion?: string;
+  fechaIngreso?: Date;
+  sueldoBase?: number;
+  comisionPorcentaje?: number;
+  fotoPerfil?: string;
+  activo: boolean;
+  notas?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Alias para mayor claridad en el módulo de empleados
+export type Empleado = User;
+
+// Tipo para formularios de empleado (sin id, createdAt, updatedAt)
+export type EmpleadoFormData = Omit<Empleado, "id" | "createdAt" | "updatedAt">;
+
+// Tipos para estadísticas de desempeño
+export interface DesempenoVendedor {
+  totalCreditos: number;
+  montoTotalVendido: number;
+  comisionGanada: number;
+}
+
+export interface DesempenoCobrador {
+  totalPagos: number;
+  montoTotalCobrado: number;
+}
+
+export interface Cliente {
+  id: string;
+  distribuidorId?: string; // FASE 21
+  nombre: string;
+  apellido: string;
+  telefono: string;
+  email?: string;
+  direccion: string;
+  curp: string;
+  ine: string;
+  // Campos de INE (FASE 4)
+  ineNumero?: string;
+  ineOcr?: string;
+  fechaNacimiento?: Date;
+  calle?: string;
+  numeroExterior?: string;
+  numeroInterior?: string;
+  colonia?: string;
+  municipio?: string;
+  estado?: string;
+  codigoPostal?: string;
+  seccionElectoral?: string;
+  vigencia?: Date;
+  claveElector?: string;
+  imagenIneFrontal?: string;
+  imagenIneReverso?: string;
+  // Alias para compatibilidad con formulario
+  fotoIneFrontal?: string;
+  fotoIneReverso?: string;
+  fotoComprobanteDomicilio?: string;
+  fotoAdicional1?: string;
+  fotoAdicional2?: string;
+  // Consentimiento WhatsApp (FASE 27)
+  aceptaNotificacionesWhatsapp?: boolean;
+  aceptaPromocionesWhatsapp?: boolean;
+  preferenciasPromociones?: {
+    accesorios?: boolean;
+    combos?: boolean;
+    celulares?: boolean;
+  };
+  fechaConsentimiento?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Credito {
+  id: string;
+  distribuidorId?: string; // FASE 21
+  folio?: string; // Formato: CRED-2024-00001
+  clienteId: string;
+  monto: number; // Monto total a financiar (después de enganche)
+  montoOriginal?: number; // Valor original del producto/crédito
+  enganche?: number; // Enganche pagado (10% por defecto)
+  enganchePorcentaje?: number; // Porcentaje de enganche (10-50%)
+  plazo: number; // meses
+  tasaInteres: number; // porcentaje anual
+  frecuenciaPago?: "semanal" | "quincenal" | "mensual";
+  montoPago?: number; // monto de cada pago según frecuencia
+  pagoQuincenal: number; // mantener por compatibilidad con DB
+  fechaInicio: Date;
+  fechaFin: Date;
+  estado: "activo" | "pagado" | "vencido" | "cancelado";
+  diasMora?: number; // Días de retraso
+  montoMora?: number; // Monto acumulado por mora
+  tasaMoraDiaria?: number; // Cobro por día de retraso (default: 50 MXN)
+  vendedorId: string;
+  productosIds?: string[]; // IDs de productos asociados (para futuro)
+  firmaCliente?: string; // Firma del cliente (base64 o texto)
+  tipoFirma?: "manuscrita" | "digital"; // Tipo de firma
+  fechaFirma?: Date; // Fecha de firma del contrato
+  // FASE 20: Campos Payjoy
+  payjoyFinanceOrderId?: string; // ID de orden de financiamiento en Payjoy
+  payjoyCustomerId?: string; // ID de cliente en Payjoy
+  payjoySyncEnabled?: boolean; // Sincronización automática habilitada
+  payjoyLastSyncAt?: Date; // Última sincronización con Payjoy
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DetallePagoMixto {
+  metodo: "efectivo" | "transferencia" | "deposito";
+  monto: number;
+}
+
+export interface Pago {
+  id: string;
+  distribuidorId?: string; // FASE 21
+  creditoId: string;
+  monto: number;
+  fechaPago: Date;
+  metodoPago: "efectivo" | "transferencia" | "deposito" | "mixto" | "payjoy";
+  referencia?: string;
+  detallePago?: DetallePagoMixto[];
+  cobradorId: string;
+  // FASE 20: Campos Payjoy
+  metodoPagoTienda?: string; // Método real usado en tienda (editable, para cuadre de caja)
+  payjoyTransactionId?: string; // ID único de transacción en Payjoy (idempotencia)
+  payjoyPaymentMethod?: string; // Método de pago en Payjoy (readonly desde webhook)
+  payjoyCustomerName?: string; // Nombre del cliente desde webhook
+  payjoyWebhookId?: string; // Referencia al webhook que creó este pago
+  createdAt: Date;
+}
+
+export interface Categoria {
+  id: string;
+  distribuidorId: string;
+  nombre: string;
+  descripcion?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Proveedor {
+  id: string;
+  distribuidorId: string;
+  nombre: string;
+  contacto?: string;
+  telefono?: string;
+  email?: string;
+  rfc?: string;
+  direccion?: string;
+  notas?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Producto {
+  id: string;
+  distribuidorId?: string; // FASE 21
+  nombre: string;
+  marca: string;
+  modelo: string;
+  precio: number;
+  stock: number;
+  imagen?: string;
+  descripcion?: string;
+  activo?: boolean;
+
+  // FASE 22: Inventario Avanzado
+  categoriaId?: string;
+  proveedorId?: string;
+  costo?: number; // Precio de compra / base
+  stockMinimo?: number; // Punto de reorden
+  stockMaximo?: number; // Inventario ideal
+  tipo?: "accesorio" | "pieza_reparacion" | "equipo_nuevo" | "equipo_usado" | "servicio";
+  esSerializado?: boolean; // Requiere IMEI/Serie
+  ubicacionFisica?: string; // Estante A1, etc.
+
+  // FASE 19: Barcode and Location tracking
+  codigoBarras?: string;
+  sku?: string;
+  ubicacionId?: string; // Deprecated in favor of ubicacionFisica? Or keep for relationship? Keeping for now.
+  ultimaVerificacion?: Date;
+  verificadoPor?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// =====================================================
+// FASE 4: Tipos para INE y Referencias
+// =====================================================
+
+export interface ReferenciaPersonal {
+  id: string;
+  clienteId: string;
+  nombreCompleto: string;
+  parentesco?: string;
+  telefono: string;
+  telefonoAlternativo?: string;
+  domicilio?: string;
+  tiempoConocerlo?: string;
+  ocupacion?: string;
+  notas?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReferenciaLaboral {
+  id: string;
+  clienteId: string;
+  empresa: string;
+  puesto: string;
+  nombreSupervisor?: string;
+  telefonoEmpresa: string;
+  extension?: string;
+  domicilioEmpresa?: string;
+  antiguedad?: string;
+  salarioMensual?: number;
+  tipoContrato?: string;
+  horario?: string;
+  diasLaborales?: string;
+  notas?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Verificacion {
+  id: string;
+  clienteId: string;
+  tipoVerificacion: "ine" | "referencia_personal" | "referencia_laboral";
+  referenciaId?: string;
+  resultado: "exitosa" | "fallida" | "pendiente";
+  metodo?: string;
+  notas?: string;
+  verificadoPor?: string;
+  fechaVerificacion: Date;
+  createdAt: Date;
+}
+
+export interface DatosINE {
+  numero?: string;
+  ocr?: string;
+  curp?: string;
+  nombre?: string;
+  apellidoPaterno?: string;
+  apellidoMaterno?: string;
+  fechaNacimiento?: Date;
+  sexo?: "H" | "M";
+  calle?: string;
+  numeroExterior?: string;
+  numeroInterior?: string;
+  colonia?: string;
+  municipio?: string;
+  estado?: string;
+  codigoPostal?: string;
+  seccionElectoral?: string;
+  vigencia?: Date;
+  claveElector?: string;
+}
+
+// =====================================================
+// FASE 8: TIPOS PARA MÓDULO DE REPARACIONES
+// =====================================================
+
+export type EstadoOrdenReparacion =
+  | "recibido"
+  | "diagnostico"
+  | "presupuesto"
+  | "aprobado"
+  | "en_reparacion"
+  | "completado"
+  | "listo_entrega"
+  | "entregado"
+  | "no_reparable"
+  | "cancelado";
+
+export type TipoGarantia = "garantia_pieza" | "falla_tecnico" | "daño_cliente";
+export type EstadoGarantia = "activa" | "usada" | "vencida" | "cancelada";
+export type PrioridadOrden = "baja" | "normal" | "alta" | "urgente";
+
+export interface ParteReemplazada {
+  parte: string;
+  costo: number;
+  cantidad: number;
+  proveedor?: string;
+  productoId?: string; // Referencia al inventario (opcional)
+}
+
+// Pieza de inventario usada en una reparación (con tracking completo)
+export interface PiezaReparacion {
+  id: string;
+  ordenId: string;
+  productoId: string;
+  nombrePieza: string; // snapshot del nombre al momento de agregar
+  cantidad: number;
+  costoUnitario: number;
+  costoTotal: number;
+  notas?: string;
+  agregadoPor?: string;
+  createdAt: Date;
+  // Datos del producto (join)
+  producto?: {
+    nombre: string;
+    stock: number;
+    imagen?: string;
+  };
+}
+
+// Solicitud de pieza al distribuidor cuando no hay stock
+export type EstadoSolicitudPieza = "pendiente" | "enviada" | "recibida" | "cancelada";
+
+export interface SolicitudPieza {
+  id: string;
+  ordenId: string;
+  productoId?: string;       // Si es un producto del catálogo (stock=0)
+  nombrePieza: string;       // Nombre de la pieza solicitada
+  descripcion?: string;      // Especificaciones adicionales
+  cantidad: number;
+  estado: EstadoSolicitudPieza;
+  solicitadoPor?: string;    // userId del técnico
+  notas?: string;
+  fechaEstimadaLlegada?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  // Joins
+  orden?: { folio: string };
+  producto?: { nombre: string; marca?: string; modelo?: string };
+}
+
+// Garantía de una pieza que falló o estaba dañada
+export type EstadoGarantiaPieza = "pendiente" | "enviada" | "aprobada" | "rechazada" | "resuelta";
+export type TipoResolucionGarantiaPieza = "reemplazo" | "reembolso" | "reparacion" | "sin_resolucion";
+
+export interface GarantiaPieza {
+  id: string;
+  ordenId: string;
+  piezaReparacionId: string;  // Referencia a reparacion_piezas
+  nombrePieza: string;        // snapshot
+  motivoGarantia: string;     // Descripción del problema con la pieza
+  estado: EstadoGarantiaPieza;
+  tipoResolucion?: TipoResolucionGarantiaPieza;
+  notasResolucion?: string;
+  solicitadoPor?: string;     // userId del técnico
+  resueltoPor?: string;       // userId del admin/técnico que resolvió
+  fechaResolucion?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  // Joins
+  piezaReparacion?: {
+    nombrePieza: string;
+    cantidad: number;
+    costoUnitario: number;
+    productoId: string;
+  };
+}
+
+export interface OrdenReparacion {
+  id: string;
+  folio: string;
+  clienteId: string;
+  tecnicoId: string;
+  productoId?: string;
+  creditoId?: string;
+
+  // Información del dispositivo
+  marcaDispositivo: string;
+  modeloDispositivo: string;
+  imei?: string;
+  numeroSerie?: string;
+
+  // Descripción del problema
+  problemaReportado: string;
+  diagnosticoTecnico?: string;
+
+  // Estado de la orden
+  estado: EstadoOrdenReparacion;
+
+  // Costos
+  costoReparacion: number;
+  costoPartes: number;
+  costoTotal: number;
+  partesReemplazadas: ParteReemplazada[];
+
+  // Fechas
+  fechaRecepcion: Date;
+  fechaEstimadaEntrega?: Date;
+  fechaCompletado?: Date;
+  fechaEntregado?: Date;
+
+  // Notas y detalles
+  notasTecnico?: string;
+  notasInternas?: string;
+  accesoriosEntregados?: string;
+  condicionDispositivo?: string;
+
+  // Sistema de garantías
+  esGarantia: boolean;
+  ordenOriginalId?: string;
+  motivoGarantia?: TipoGarantia;
+
+  // Aprobaciones y prioridad
+  prioridad: PrioridadOrden;
+  requiereAprobacion: boolean;
+  aprobadoPorCliente: boolean;
+  fechaAprobacion?: Date;
+  aprobacionParcial?: boolean;
+  notasCliente?: string;
+
+  // Integración con scoring
+  afectaScoring: boolean;
+
+  // FASE 8B/8C: Campos avanzados
+  patronDesbloqueo?: string;
+  passwordDispositivo?: string;
+  cuentasDispositivo?: any[];
+  condicionesFuncionamiento?: any;
+  estadoFisicoDispositivo?: any;
+  deslindesLegales?: string[];
+  firmaCliente?: string;
+  tipoFirma?: "manuscrita" | "digital";
+  fechaFirma?: Date;
+  imagenesIds?: string[];
+  presupuestoTotal?: number;
+  anticiposData?: any[];
+
+  // Auditoría
+  creadoPor?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Mensajería y almacenaje (FASE 27)
+  fechaAvisoRecoleccion?: Date;
+  cobroAlmacenajeInicio?: Date;
+  descuentoRapidoOfrecido?: boolean;
+  descuentoRapidoPorcentaje?: number;
+}
+
+export interface GarantiaReparacion {
+  id: string;
+  ordenId: string;
+  clienteId: string;
+  tipoGarantia: TipoGarantia;
+  diasGarantia: number;
+  fechaInicio: Date;
+  fechaVencimiento: Date;
+  estado: EstadoGarantia;
+  ordenGarantiaId?: string;
+  fechaReclamo?: Date;
+  motivoReclamo?: string;
+  aplicaCosto: boolean;
+  notas?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrdenReparacionDetallada extends OrdenReparacion {
+  clienteNombre: string;
+  clienteApellido?: string;
+  clienteTelefono: string;
+  tecnicoNombre: string;
+}
+
+export interface EstadisticasTecnico {
+  tecnicoId: string;
+  nombreTecnico: string;
+  ordenesActivas: number;
+  ordenesRecibidas: number;
+  ordenesDiagnostico: number;
+  ordenesEnReparacion: number;
+  ordenesCompletadasHoy: number;
+}
+
+export interface TrackingToken {
+  id: string;
+  ordenId: string;
+  token: string;
+  accesos: number;
+  expiresAt?: Date;
+  createdAt: Date;
+}
+
+export interface ConfigNotificacionesReparacion {
+  id: string;
+  horasSinRespuestaTecnico: number;
+  horasListoSinNotificar: number;
+  diasRecordatorioGarantia: number;
+  notificarDiagnosticoCompletado: boolean;
+  notificarPresupuestoAprobado: boolean;
+  notificarReparacionCompletada: boolean;
+  notificarListoEntrega: boolean;
+  plantillaDiagnostico: string;
+  plantillaPresupuestoPendiente: string;
+  plantillaPresupuestoAprobado: string;
+  plantillaReparacionCompletada: string;
+  plantillaListo: string;
+  plantillaRecordatorioGarantia: string;
+  plantillaEscalacionVendedor: string;
+  updatedAt: Date;
+}
+
+// Tipo para formularios de orden (sin id, folio, tecnicoId auto-asignado, etc.)
+export type OrdenReparacionFormData = Omit<
+  OrdenReparacion,
+  "id" | "folio" | "tecnicoId" | "costoTotal" | "createdAt" | "updatedAt"
+>;
+
+// Tipo para actualizar diagnóstico
+export interface DiagnosticoFormData {
+  diagnosticoTecnico: string;
+  costoReparacion: number;
+  costoPartes: number;
+  partesReemplazadas: ParteReemplazada[];
+  fechaEstimadaEntrega?: Date;
+  notasTecnico?: string;
+  requiereAprobacion: boolean;
+}
+
+// =====================================================
+// FASE 8B: TIPOS PARA CAPTURA AVANZADA DE ÓRDENES
+// =====================================================
+
+// Funcionamiento de componentes electrónicos (verde/rojo)
+export interface CondicionesFuncionamiento {
+  bateria: "ok" | "falla";
+  pantallaTactil: "ok" | "falla"; // Pantalla y táctil unificados
+  camaras: "ok" | "falla"; // Cámaras frontal y trasera unificadas
+  microfono: "ok" | "falla";
+  altavoz: "ok" | "falla";
+  bluetooth: "ok" | "falla";
+  wifi: "ok" | "falla";
+  botonEncendido: "ok" | "falla";
+  botonesVolumen: "ok" | "falla";
+  sensorHuella: "ok" | "falla";
+  llegaApagado?: boolean;
+  estaMojado?: boolean;
+  bateriaHinchada?: boolean;
+}
+
+// Estado físico del dispositivo (estético/visual)
+export type EstadoFisico = "perfecto" | "rallado" | "golpeado" | "quebrado";
+
+export interface EstadoFisicoDispositivo {
+  marco: EstadoFisico;
+  bisel: EstadoFisico;
+  pantallaFisica: EstadoFisico; // cristal, no touch
+  camaraLente: EstadoFisico;
+  tapaTrasera: EstadoFisico;
+  tieneSIM: boolean;
+  tieneMemoriaSD: boolean;
+  observacionesFisicas?: string; // Para detalles adicionales
+}
+
+// Imágenes del dispositivo en diferentes etapas
+export interface ImagenReparacion {
+  id: string;
+  ordenId: string;
+  tipoImagen: "dispositivo" | "dano" | "accesorio" | "diagnostico" | "finalizado";
+  urlImagen: string;
+  pathStorage: string;
+  ordenVisualizacion: number;
+  descripcion?: string;
+  subidoDesde: "web" | "mobile" | "qr";
+  createdAt: Date;
+}
+
+// Cuentas del dispositivo (Google, Apple, etc.)
+export interface CuentaDispositivo {
+  tipo: "Google" | "Apple" | "Samsung" | "Microsoft" | "Otra";
+  email?: string;
+  usuario?: string;
+  password?: string;
+  notas?: string;
+}
+
+// Sesión temporal para captura de fotos vía QR
+export interface SesionFotoQR {
+  id: string;
+  ordenId: string;
+  token: string;
+  activa: boolean;
+  imagenesSubidas: number;
+  maxImagenes: number;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+// Tipo de firma del cliente
+export type TipoFirma = "manuscrita" | "digital";
+
+// =====================================================
+// FASE 8C: TIPOS PARA PRESUPUESTO Y ANTICIPOS
+// =====================================================
+
+// Tipo de pago
+export type TipoPago = "efectivo" | "transferencia" | "tarjeta" | "mixto";
+
+// Desglose de pago mixto
+export interface DesglosePagoMixto {
+  efectivo?: number;
+  transferencia?: number;
+  tarjeta?: number;
+}
+
+// Anticipo de reparación
+export interface AnticipoReparacion {
+  id: string;
+  ordenId: string;
+  monto: number;
+  tipoPago: TipoPago;
+  desgloseMixto?: DesglosePagoMixto;
+  referenciaPago?: string; // Número de transacción, últimos 4 dígitos tarjeta, etc.
+  notas?: string;
+  recibidoPor?: string; // UUID del usuario que recibió el pago
+  estado: "pendiente" | "aplicado" | "devuelto"; // Ciclo de vida del anticipo
+  fechaAplicado?: Date;
+  fechaDevuelto?: Date;
+  motivoDevolucion?: string;
+  fechaAnticipo: Date;
+  createdAt: Date;
+}
+
+// Presupuesto de reparación
+export interface PresupuestoReparacion {
+  precioManoObra: number;
+  precioPiezas: number;
+  precioTotal: number; // Calculado automáticamente
+  totalAnticipos: number; // Suma de anticipos
+  saldoPendiente: number; // Calculado automáticamente
+  notasPresupuesto?: string;
+  anticipos?: AnticipoReparacion[];
+}
+
+// =====================================================
+// FASE 17: CONFIGURACION DEL SISTEMA
+// =====================================================
+
+// Modulos que pueden habilitarse/deshabilitarse en el sidebar
+export interface ModulosHabilitados {
+  dashboard: boolean; // CORE - no se puede deshabilitar
+  clientes: boolean;
+  creditos: boolean; // Default: false
+  pagos: boolean;
+  productos: boolean;
+  empleados: boolean;
+  reparaciones: boolean; // CORE - no se puede deshabilitar
+  "dashboard-reparaciones": boolean;
+  reportes: boolean;
+  recordatorios: boolean;
+  tecnico: boolean;
+  pos: boolean; // FASE 18: Punto de Venta
+  inventario_avanzado: boolean; // FASE 19: Barcode & Location Management
+}
+
+// Modulos esenciales que no se pueden deshabilitar
+export const CORE_MODULES: (keyof ModulosHabilitados)[] = [
+  "dashboard",
+  "reparaciones",
+];
+
+// Configuracion general del sistema
+export interface Configuracion {
+  id: string;
+  distribuidorId?: string; // FASE 21
+  // Datos del negocio
+  nombreEmpresa: string;
+  rfc: string;
+  direccionEmpresa: string;
+  telefonoEmpresa: string;
+  whatsappNumero: string;
+  // Comisiones por defecto
+  comisionVendedorDefault: number;
+  comisionCobradorDefault: number;
+  // Mora
+  tasaMoraDiaria: number;
+  diasGracia: number;
+  // General
+  diasGarantiaDefault: number;
+  notificacionesActivas: boolean;
+  // Modulos
+  modulosHabilitados: ModulosHabilitados;
+  // FASE 20: Payjoy
+  payjoyEnabled?: boolean;
+  payjoyWebhookUrl?: string;
+  payjoyAutoSyncPayments?: boolean;
+  payjoyLastConnectionTest?: Date;
+  payjoyConnectionStatus?: string;
+  // FASE 20: Comisiones sub-distribuidoras
+  comisionTipo?: "fijo" | "porcentaje";
+  comisionMontoFijo?: number;
+  comisionPorcentajeVenta?: number;
+  // Auditoria
+  updatedAt: Date;
+  updatedBy?: string;
+
+  // Sonidos y push (FASE 28)
+  sonidosConfig?: {
+    habilitado: boolean;
+    volumen: number;
+    sonidoDefault: import("@/lib/sounds").SoundId;
+    mapeoEventos: Record<string, import("@/lib/sounds").SoundId>;
+    sonidoCustomUrl?: string | null;
+  };
+}
+
+// =====================================================
+// FASE 18: SISTEMA POS (PUNTO DE VENTA)
+// =====================================================
+
+// Métodos de pago para ventas POS
+export type MetodoPagoVenta = "efectivo" | "transferencia" | "tarjeta" | "mixto";
+
+// Estados de una venta
+export type EstadoVenta = "completada" | "cancelada" | "reembolsada";
+
+// Estados de sesión de caja
+export type EstadoCajaSesion = "abierta" | "cerrada";
+
+// Tipos de movimientos de caja
+export type TipoMovimientoCaja = "deposito" | "retiro" | "entrada_anticipo" | "devolucion_anticipo";
+
+// Desglose de pago mixto para ventas
+export interface DesglosePagoMixtoVenta {
+  efectivo?: number;
+  transferencia?: number;
+  tarjeta?: number;
+}
+
+// Venta POS
+export interface Venta {
+  id: string;
+  distribuidorId?: string; // FASE 21
+  folio: string; // VENTA-YYYY-#####
+  clienteId?: string; // Opcional para ventas sin cliente registrado
+  vendedorId: string;
+  sesionCajaId?: string;
+
+  // Montos
+  subtotal: number;
+  descuento: number;
+  total: number;
+
+  // Métodos de pago
+  metodoPago: MetodoPagoVenta;
+  desgloseMixto?: DesglosePagoMixtoVenta;
+  referenciaPago?: string; // Número de transacción, últimos 4 dígitos tarjeta, etc.
+
+  // Solo para efectivo
+  montoRecibido?: number;
+  cambio?: number;
+
+  // Metadata
+  notas?: string;
+  estado: EstadoVenta;
+  fechaVenta: Date;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Item de venta (línea de producto)
+export interface VentaItem {
+  id: string;
+  ventaId: string;
+  productoId: string;
+
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+
+  // Snapshot del producto (para historial)
+  productoNombre?: string;
+  productoMarca?: string;
+  productoModelo?: string;
+
+  createdAt: Date;
+}
+
+// Sesión de caja (turno)
+export interface CajaSesion {
+  id: string;
+  distribuidorId?: string; // FASE 21
+  folio: string; // CAJA-YYYY-#####
+  usuarioId: string;
+
+  // Apertura
+  montoInicial: number;
+  fechaApertura: Date;
+  notasApertura?: string;
+
+  // Cierre
+  montoFinal?: number;
+  montoEsperado?: number; // Calculado: inicial + ventas efectivo + depósitos - retiros
+  diferencia?: number; // Calculado: final - esperado (positivo = sobrante, negativo = faltante)
+  fechaCierre?: Date;
+  notasCierre?: string;
+
+  // Estado
+  estado: EstadoCajaSesion;
+
+  // Estadísticas (calculadas al cierre)
+  totalVentasEfectivo: number;
+  totalVentasTransferencia: number;
+  totalVentasTarjeta: number;
+  totalRetiros: number;
+  totalDepositos: number;
+  numeroVentas: number;
+
+  // FASE 20: Stats de Payjoy (informativo, solo en respuesta de cierre)
+  payjoyStats?: {
+    totalPagosPayjoy: number;
+    montoTotalPayjoy: number;
+    desglosePagos: Array<{
+      pagoId: string;
+      transactionId: string;
+      clienteNombre: string;
+      monto: number;
+      payjoyPaymentMethod: string;
+      hora: Date;
+    }>;
+  };
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Movimiento de caja (depósito o retiro)
+export interface CajaMovimiento {
+  id: string;
+  sesionId: string;
+  tipo: TipoMovimientoCaja;
+  monto: number;
+  concepto: string;
+  autorizadoPor?: string; // Nombre del supervisor/admin que autorizó
+  createdAt: Date;
+}
+
+// Venta detallada (con joins)
+export interface VentaDetallada extends Venta {
+  vendedorNombre?: string;
+  clienteNombre?: string;
+  clienteApellido?: string;
+  items?: VentaItemDetallado[];
+}
+
+// Item de venta detallado (con producto completo)
+export interface VentaItemDetallado extends VentaItem {
+  producto?: Producto;
+}
+
+// Formulario para crear nueva venta
+export interface NuevaVentaFormData {
+  clienteId?: string;
+  items: {
+    productoId: string;
+    cantidad: number;
+    precioUnitario: number;
+  }[];
+  descuento: number;
+  metodoPago: MetodoPagoVenta;
+  desgloseMixto?: DesglosePagoMixtoVenta;
+  referenciaPago?: string;
+  montoRecibido?: number; // Para efectivo
+  notas?: string;
+}
+
+// Estadísticas del POS
+export interface EstadisticasPOS {
+  ventasHoy: number;
+  totalHoy: number;
+  ventasSemana: number;
+  totalSemana: number;
+  ventasMes: number;
+  totalMes: number;
+  productosMasVendidos: {
+    productoId: string;
+    productoNombre: string;
+    cantidadVendida: number;
+    totalVentas: number;
+  }[];
+}
+
+// =====================================================
+// FASE 19: Sistema de Códigos de Barras y Ubicaciones
+// =====================================================
+
+export type TipoUbicacion = "estante" | "vitrina" | "bodega" | "mostrador";
+export type EstadoVerificacion = "en_proceso" | "completada" | "cancelada";
+export type MotivoMovimiento = "remodelacion" | "reabastecimiento" | "promocion" | "verificacion" | "ajuste";
+export type EstadoAlerta = "pendiente" | "revisado" | "registrado" | "descartado";
+
+// Ubicación física de inventario
+export interface UbicacionInventario {
+  id: string;
+  nombre: string;
+  codigo: string;
+  tipo: TipoUbicacion;
+  descripcion?: string;
+  capacidadMaxima?: number;
+  qrCode?: string;
+  activo: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Movimiento de producto entre ubicaciones
+export interface MovimientoUbicacion {
+  id: string;
+  productoId: string;
+  ubicacionOrigenId?: string;
+  ubicacionDestinoId?: string;
+  usuarioId: string;
+  motivo: MotivoMovimiento;
+  notas?: string;
+  fechaMovimiento: Date;
+  createdAt: Date;
+}
+
+// Movimiento detallado con relaciones
+export interface MovimientoUbicacionDetallado extends MovimientoUbicacion {
+  producto?: Producto;
+  ubicacionOrigen?: UbicacionInventario;
+  ubicacionDestino?: UbicacionInventario;
+  usuario?: User;
+}
+
+// Sesión de verificación de inventario
+export interface VerificacionInventario {
+  id: string;
+  folio: string;
+  usuarioId: string;
+  ubicacionId?: string;
+  fechaInicio: Date;
+  fechaFin?: Date;
+  estado: EstadoVerificacion;
+  totalProductosEsperados: number;
+  totalProductosEscaneados: number;
+  totalProductosFaltantes: number;
+  totalDuplicados: number;
+  notas?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Verificación detallada con relaciones
+export interface VerificacionInventarioDetallada extends VerificacionInventario {
+  usuario?: User;
+  ubicacion?: UbicacionInventario;
+  items?: VerificacionItem[];
+}
+
+// Item escaneado durante verificación
+export interface VerificacionItem {
+  id: string;
+  verificacionId: string;
+  productoId?: string;
+  codigoEscaneado: string;
+  cantidadEscaneada: number;
+  esDuplicado: boolean;
+  esProductoNuevo: boolean;
+  ubicacionEncontradaId?: string;
+  notasScan?: string;
+  fechaScan: Date;
+  createdAt: Date;
+}
+
+// Item detallado con relaciones
+export interface VerificacionItemDetallado extends VerificacionItem {
+  producto?: Producto;
+  ubicacionEncontrada?: UbicacionInventario;
+}
+
+// Alerta de producto no registrado
+export interface AlertaProductoNuevo {
+  id: string;
+  verificacionId: string;
+  verificacionItemId: string;
+  codigoEscaneado: string;
+  escanadoPor: string;
+  imagenUrl?: string;
+  notas?: string;
+  estado: EstadoAlerta;
+  revisadoPor?: string;
+  fechaRevision?: Date;
+  fechaAlerta: Date;
+  createdAt: Date;
+}
+
+// Alerta detallada con relaciones
+export interface AlertaProductoNuevoDetallada extends AlertaProductoNuevo {
+  verificacion?: VerificacionInventario;
+  verificacionItem?: VerificacionItem;
+  usuarioEscaner?: User;
+  usuarioRevisor?: User;
+}
+
+// Form data para crear ubicación
+export interface NuevaUbicacionFormData {
+  nombre: string;
+  codigo?: string;
+  tipo: TipoUbicacion;
+  descripcion?: string;
+  capacidadMaxima?: number;
+}
+
+// Form data para iniciar verificación
+export interface NuevaVerificacionFormData {
+  ubicacionId?: string;
+  notas?: string;
+}
+
+// Form data para escanear producto
+export interface ScanProductoFormData {
+  verificacionId: string;
+  codigoEscaneado: string;
+  ubicacionEncontradaId?: string;
+  notasScan?: string;
+}
+
+// Form data para mover producto
+export interface MoverProductoFormData {
+  productoId: string;
+  ubicacionDestinoId: string;
+  motivo: MotivoMovimiento;
+  notas?: string;
+}
+
+// Stats de verificación
+export interface EstadisticasVerificacion {
+  verificacionesHoy: number;
+  productosEscaneadosHoy: number;
+  productosFaltantesHoy: number;
+  alertasPendientes: number;
+  ubicacionesActivas: number;
+}

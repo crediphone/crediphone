@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(timeout /t 5)",
+      "Bash(findstr:*)",
+      "Bash(Get-Process -Name node -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -First 1 Id,ProcessName)",
+      "Bash(node test-scoring.js:*)",
+      "Bash(powershell -Command \"\\(Get-Content ''src/components/reparaciones/condiciones/ComponenteDeslindes.tsx''\\) -replace ''ComponenteDeslind esProps'',''ComponenteDeslind esProps'' | Set-Content ''src/components/reparaciones/condiciones/ComponenteDeslindes.tsx''\")",
+      "Bash(powershell -Command \"$content = Get-Content ''ComponenteDeslindes.tsx'' -Raw; $content = $content -replace ''interface ComponenteDeslind esProps'',''interface ComponenteDeslind esProps''; $content = $content -replace ''}: ComponenteDeslind esProps\\\\\\)'',''}: ComponenteDeslind esProps\\)''; Set-Content ''ComponenteDeslindes.tsx'' -Value $content -NoNewline\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File fix-interface.ps1:*)",
+      "Bash(node -e \"const fs=require\\(''fs''\\); let c=fs.readFileSync\\(''ComponenteDeslindes.tsx'',''utf8''\\); c=c.replace\\(/ComponenteDeslind esProps/g,''ComponenteDeslind esProps''\\); fs.writeFileSync\\(''ComponenteDeslindes.tsx'',c\\);\")",
+      "Bash(move /Y ModalOrdenMejorado.tsx ModalOrden.tsx)",
+      "Bash(netstat:*)",
+      "Bash(npx next build)",
+      "Bash(npx tsc:*)",
+      "Bash(Get-Content \"c:/Users/usuario 1/crediphone/src/components/clientes/ImportPayjoyModal.tsx\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(ls:*)",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(npx web-push:*)",
+      "Bash(sort:*)",
+      "Bash(git remote add origin https://github.com/crediphone/crediphone.git)",
+      "Bash(git add .)",
+      "Bash(git rm --cached nul)",
+      "Bash(git add --all -- ':!nul')"
+    ]
+  }
+}

@@ -1,0 +1,261 @@
+"use client";
+
+import { useState } from "react";
+import { GeneradorQRFotos } from "./GeneradorQRFotos";
+import { ImagenReparacion } from "@/types";
+
+interface SistemaFotosOrdenProps {
+  ordenId: string;
+  imagenes: ImagenReparacion[];
+  onChange: (imagenes: ImagenReparacion[]) => void;
+  /** En modo creación el ordenId es temporal — deshabilitar QR hasta que la orden se guarde */
+  modoCreacion?: boolean;
+}
+
+export function SistemaFotosOrden({
+  ordenId,
+  imagenes,
+  onChange,
+  modoCreacion = false,
+}: SistemaFotosOrdenProps) {
+  const [metodo, setMetodo] = useState<"qr" | "directo" | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+
+  const handleSubidaDirecta = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivos = e.target.files;
+    if (!archivos || archivos.length === 0) return;
+
+    setSubiendo(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("ordenId", ordenId);
+      formData.append("tipoImagen", "dispositivo");
+      formData.append("subidoDesde", "web");
+
+      Array.from(archivos).forEach((archivo, index) => {
+        formData.append(`imagen${index}`, archivo);
+      });
+
+      const response = await fetch("/api/reparaciones/fotos", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        onChange([...imagenes, ...data.imagenes]);
+        alert(`✓ ${data.total} imagen(es) subida(s) exitosamente`);
+      } else {
+        alert("Error al subir imágenes: " + data.message);
+      }
+    } catch (error) {
+      console.error("Error al subir imágenes:", error);
+      alert("Error al subir imágenes");
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  const handleImagenesQR = (imagenesQR: ImagenReparacion[]) => {
+    // Merge con imagenes existentes, evitando duplicados
+    const ids = new Set(imagenes.map((img) => img.id));
+    const nuevas = imagenesQR.filter((img) => !ids.has(img.id));
+
+    if (nuevas.length > 0) {
+      onChange([...imagenes, ...nuevas]);
+    }
+  };
+
+  const eliminarImagen = async (imagenId: string) => {
+    if (!confirm("¿Eliminar esta imagen?")) return;
+
+    try {
+      const response = await fetch(`/api/reparaciones/fotos/${imagenId}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        onChange(imagenes.filter((img) => img.id !== imagenId));
+      } else {
+        alert("Error al eliminar imagen: " + data.message);
+      }
+    } catch (error) {
+      console.error("Error al eliminar imagen:", error);
+      alert("Error al eliminar imagen");
+    }
+  };
+
+  if (!metodo) {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+          <span>📸</span>
+          <span>Fotos del Dispositivo</span>
+          {imagenes.length > 0 && (
+            <span className="text-xs font-normal text-gray-500">
+              ({imagenes.length} subidas)
+            </span>
+          )}
+        </h3>
+
+        <div className="grid grid-cols-2 gap-3">
+          {modoCreacion ? (
+            <div className="p-6 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 text-center opacity-60 cursor-not-allowed">
+              <div className="text-4xl mb-2">📱</div>
+              <div className="text-sm font-semibold text-gray-500 mb-1">
+                QR desde Celular
+              </div>
+              <div className="text-xs text-gray-400">
+                Disponible al guardar la orden
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMetodo("qr")}
+              className="p-6 rounded-lg border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all text-center group"
+            >
+              <div className="text-4xl mb-2">📱</div>
+              <div className="text-sm font-semibold text-gray-800 mb-1">
+                QR desde Celular
+              </div>
+              <div className="text-xs text-gray-600">
+                Cliente escanea y sube fotos
+              </div>
+            </button>
+          )}
+
+          {modoCreacion ? (
+            <div className="p-6 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 text-center opacity-60 cursor-not-allowed">
+              <div className="text-4xl mb-2">💻</div>
+              <div className="text-sm font-semibold text-gray-500 mb-1">
+                Subida Directa
+              </div>
+              <div className="text-xs text-gray-400">
+                Disponible al guardar la orden
+              </div>
+            </div>
+          ) : (
+            <label className="p-6 rounded-lg border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-all text-center cursor-pointer group">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleSubidaDirecta}
+                disabled={subiendo}
+                className="hidden"
+              />
+              <div className="text-4xl mb-2">💻</div>
+              <div className="text-sm font-semibold text-gray-800 mb-1">
+                Subida Directa
+              </div>
+              <div className="text-xs text-gray-600">
+                {subiendo ? "Subiendo..." : "Desde esta PC"}
+              </div>
+            </label>
+          )}
+        </div>
+
+        {modoCreacion && (
+          <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded-lg flex gap-2 text-xs text-amber-700">
+            <span>💡</span>
+            <span>
+              Las fotos se pueden agregar desde la <strong>página de detalle</strong> de la orden, una vez guardada. El QR también estará disponible ahí.
+            </span>
+          </div>
+        )}
+
+        {imagenes.length > 0 && (
+          <div className="mt-4">
+            <div className="text-xs font-semibold text-gray-700 mb-2">
+              Imágenes guardadas ({imagenes.length})
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {imagenes.map((imagen) => (
+                <div
+                  key={imagen.id}
+                  className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-100 group"
+                >
+                  <img
+                    src={imagen.urlImagen}
+                    alt="Foto del dispositivo"
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => eliminarImagen(imagen.id)}
+                    className="absolute top-1 right-1 bg-red-600 text-white w-5 h-5 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (metodo === "qr") {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-bold text-gray-800">
+            📱 Captura vía QR
+          </h3>
+          <button
+            type="button"
+            onClick={() => setMetodo(null)}
+            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            ← Cambiar método
+          </button>
+        </div>
+
+        <GeneradorQRFotos
+          ordenId={ordenId}
+          onImagenesActualizadas={handleImagenesQR}
+        />
+
+        {imagenes.length > 0 && (
+          <div>
+            <div className="text-xs font-semibold text-gray-700 mb-2">
+              Todas las imágenes ({imagenes.length})
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {imagenes.map((imagen) => (
+                <div
+                  key={imagen.id}
+                  className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-100 group"
+                >
+                  <img
+                    src={imagen.urlImagen}
+                    alt="Foto del dispositivo"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-[9px] px-1">
+                    {imagen.subidoDesde === "qr" ? "📱 QR" : "💻 PC"}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => eliminarImagen(imagen.id)}
+                    className="absolute top-1 right-1 bg-red-600 text-white w-5 h-5 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}

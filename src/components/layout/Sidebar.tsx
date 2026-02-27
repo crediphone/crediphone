@@ -1,0 +1,295 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import type { UserRole, ModulosHabilitados } from "@/types";
+import { useConfig } from "@/components/ConfigProvider";
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  Wallet,
+  Package,
+  UserCheck,
+  Wrench,
+  BarChart3,
+  FileBarChart,
+  BellRing,
+  SlidersHorizontal,
+  X,
+  LogOut,
+  ShoppingCart,
+  MapPin,
+  Building2,
+  Tag,
+  Truck,
+  DollarSign,
+  Landmark,
+  History,
+  Layers,
+  AlertTriangle,
+  Settings,
+} from "lucide-react";
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles?: UserRole[];
+  moduleKey?: keyof ModulosHabilitados;
+}
+
+const navItems: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, moduleKey: "dashboard" },
+  { href: "/dashboard/admin/distribuidores", label: "Distribuidores", icon: Building2, roles: ["super_admin"] },
+  { href: "/dashboard/reparaciones", label: "Reparaciones", icon: Wrench, roles: ["admin", "tecnico", "super_admin"], moduleKey: "reparaciones" },
+  { href: "/dashboard/dashboard-reparaciones", label: "KPI Reparaciones", icon: BarChart3, roles: ["admin", "tecnico", "super_admin"], moduleKey: "dashboard-reparaciones" },
+  { href: "/dashboard/clientes", label: "Clientes", icon: Users, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "clientes" },
+  { href: "/dashboard/creditos", label: "Créditos", icon: CreditCard, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "creditos" },
+  { href: "/dashboard/creditos/cartera-vencida", label: "Cartera Vencida", icon: AlertTriangle, roles: ["admin", "cobrador", "super_admin"], moduleKey: "creditos" },
+  { href: "/dashboard/pagos", label: "Pagos", icon: Wallet, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "pagos" },
+  { href: "/dashboard/productos", label: "Productos", icon: Package, roles: ["admin", "vendedor", "super_admin"], moduleKey: "productos" },
+  { href: "/dashboard/admin/categorias", label: "Categorías", icon: Tag, roles: ["admin", "super_admin"], moduleKey: "inventario_avanzado" },
+  { href: "/dashboard/admin/proveedores", label: "Proveedores", icon: Truck, roles: ["admin", "super_admin"], moduleKey: "inventario_avanzado" },
+  { href: "/dashboard/pos", label: "POS", icon: ShoppingCart, roles: ["admin", "vendedor", "super_admin"], moduleKey: "pos" },
+  { href: "/dashboard/pos/caja", label: "Caja", icon: Landmark, roles: ["admin", "vendedor", "super_admin"], moduleKey: "pos" },
+  { href: "/dashboard/pos/historial", label: "Historial Ventas", icon: History, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "pos" },
+  { href: "/dashboard/inventario/verificar", label: "Inventario", icon: MapPin, roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
+  { href: "/dashboard/inventario/ubicaciones", label: "Ubicaciones", icon: Layers, roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
+  { href: "/dashboard/inventario/alertas", label: "Alertas Stock", icon: AlertTriangle, roles: ["admin", "super_admin"], moduleKey: "inventario_avanzado" },
+  { href: "/dashboard/empleados", label: "Empleados", icon: UserCheck, roles: ["admin", "super_admin"], moduleKey: "empleados" },
+  { href: "/dashboard/reportes", label: "Reportes", icon: FileBarChart, roles: ["admin", "super_admin"], moduleKey: "reportes" },
+  { href: "/dashboard/reportes/comisiones", label: "Comisiones", icon: DollarSign, roles: ["admin", "super_admin"], moduleKey: "reportes" },
+  { href: "/dashboard/recordatorios", label: "Recordatorios", icon: BellRing, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "recordatorios" },
+  { href: "/dashboard/tecnico", label: "Técnico", icon: Settings, roles: ["tecnico", "super_admin"], moduleKey: "tecnico" },
+  { href: "/dashboard/configuracion", label: "Configuración", icon: SlidersHorizontal, roles: ["admin", "super_admin"] },
+];
+
+/* ── Helpers ─────────────────────────────────────────────── */
+
+/** Devuelve las iniciales del nombre (máx. 2 caracteres) */
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
+/** Etiqueta legible del rol */
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin:       "Administrador",
+  vendedor:    "Vendedor",
+  cobrador:    "Cobrador",
+  tecnico:     "Técnico",
+};
+
+/* ── Props ───────────────────────────────────────────────── */
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+  userRole: UserRole | null;
+  userName: string | null;
+  onLogout: () => void;
+}
+
+/* ── Componente ──────────────────────────────────────────── */
+export function Sidebar({ isOpen, onClose, userRole, userName, onLogout }: SidebarProps) {
+  const pathname = usePathname();
+  const { isModuleEnabled } = useConfig();
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname.startsWith(href);
+  };
+
+  const filteredItems = navItems.filter((item) => {
+    if (item.roles && (!userRole || !item.roles.includes(userRole))) return false;
+    if (userRole === "super_admin") return true;
+    if (item.moduleKey && !isModuleEnabled(item.moduleKey)) return false;
+    return true;
+  });
+
+  const initials = userName ? getInitials(userName) : "?";
+  const roleLabel = userRole ? (ROLE_LABELS[userRole] ?? userRole) : "";
+
+  return (
+    <>
+      {/* ── Overlay móvil ─────────────────────────────────── */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 lg:hidden"
+          style={{ background: "rgba(5, 12, 22, 0.7)", backdropFilter: "blur(2px)" }}
+          onClick={onClose}
+        />
+      )}
+
+      {/* ── Sidebar panel ─────────────────────────────────── */}
+      <aside
+        className={cn(
+          "fixed top-0 left-0 z-50 h-full w-64 flex flex-col",
+          "lg:static lg:translate-x-0",
+          "transition-transform duration-200 ease-in-out",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{
+          background:  "var(--color-sidebar-bg)",
+          borderRight: "1px solid var(--color-sidebar-border)",
+        }}
+      >
+
+        {/* ── Logo ──────────────────────────────────────────── */}
+        <div
+          className="flex items-center justify-between h-16 px-5 shrink-0"
+          style={{ borderBottom: "1px solid var(--color-sidebar-border)" }}
+        >
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 select-none"
+          >
+            {/* Punto de acento */}
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: "var(--color-sidebar-active)" }}
+            />
+            <span
+              className="text-base font-bold tracking-widest uppercase"
+              style={{
+                fontFamily: "var(--font-mono)",
+                color:      "var(--color-sidebar-active)",
+                letterSpacing: "0.12em",
+              }}
+            >
+              CREDIPHONE
+            </span>
+          </Link>
+
+          {/* Botón cerrar — solo móvil */}
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-lg transition-colors"
+            style={{ color: "var(--color-sidebar-text-dim)" }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* ── Navegación ────────────────────────────────────── */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2">
+          <ul className="space-y-0.5">
+            {filteredItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-100"
+                    style={
+                      active
+                        ? {
+                            background:  "var(--color-sidebar-surface)",
+                            color:       "var(--color-sidebar-active)",
+                            borderLeft:  "2px solid var(--color-sidebar-active)",
+                            paddingLeft: "calc(0.75rem - 2px)",
+                          }
+                        : {
+                            color:       "var(--color-sidebar-text)",
+                            borderLeft:  "2px solid transparent",
+                            paddingLeft: "calc(0.75rem - 2px)",
+                          }
+                    }
+                    onMouseEnter={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLElement).style.background = "var(--color-sidebar-surface)";
+                        (e.currentTarget as HTMLElement).style.color = "var(--color-text-inverted)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!active) {
+                        (e.currentTarget as HTMLElement).style.background = "transparent";
+                        (e.currentTarget as HTMLElement).style.color = "var(--color-sidebar-text)";
+                      }
+                    }}
+                  >
+                    <Icon
+                      className="w-4 h-4 shrink-0"
+                      style={{
+                        color: active
+                          ? "var(--color-sidebar-active)"
+                          : "var(--color-sidebar-text-dim)",
+                      }}
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {/* ── Zona de usuario ───────────────────────────────── */}
+        {userName && (
+          <div
+            className="shrink-0 p-3"
+            style={{ borderTop: "1px solid var(--color-sidebar-border)" }}
+          >
+            <div className="flex items-center gap-3">
+              {/* Avatar con iniciales */}
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold select-none"
+                style={{
+                  background: "var(--color-sidebar-surface)",
+                  color:      "var(--color-sidebar-active)",
+                  border:     "1px solid var(--color-sidebar-border)",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                {initials}
+              </div>
+
+              {/* Nombre + rol */}
+              <div className="flex-1 min-w-0">
+                <p
+                  className="text-sm font-medium truncate"
+                  style={{ color: "var(--color-text-inverted)" }}
+                >
+                  {userName}
+                </p>
+                <p
+                  className="text-xs truncate"
+                  style={{ color: "var(--color-sidebar-text-dim)" }}
+                >
+                  {roleLabel}
+                </p>
+              </div>
+
+              {/* Botón cerrar sesión */}
+              <button
+                onClick={onLogout}
+                title="Cerrar sesión"
+                className="p-2 rounded-lg shrink-0 transition-colors"
+                style={{ color: "var(--color-sidebar-text-dim)" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "var(--color-danger)";
+                  (e.currentTarget as HTMLElement).style.background = "var(--color-sidebar-surface)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "var(--color-sidebar-text-dim)";
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+                }}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </aside>
+    </>
+  );
+}
