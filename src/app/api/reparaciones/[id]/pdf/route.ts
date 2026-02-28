@@ -136,7 +136,7 @@ function parseCondiciones(cond: unknown): {
 }
 
 // ── Términos legales condensados (sin títulos grandes) ────────────────────
-function buildTerms(cond: unknown): string[] {
+function buildTerms(cond: unknown, imei?: string): string[] {
   const obj = (cond && typeof cond === "object" && !Array.isArray(cond))
     ? cond as Record<string, unknown>
     : null;
@@ -182,6 +182,17 @@ function buildTerms(cond: unknown): string[] {
     "El diagnóstico tiene un costo de revisión. Si el cliente rechaza el presupuesto, el equipo se devuelve en el estado en que fue recibido, sin garantía de restitución al estado original. Al aprobar el presupuesto, el cliente autoriza expresamente los trabajos descritos.",
     "El cliente acepta íntegramente los presentes términos al entregar el equipo. Para consultar los términos y condiciones completos, escanee el código QR ubicado al pie de este documento."
   );
+
+  // Cláusula especial si no hay IMEI verificable
+  const imeiVacio = !imei || !imei.trim() ||
+    imei.trim().toLowerCase() === "na" ||
+    imei.trim().toLowerCase() === "n/a";
+
+  if (imeiVacio) {
+    terms.push(
+      "El equipo ingresa sin número IMEI verificable. CREDIPHONE no puede certificar la identidad única del dispositivo ni garantizar que no haya sido reportado como robado. El cliente asume plena responsabilidad por la legitimidad del equipo (Art. 1794, Código Civil Federal)."
+    );
+  }
 
   return terms;
 }
@@ -513,7 +524,7 @@ export async function POST(
 
     // Ítems legales — texto continuo y fluido, sin títulos grandes
     // Font size ≥ 9.5pt según requisito del usuario
-    const terms = buildTerms(orden.condiciones_funcionamiento);
+    const terms = buildTerms(orden.condiciones_funcionamiento, orden.imei ?? "");
     doc.setFontSize(9.5);
     terms.forEach((term, i) => {
       doc.setFont("helvetica", "bold");
