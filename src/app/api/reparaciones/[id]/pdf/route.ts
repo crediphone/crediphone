@@ -374,15 +374,7 @@ export async function POST(
       y2 += fLines.length * 3.8;
     }
 
-    // OKs en verde — agrupadas en una línea
-    if (oks.length > 0) {
-      doc.setFont("helvetica", "normal");
-      tc(doc, C.green);
-      const okStr = `✓ Sin fallas: ${oks.join(", ")}`;
-      const okLines = doc.splitTextToSize(okStr, colW);
-      doc.text(okLines, c2, y2);
-      y2 += okLines.length * 3.8;
-    }
+    // OKs omitidos intencionalmente — solo se documentan daños y alertas
 
     // Accesorios
     if (extras.length > 0) {
