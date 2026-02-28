@@ -129,6 +129,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
   const [cuentasDispositivo, setCuentasDispositivo] = useState<CuentaDispositivo[]>([]);
   const [tipoFirma, setTipoFirma] = useState<TipoFirma | null>(null);
   const [firmaData, setFirmaData] = useState<string | null>(null);
+  const [clienteNombreCompleto, setClienteNombreCompleto] = useState<string>("");
 
   useEffect(() => {
     if (isOpen) {
@@ -445,6 +446,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
     setCuentasDispositivo([]);
     setTipoFirma(null);
     setFirmaData(null);
+    setClienteNombreCompleto("");
     setArchivosPendientes([]);
     setDistribuidorSeleccionado("");
   }
@@ -519,7 +521,13 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
                       <select
                         name="clienteId"
                         value={formData.clienteId}
-                        onChange={handleChange}
+                        onChange={(e) => {
+                          handleChange(e);
+                          const cli = clientes.find(c => c.id === e.target.value);
+                          setClienteNombreCompleto(
+                            cli ? `${cli.nombre} ${cli.apellido ?? ""}`.trim() : ""
+                          );
+                        }}
                         required
                         disabled={loadingClientes}
                         style={{ flex: 1, borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontWeight: 500, fontSize: "0.875rem" }}
@@ -904,6 +912,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
               <SelectorTipoFirma
                 tipoFirma={tipoFirma}
                 firmaData={firmaData}
+                nombreInicial={clienteNombreCompleto}
                 onFirmaCapturada={(tipo, firma) => {
                   setTipoFirma(tipo);
                   setFirmaData(firma);

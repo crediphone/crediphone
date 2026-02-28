@@ -7,23 +7,31 @@ interface SelectorTipoFirmaProps {
   tipoFirma: TipoFirma | null;
   firmaData: string | null;
   onFirmaCapturada: (tipo: TipoFirma, firma: string) => void;
+  nombreInicial?: string;
 }
 
 export function SelectorTipoFirma({
   tipoFirma,
   firmaData,
   onFirmaCapturada,
+  nombreInicial = "",
 }: SelectorTipoFirmaProps) {
   const [tipoSeleccionado, setTipoSeleccionado] = useState<TipoFirma | null>(
     tipoFirma
   );
   const [nombreDigital, setNombreDigital] = useState(
-    tipoFirma === "digital" && firmaData ? firmaData : ""
+    tipoFirma === "digital" && firmaData ? firmaData : nombreInicial
   );
   const [dibujando, setDibujando] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [firmaCapturaManuscrita, setFirmaCapturaManuscrita] = useState(false);
+
+  useEffect(() => {
+    if (!firmaData && nombreInicial) {
+      setNombreDigital(nombreInicial);
+    }
+  }, [nombreInicial, firmaData]);
 
   const CANVAS_WIDTH = 500;
   const CANVAS_HEIGHT = 200;
