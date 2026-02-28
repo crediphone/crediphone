@@ -619,18 +619,23 @@ export async function POST(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.5);
     tc(doc, C.brandDark);
-    doc.text("CREDIPHONE  —  Servicio de Reparación de Equipos Electrónicos", ML, y + 4);
+    doc.text("CREDIPHONE SOLUTIONS S.A. DE C.V.", ML, y + 4);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
+    doc.setFontSize(5.5);
     tc(doc, C.grayLight);
     doc.text(
-      `Folio: ${orden.folio}   ·   Fecha de emisión: ${new Date().toLocaleDateString("es-MX")}   ·   Conforme a LFPC Art. 76 bis   ·   NOM-024-SCFI-2013`,
-      ML, y + 8, { maxWidth: footMaxW }
+      "Prol. Gral. Francisco Villa 218A, Col. 5 de Mayo, Durango, Dgo.  C.P. 34304  ·  Tel: 618 124 5391 / 618 324 0200",
+      ML, y + 7.5, { maxWidth: footMaxW }
     );
-    if (trackingUrl) {
-      doc.text(`Seguimiento en línea: ${trackingUrl}`, ML, y + 12, { maxWidth: footMaxW });
-    }
+    doc.text(
+      "RFC: CAVT870614Q13  ·  Régimen: RESICO  ·  Conforme a LFPC Art. 76 bis  ·  NOM-024-SCFI-2013",
+      ML, y + 11, { maxWidth: footMaxW }
+    );
+    doc.text(
+      `Folio: ${orden.folio}   ·   Emisión: ${new Date().toLocaleDateString("es-MX")}${trackingUrl ? `   ·   Seguimiento: ${trackingUrl}` : ""}`,
+      ML, y + 14.5, { maxWidth: footMaxW }
+    );
 
     /* ── Generar buffer y responder ──────────────────────────── */
     const buffer = Buffer.from(doc.output("arraybuffer"));
