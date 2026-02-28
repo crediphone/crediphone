@@ -129,7 +129,6 @@ export async function GET(
           estado: orden.estado,
           marcaDispositivo: orden.marcaDispositivo,
           modeloDispositivo: orden.modeloDispositivo,
-          imei: orden.imei,
           problemaReportado: orden.problemaReportado,
           diagnosticoTecnico: orden.diagnosticoTecnico,
           costoReparacion: orden.costoReparacion,
