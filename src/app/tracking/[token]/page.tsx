@@ -450,7 +450,7 @@ export default function TrackingPublicoPage() {
 
   function handleContactarWhatsApp() {
     if (!data) return;
-    const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "5215551234567";
+    const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "526181245391";
     const msg = `Hola CREDIPHONE, tengo una consulta sobre mi reparación:\n\nFolio: ${data.orden.folio}\nDispositivo: ${data.orden.marcaDispositivo} ${data.orden.modeloDispositivo}\n\n`;
     window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, "_blank");
   }
@@ -1080,7 +1080,7 @@ export default function TrackingPublicoPage() {
         {/* ── Promociones (solo si el cliente aceptó recibirlas) ── */}
         {data.cliente.aceptaPromociones && (() => {
           const prefs = data.cliente.preferenciasPromociones;
-          const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "5215551234567";
+          const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "526181245391";
           const dispositivo = `${orden.marcaDispositivo} ${orden.modeloDispositivo}`;
 
           type PromoKey = "accesorios" | "combos" | "celulares";

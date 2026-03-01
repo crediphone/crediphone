@@ -165,7 +165,7 @@ export default function ReparacionFolioPage() {
   const pasoActual = PASOS.indexOf(orden.estado);
 
   function handleWhatsApp() {
-    const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "5215551234567";
+    const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "526181245391";
     const msg = `Hola CREDIPHONE, consulta sobre mi reparación:\n\nFolio: ${orden!.folio}\nDispositivo: ${orden!.marcaDispositivo} ${orden!.modeloDispositivo}\n\n`;
     window.open(`https://wa.me/${numero}?text=${encodeURIComponent(msg)}`, "_blank");
   }

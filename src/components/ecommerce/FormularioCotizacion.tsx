@@ -83,7 +83,7 @@ export function FormularioCotizacion({ onClose }: FormularioCotizacionProps) {
           type="tel"
           value={formData.telefono}
           onChange={handleChange}
-          placeholder="55 1234 5678"
+          placeholder="618 124 5391"
           required
         />
 

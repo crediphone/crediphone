@@ -1078,7 +1078,7 @@ export default function CatalogoPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
-              href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "5215551234567"}?text=${encodeURIComponent("Hola CREDIPHONE, necesito ayuda con la reparación de mi celular.")}`}
+              href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "526181245391"}?text=${encodeURIComponent("Hola CREDIPHONE, necesito ayuda con la reparación de mi celular.")}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-3 px-8 py-4 rounded-2xl text-base font-semibold"
