@@ -166,12 +166,12 @@ export function SistemaFotosOrden({
               disabled={subiendo}
               className="hidden"
             />
-            <div className="text-4xl mb-2">💻</div>
+            <div className="text-4xl mb-2">📁</div>
             <div className="text-sm font-semibold text-gray-800 mb-1">
               Subida Directa
             </div>
             <div className="text-xs text-gray-600">
-              {subiendo ? "Subiendo..." : modoCreacion ? `Desde esta PC${archivosPendiente.length > 0 ? ` (${archivosPendiente.length} sel.)` : ""}` : "Desde esta PC"}
+              {subiendo ? "Subiendo..." : modoCreacion ? `Galería o cámara${archivosPendiente.length > 0 ? ` (${archivosPendiente.length} sel.)` : ""}` : "Galería o cámara"}
             </div>
           </label>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import type { OrdenReparacionDetallada, ImagenReparacion } from "@/types";
@@ -33,6 +33,7 @@ export function GaleriaFotosOrden({ orden, onUpdate }: GaleriaFotosOrdenProps) {
   const [eliminando, setEliminando] = useState<string | null>(null);
   const [imagenSeleccionada, setImagenSeleccionada] = useState<string | null>(null);
   const [mostrarQR, setMostrarQR] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFotos = async () => {
     try {
@@ -134,38 +135,33 @@ export function GaleriaFotosOrden({ orden, onUpdate }: GaleriaFotosOrdenProps) {
         <Card>
           <div className="flex flex-wrap gap-3 items-center">
             {/* Subida directa */}
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleSubidaDirecta}
-                disabled={subiendo}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="primary"
-                disabled={subiendo}
-                onClick={(e) => {
-                  e.preventDefault();
-                  const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                  input?.click();
-                }}
-              >
-                {subiendo ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Subiendo...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Subir Fotos
-                  </>
-                )}
-              </Button>
-            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleSubidaDirecta}
+              disabled={subiendo}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="primary"
+              disabled={subiendo}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {subiendo ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Subiendo...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Subir Fotos
+                </>
+              )}
+            </Button>
 
             {/* QR desde celular */}
             <Button
