@@ -48,13 +48,16 @@ export default function EmpleadosPage() {
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(false);
   const [empleadoToDelete, setEmpleadoToDelete] = useState<Empleado | null>(null);
   const [distribuidores, setDistribuidores] = useState<Distribuidor[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
+  const [credencialesModal, setCredencialesModal] = useState(false);
+  const [credenciales, setCredenciales] = useState({ email: "", password: "", name: "" });
 
   const [formData, setFormData] = useState({
     email: "", name: "", role: "vendedor" as UserRole,
     telefono: "", direccion: "",
     fechaIngreso: new Date().toISOString().split("T")[0],
     sueldoBase: 0, comisionPorcentaje: 0, activo: true, notas: "",
-    distribuidorId: "",
+    distribuidorId: "", password: "",
   });
 
   useEffect(() => {
@@ -118,7 +121,8 @@ export default function EmpleadosPage() {
   const handleCreate = () => {
     setModalMode("create");
     setSelectedEmpleado(null);
-    setFormData({ email: "", name: "", role: "vendedor", telefono: "", direccion: "", fechaIngreso: new Date().toISOString().split("T")[0], sueldoBase: 0, comisionPorcentaje: 0, activo: true, notas: "", distribuidorId: "" });
+    setShowPassword(false);
+    setFormData({ email: "", name: "", role: "vendedor", telefono: "", direccion: "", fechaIngreso: new Date().toISOString().split("T")[0], sueldoBase: 0, comisionPorcentaje: 0, activo: true, notas: "", distribuidorId: "", password: "" });
     setIsModalOpen(true);
   };
 
@@ -131,8 +135,9 @@ export default function EmpleadosPage() {
       fechaIngreso: empleado.fechaIngreso ? new Date(empleado.fechaIngreso).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       sueldoBase: empleado.sueldoBase || 0, comisionPorcentaje: empleado.comisionPorcentaje || 0,
       activo: empleado.activo, notas: empleado.notas || "",
-      distribuidorId: empleado.distribuidorId || "",
+      distribuidorId: empleado.distribuidorId || "", password: "",
     });
+    setShowPassword(false);
     setIsModalOpen(true);
   };
 
@@ -168,7 +173,8 @@ export default function EmpleadosPage() {
         await fetchEmpleados(); await fetchStats();
         setIsModalOpen(false);
         if (modalMode === "create" && result.tempPassword) {
-          alert(`✅ Empleado creado exitosamente.\n\n📧 Email: ${formData.email}\n🔑 Contraseña temporal: ${result.tempPassword}\n\nComparte estos datos con el empleado. Deberá cambiar su contraseña al iniciar sesión.`);
+          setCredenciales({ email: formData.email, password: result.tempPassword, name: formData.name });
+          setCredencialesModal(true);
         } else {
           alert(modalMode === "create" ? "Empleado creado exitosamente" : "Empleado actualizado exitosamente");
         }
@@ -461,6 +467,46 @@ export default function EmpleadosPage() {
             />
           </div>
 
+          {/* Campo contraseña — solo al crear */}
+          {modalMode === "create" && (
+            <div>
+              <label className="block text-sm font-medium mb-1" style={labelStyle}>
+                Contraseña de acceso
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Dejar vacío para generar automáticamente"
+                  className="w-full px-3 py-2 pr-10 rounded-lg text-sm focus:outline-none"
+                  style={selectStyle}
+                  minLength={formData.password ? 8 : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  {showPassword ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>
+                Mínimo 8 caracteres. Si lo dejas vacío se genera una contraseña segura automáticamente.
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center">
             <input
               type="checkbox"
@@ -477,9 +523,76 @@ export default function EmpleadosPage() {
 
           <div className="flex justify-end gap-3 pt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-            <Button type="submit" variant="primary">{modalMode === "create" ? "Crear" : "Guardar"}</Button>
+            <Button type="submit" variant="primary">{modalMode === "create" ? "Crear Empleado" : "Guardar Cambios"}</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Credenciales — se muestra tras crear empleado */}
+      <Modal isOpen={credencialesModal} onClose={() => setCredencialesModal(false)} title="✅ Empleado creado exitosamente">
+        <div className="space-y-5">
+          <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+            Comparte estas credenciales con <strong style={{ color: "var(--color-text-primary)" }}>{credenciales.name}</strong> para que pueda iniciar sesión.
+          </p>
+
+          {/* Email */}
+          <div className="rounded-xl p-4" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+            <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Email</p>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}>
+                {credenciales.email}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(credenciales.email)}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                style={{ background: "var(--color-accent-light)", color: "var(--color-accent)" }}
+              >
+                Copiar
+              </button>
+            </div>
+          </div>
+
+          {/* Contraseña */}
+          <div className="rounded-xl p-4" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+            <p className="text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>Contraseña</p>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-bold tracking-widest" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}>
+                {credenciales.password}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(credenciales.password)}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                style={{ background: "var(--color-accent-light)", color: "var(--color-accent)" }}
+              >
+                Copiar
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl p-3" style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}>
+            <p className="text-xs" style={{ color: "var(--color-warning-text)" }}>
+              ⚠️ Guarda esta contraseña ahora — no podrás verla de nuevo después de cerrar este mensaje.
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1"
+              onClick={() => {
+                navigator.clipboard.writeText(`Email: ${credenciales.email}\nContraseña: ${credenciales.password}`);
+              }}
+            >
+              Copiar todo
+            </Button>
+            <Button type="button" variant="primary" className="flex-1" onClick={() => setCredencialesModal(false)}>
+              Entendido
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal Confirmación */}

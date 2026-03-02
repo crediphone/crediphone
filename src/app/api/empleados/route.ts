@@ -114,7 +114,11 @@ export async function POST(request: Request) {
     const effectiveDistribuidorId =
       role === "super_admin" ? (body.distribuidorId || undefined) : (distribuidorId ?? undefined);
 
-    const { tempPassword, ...nuevoEmpleado } = await createEmpleado(body, effectiveDistribuidorId);
+    const { tempPassword, ...nuevoEmpleado } = await createEmpleado(
+      body,
+      effectiveDistribuidorId,
+      body.password || undefined
+    );
 
     return NextResponse.json(
       {

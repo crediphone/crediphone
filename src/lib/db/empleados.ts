@@ -76,13 +76,17 @@ export async function getEmpleadosPorRol(rol: UserRole): Promise<Empleado[]> {
  */
 export async function createEmpleado(
   empleado: Omit<Empleado, "id" | "createdAt" | "updatedAt">,
-  distribuidorId?: string
+  distribuidorId?: string,
+  customPassword?: string
 ): Promise<Empleado & { tempPassword: string }> {
   const supabase = createAdminClient();
 
-  // Generar contraseña temporal segura
+  // Usar contraseña personalizada si es válida (mínimo 8 chars), o generar una
   const { randomBytes } = await import("crypto");
-  const tempPassword = randomBytes(10).toString("base64url").slice(0, 12) + "A1!";
+  const tempPassword =
+    customPassword && customPassword.length >= 8
+      ? customPassword
+      : randomBytes(10).toString("base64url").slice(0, 12) + "A1!";
 
   // 1. Crear usuario en Supabase Auth
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
