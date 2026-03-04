@@ -130,12 +130,15 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error en POST /api/empleados:", error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errCode = (error as any)?.code || (error as any)?.status || "unknown";
+    console.error("Error en POST /api/empleados:", errMsg, "code:", errCode, error);
     return NextResponse.json(
       {
         success: false,
         error: "Error al crear empleado",
-        message: error instanceof Error ? error.message : "Error desconocido",
+        message: errMsg,
+        code: errCode,
       },
       { status: 500 }
     );
