@@ -29,8 +29,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Solo roles con acceso al módulo de reparaciones
-    if (!["admin", "tecnico", "super_admin"].includes(role ?? "")) {
+    // Todos los roles autenticados pueden ver reparaciones (filtrado por distribuidor)
+    if (!role) {
       return NextResponse.json(
         { success: false, error: "Sin permisos para ver reparaciones" },
         { status: 403 }
@@ -104,8 +104,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Solo admin y super_admin pueden crear órdenes de reparación
-    if (!["admin", "super_admin"].includes(role ?? "")) {
+    // Cualquier empleado autenticado puede crear órdenes de servicio (dentro de su distribuidor)
+    // super_admin puede crear en cualquier distribuidor
+    if (!role) {
       return NextResponse.json(
         { success: false, error: "Sin permisos para crear órdenes de reparación" },
         { status: 403 }

@@ -37,16 +37,9 @@ export default function ReparacionesPage() {
   const [selectedOrdenForEstado, setSelectedOrdenForEstado] = useState<OrdenReparacionDetallada | null>(null);
   const [selectedOrden, setSelectedOrden] = useState<OrdenReparacionDetallada | null>(null);
 
-  // Protección de rol — solo admin, tecnico, super_admin
+  // Todos los roles autenticados pueden ver reparaciones
   useEffect(() => {
-    if (!authLoading && user && !["admin", "tecnico", "super_admin"].includes(user.role)) {
-      router.push("/dashboard");
-    }
-  }, [user, authLoading, router]);
-
-  // Cargar órdenes al montar (solo si tiene permisos)
-  useEffect(() => {
-    if (!authLoading && user && ["admin", "tecnico", "super_admin"].includes(user.role)) {
+    if (!authLoading && user) {
       fetchOrdenes();
     }
   }, [authLoading, user]);
@@ -280,8 +273,8 @@ export default function ReparacionesPage() {
             </select>
           </div>
 
-          {/* Botón Nueva Orden — solo admin y super_admin */}
-          {user && ["admin", "super_admin"].includes(user.role) && (
+          {/* Botón Nueva Orden — cualquier empleado autenticado */}
+          {user && (
             <Button
               variant="primary"
               className="whitespace-nowrap"
@@ -433,13 +426,14 @@ export default function ReparacionesPage() {
                         Ver
                       </button>
 
-                      {/* Botón Cambiar Estado (para técnicos) */}
+                      {/* Botón Cambiar Estado — tecnico y admin (jerarquía); vendedor como fallback */}
                       {orden.estado !== "entregado" &&
                         orden.estado !== "cancelado" &&
-                        orden.estado !== "recibido" && (
+                        user && ["admin", "tecnico", "super_admin", "vendedor", "cobrador"].includes(user.role) && (
                           <button
                             onClick={() => handleCambiarEstado(orden)}
-                            style={{ color: "var(--color-primary-mid)" }}
+                            style={{ color: user.role === "vendedor" || user.role === "cobrador" ? "var(--color-warning)" : "var(--color-primary-mid)" }}
+                            title={user.role === "vendedor" || user.role === "cobrador" ? "Cambiar estado (solo si el técnico no está disponible)" : "Cambiar estado"}
                           >
                             Estado
                           </button>

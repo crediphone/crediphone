@@ -43,11 +43,11 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, moduleKey: "dashboard" },
   { href: "/dashboard/admin/distribuidores", label: "Distribuidores", icon: Building2, roles: ["super_admin"] },
-  { href: "/dashboard/reparaciones", label: "Reparaciones", icon: Wrench, roles: ["admin", "tecnico", "super_admin"], moduleKey: "reparaciones" },
+  { href: "/dashboard/reparaciones", label: "Reparaciones", icon: Wrench, roles: ["admin", "tecnico", "vendedor", "cobrador", "super_admin"], moduleKey: "reparaciones" },
   { href: "/dashboard/dashboard-reparaciones", label: "KPI Reparaciones", icon: BarChart3, roles: ["admin", "tecnico", "super_admin"], moduleKey: "dashboard-reparaciones" },
   { href: "/dashboard/clientes", label: "Clientes", icon: Users, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "clientes" },
   { href: "/dashboard/creditos", label: "Créditos", icon: CreditCard, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "creditos" },
-  { href: "/dashboard/creditos/cartera-vencida", label: "Cartera Vencida", icon: AlertTriangle, roles: ["admin", "cobrador", "super_admin"], moduleKey: "creditos" },
+  { href: "/dashboard/creditos/cartera-vencida", label: "Cartera Vencida", icon: AlertTriangle, roles: ["admin", "cobrador", "vendedor", "super_admin"], moduleKey: "creditos" },
   { href: "/dashboard/pagos", label: "Pagos", icon: Wallet, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "pagos" },
   { href: "/dashboard/productos", label: "Productos", icon: Package, roles: ["admin", "vendedor", "super_admin"], moduleKey: "productos" },
   { href: "/dashboard/admin/categorias", label: "Categorías", icon: Tag, roles: ["admin", "super_admin"], moduleKey: "inventario_avanzado" },

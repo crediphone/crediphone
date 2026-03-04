@@ -26,6 +26,8 @@ export default function POSPage() {
   // Estado de sesión de caja
   const [sesionCaja, setSesionCaja] = useState<CajaSesion | null>(null);
   const [loadingSesion, setLoadingSesion] = useState(true);
+  const [cajaOtroEmpleado, setCajaOtroEmpleado] = useState<{ folio: string; nombre: string } | null>(null);
+  const [alertaCajaVisible, setAlertaCajaVisible] = useState(true);
 
   // Estado del carrito
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -60,11 +62,32 @@ export default function POSPage() {
   const fetchSesionActiva = async () => {
     try {
       setLoadingSesion(true);
+      // 1. Verificar sesión propia
       const response = await fetch(`/api/pos/caja?action=activa&usuarioId=${user?.id}`);
       const data = await response.json();
 
       if (data.success && data.data) {
         setSesionCaja(data.data);
+        setCajaOtroEmpleado(null);
+      } else {
+        setSesionCaja(null);
+        // 2. Si no tengo sesión, verificar si hay una sesión de otro empleado en el distribuidor
+        try {
+          const resAll = await fetch("/api/pos/caja");
+          const dataAll = await resAll.json();
+          if (dataAll.success && Array.isArray(dataAll.data)) {
+            const abierta = dataAll.data.find((s: any) => s.estado === "abierta" && s.usuarioId !== user?.id);
+            if (abierta) {
+              setCajaOtroEmpleado({
+                folio: abierta.folio,
+                nombre: abierta.empleadoNombre || "otro empleado",
+              });
+              setAlertaCajaVisible(true);
+            } else {
+              setCajaOtroEmpleado(null);
+            }
+          }
+        } catch {}
       }
     } catch (error) {
       console.error("Error fetching sesion activa:", error);
@@ -276,27 +299,90 @@ export default function POSPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Alerta: caja abierta por otro empleado */}
+      {cajaOtroEmpleado && alertaCajaVisible && (
+        <div
+          className="mb-4 p-4 rounded-lg flex items-start gap-3"
+          style={{
+            background: "var(--color-warning-bg)",
+            border: "1px solid var(--color-warning)",
+          }}
+        >
+          <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: "var(--color-warning)" }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-semibold" style={{ color: "var(--color-warning-text)" }}>
+              {cajaOtroEmpleado.nombre} tiene la caja abierta ({cajaOtroEmpleado.folio})
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--color-warning-text)" }}>
+              Solo puede haber una sesión de caja activa a la vez. Para operar, solicita a {cajaOtroEmpleado.nombre} que cierre su turno.
+            </p>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <Button
+              variant="secondary"
+              onClick={() => router.push("/dashboard/pos/caja")}
+            >
+              Ver Caja
+            </Button>
+            <button
+              onClick={() => setAlertaCajaVisible(false)}
+              className="text-xs px-2"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+            <h1
+              className="text-2xl sm:text-3xl font-bold tracking-tight"
+              style={{ color: "var(--color-text-primary)" }}
+            >
               Punto de Venta (POS)
             </h1>
             {sesionCaja && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Sesión: {sesionCaja.folio} | Monto inicial: ${sesionCaja.montoInicial.toFixed(2)}
+              <p className="text-sm mt-1" style={{ color: "var(--color-text-secondary)" }}>
+                Sesión: <span style={{ fontFamily: "var(--font-mono)" }}>{sesionCaja.folio}</span>
+                {" · "}Monto inicial:{" "}
+                <span style={{ fontFamily: "var(--font-data)" }}>${sesionCaja.montoInicial.toFixed(2)}</span>
               </p>
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            {/* Badge estado de caja */}
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+              style={{
+                background: sesionCaja ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
+                border: `1px solid ${sesionCaja ? "var(--color-success)" : "var(--color-border)"}`,
+              }}
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: sesionCaja ? "var(--color-success)" : "var(--color-text-muted)" }}
+              />
+              <span
+                className="text-xs font-medium"
+                style={{ color: sesionCaja ? "var(--color-success-text)" : "var(--color-text-muted)" }}
+              >
+                {sesionCaja ? `Caja abierta · ${sesionCaja.folio}` : "Sin turno activo"}
+              </span>
+            </div>
+
             <Button
               variant="secondary"
               onClick={() => router.push("/dashboard/pos/caja")}
             >
               <CloseIcon className="w-4 h-4 mr-2" />
-              Gestión de Caja
+              {sesionCaja ? "Cerrar Caja" : "Abrir Caja"}
             </Button>
             <Button
               variant="secondary"
