@@ -12,8 +12,6 @@ export async function POST(
   try {
     const { id: clienteId } = await params;
 
-    console.log(`Recalculando scoring para cliente ${clienteId}...`);
-
     const scoring = await recalcularScoring(clienteId);
 
     if (!scoring) {

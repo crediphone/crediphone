@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthContext } from "@/lib/auth/server";
 
 const BUCKET_NAME = "reparaciones";
 
@@ -85,6 +86,14 @@ async function subirArchivoAlStorage(
 
 export async function POST(request: NextRequest) {
   try {
+    const { userId } = await getAuthContext();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, message: "No autenticado" },
+        { status: 401 }
+      );
+    }
+
     const formData = await request.formData();
     const ordenId = formData.get("ordenId") as string;
     const tipoImagen = (formData.get("tipoImagen") as string) || "dispositivo";
@@ -213,6 +222,14 @@ export async function POST(request: NextRequest) {
 // Listar fotos de una orden
 export async function GET(request: NextRequest) {
   try {
+    const { userId } = await getAuthContext();
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, message: "No autenticado" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const ordenId = searchParams.get("ordenId");
 
