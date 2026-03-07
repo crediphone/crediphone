@@ -60,7 +60,7 @@ export function SistemaFotosOrden({
 
     try {
       const formData = new FormData();
-      formData.append("ordenId", ordenId);
+      formData.append("ordenId", ordenId ?? "");
       formData.append("tipoImagen", "dispositivo");
       formData.append("subidoDesde", "web");
 
