@@ -28,6 +28,8 @@ export default function PaginaFotosQR({
   const [error, setError] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [progreso, setProgreso] = useState(0);
+  // Permite al cliente terminar antes de llegar al máximo de fotos
+  const [terminado, setTerminado] = useState(false);
 
   const inputFileRef = useRef<HTMLInputElement>(null);   // galería
   const inputCamaraRef = useRef<HTMLInputElement>(null); // cámara directa
@@ -178,7 +180,8 @@ export default function PaginaFotosQR({
 
   if (!sesion) return null;
 
-  const puedeSubir = sesion.imagenesSubidas < sesion.maxImagenes;
+  // Puede seguir subiendo si no llegó al máximo Y no marcó "terminado"
+  const puedeSubir = sesion.imagenesSubidas < sesion.maxImagenes && !terminado;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-4">
@@ -271,28 +274,41 @@ export default function PaginaFotosQR({
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {/* Botón: abrir cámara directamente */}
-                <button
-                  type="button"
-                  onClick={() => inputCamaraRef.current?.click()}
-                  disabled={subiendo}
-                  className="py-6 rounded-lg text-center font-bold bg-blue-600 text-white active:scale-95 transition-transform"
-                >
-                  <div className="text-4xl mb-2">📷</div>
-                  <div className="text-sm">Tomar Foto</div>
-                </button>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Botón: abrir cámara directamente */}
+                  <button
+                    type="button"
+                    onClick={() => inputCamaraRef.current?.click()}
+                    disabled={subiendo}
+                    className="py-6 rounded-lg text-center font-bold bg-blue-600 text-white active:scale-95 transition-transform"
+                  >
+                    <div className="text-4xl mb-2">📷</div>
+                    <div className="text-sm">Tomar Foto</div>
+                  </button>
 
-                {/* Botón: seleccionar de galería */}
-                <button
-                  type="button"
-                  onClick={() => inputFileRef.current?.click()}
-                  disabled={subiendo}
-                  className="py-6 rounded-lg text-center font-bold bg-green-600 text-white active:scale-95 transition-transform"
-                >
-                  <div className="text-4xl mb-2">🖼️</div>
-                  <div className="text-sm">Desde Galería</div>
-                </button>
+                  {/* Botón: seleccionar de galería */}
+                  <button
+                    type="button"
+                    onClick={() => inputFileRef.current?.click()}
+                    disabled={subiendo}
+                    className="py-6 rounded-lg text-center font-bold bg-green-600 text-white active:scale-95 transition-transform"
+                  >
+                    <div className="text-4xl mb-2">🖼️</div>
+                    <div className="text-sm">Desde Galería</div>
+                  </button>
+                </div>
+
+                {/* Botón "Ya terminé" — visible cuando hay al menos 1 foto subida */}
+                {sesion.imagenesSubidas > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTerminado(true)}
+                    className="w-full py-3 rounded-lg text-center font-semibold bg-gray-100 text-gray-700 border border-gray-300 active:scale-95 transition-transform"
+                  >
+                    ✓ Listo, ya subí mis fotos ({sesion.imagenesSubidas} de {sesion.maxImagenes})
+                  </button>
+                )}
               </div>
             )}
           </div>
