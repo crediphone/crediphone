@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Cliente anónimo para acceso público
-const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey);
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(
   request: NextRequest,
@@ -21,8 +15,10 @@ export async function GET(
       );
     }
 
+    const supabase = createAdminClient();
+
     // Buscar sesión
-    const { data: sesion, error: sesionError } = await supabaseAnon
+    const { data: sesion, error: sesionError } = await supabase
       .from("sesiones_fotos_qr")
       .select("orden_id")
       .eq("token", token)
@@ -35,8 +31,8 @@ export async function GET(
       );
     }
 
-    // Obtener imágenes subidas
-    const { data: imagenes, error: imagenesError } = await supabaseAnon
+    // Obtener imágenes subidas vía QR para esta orden
+    const { data: imagenes, error: imagenesError } = await supabase
       .from("imagenes_reparacion")
       .select("*")
       .eq("orden_id", sesion.orden_id)

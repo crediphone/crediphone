@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Cliente anónimo para acceso público
-const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function GET(
   request: NextRequest,
@@ -22,8 +15,10 @@ export async function GET(
       );
     }
 
+    const supabase = createAdminClient();
+
     // Buscar sesión activa
-    const { data: sesion, error } = await supabaseAnon
+    const { data: sesion, error } = await supabase
       .from("sesiones_fotos_qr")
       .select("*")
       .eq("token", token)
@@ -41,9 +36,8 @@ export async function GET(
     const expiracion = new Date(sesion.expires_at);
 
     if (!sesion.activa || expiracion < ahora) {
-      // Si expiró pero activa=true, corregir el flag en BD
       if (sesion.activa && expiracion < ahora) {
-        await createAdminClient()
+        await supabase
           .from("sesiones_fotos_qr")
           .update({ activa: false })
           .eq("id", sesion.id);
@@ -55,7 +49,7 @@ export async function GET(
     }
 
     // Obtener información de la orden
-    const { data: orden, error: ordenError } = await supabaseAnon
+    const { data: orden, error: ordenError } = await supabase
       .from("ordenes_reparacion")
       .select("folio, marca_dispositivo, modelo_dispositivo")
       .eq("id", sesion.orden_id)

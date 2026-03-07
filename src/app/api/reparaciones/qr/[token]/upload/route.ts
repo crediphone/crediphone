@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Cliente anónimo solo para validar la sesión QR pública
-const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey);
 
 const BUCKET_NAME = "reparaciones";
 
@@ -62,8 +55,10 @@ export async function POST(
       );
     }
 
+    const supabase = createAdminClient();
+
     // Validar sesión
-    const { data: sesion, error: sesionError } = await supabaseAnon
+    const { data: sesion, error: sesionError } = await supabase
       .from("sesiones_fotos_qr")
       .select("*")
       .eq("token", token)
@@ -81,9 +76,8 @@ export async function POST(
     const expiracion = new Date(sesion.expires_at);
 
     if (!sesion.activa || expiracion < ahora) {
-      // Si expiró pero activa=true, corregir el flag en BD
       if (sesion.activa && expiracion < ahora) {
-        await createAdminClient()
+        await supabase
           .from("sesiones_fotos_qr")
           .update({ activa: false })
           .eq("id", sesion.id);
@@ -115,7 +109,7 @@ export async function POST(
       );
     }
 
-    // Subir imagen al storage usando admin client (server-side, sin browser APIs)
+    // Subir imagen al storage usando admin client
     const resultado = await subirArchivoQR(archivo, sesion.orden_id, tipoImagen);
 
     if (!resultado) {
@@ -125,10 +119,8 @@ export async function POST(
       );
     }
 
-    const supabaseAdmin = createAdminClient();
-
     // Guardar registro en la base de datos
-    const { data: imagenGuardada, error: imagenError } = await supabaseAdmin
+    const { data: imagenGuardada, error: imagenError } = await supabase
       .from("imagenes_reparacion")
       .insert({
         orden_id: sesion.orden_id,
@@ -151,7 +143,7 @@ export async function POST(
     }
 
     // Actualizar contador de imágenes subidas en la sesión
-    await supabaseAdmin
+    await supabase
       .from("sesiones_fotos_qr")
       .update({
         imagenes_subidas: sesion.imagenes_subidas + 1,
