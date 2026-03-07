@@ -67,7 +67,7 @@ function mapOrdenFromDB(dbOrden: any): OrdenReparacion {
 
     notasTecnico: dbOrden.notas_tecnico || undefined,
     notasInternas: dbOrden.notas_internas || undefined,
-    accesoriosEntregados: dbOrden.accesorios_entregados || undefined,
+    accesoriosEntregados: dbOrden.accesorios_incluidos || undefined,
     condicionDispositivo: dbOrden.condicion_dispositivo || undefined,
 
     esGarantia: dbOrden.es_garantia || false,
@@ -444,7 +444,7 @@ export async function createOrdenReparacion(
       modelo_dispositivo: ordenData.modeloDispositivo,
       imei: ordenData.imei || null,
       numero_serie: ordenData.numeroSerie || null,
-      accesorios_entregados: ordenData.accesoriosEntregados || null,
+      accesorios_incluidos: ordenData.accesoriosEntregados || null,
       problema_reportado: ordenData.problemaReportado,
       estado: "recibido",
       costo_reparacion: ordenData.costoReparacion || 0,

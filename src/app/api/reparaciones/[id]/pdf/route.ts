@@ -336,7 +336,7 @@ export async function POST(
     y2 = dataRow(doc, "Modelo:",   orden.modelo_dispositivo || "", c2, y2, colW);
     if (orden.imei)                  y2 = dataRow(doc, "IMEI:",      orden.imei,                  c2, y2, colW);
     if (orden.numero_serie)          y2 = dataRow(doc, "N° Serie:",  orden.numero_serie,          c2, y2, colW);
-    if (orden.accesorios_entregados) y2 = dataRow(doc, "Accesorios:", orden.accesorios_entregados, c2, y2, colW);
+    if (orden.accesorios_incluidos) y2 = dataRow(doc, "Accesorios:", orden.accesorios_incluidos, c2, y2, colW);
 
     y = Math.max(y1, y2) + 1;
     y = hLine(doc, y);
