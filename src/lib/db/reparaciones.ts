@@ -554,9 +554,23 @@ export async function updateDiagnostico(
 ): Promise<OrdenReparacion> {
   const supabase = createAdminClient();
 
-  const nuevoEstado = diagnosticoData.requiereAprobacion
-    ? "presupuesto"
-    : "aprobado";
+  // Obtener el estado actual para no resetear ordenes ya aprobadas/en progreso
+  const { data: ordenActual } = await supabase
+    .from("ordenes_reparacion")
+    .select("estado")
+    .eq("id", ordenId)
+    .single();
+
+  const estadoActual = ordenActual?.estado as string | undefined;
+  // Solo cambiar estado si la orden está en etapas iniciales (diagnóstico / presupuesto).
+  // Si ya está aprobada, en reparación, completada, etc., preservar el estado actual.
+  const estadosFase = ["recibido", "diagnostico", "presupuesto"];
+  const nuevoEstado = estadosFase.includes(estadoActual || "")
+    ? (diagnosticoData.requiereAprobacion ? "presupuesto" : "aprobado")
+    : estadoActual;
+
+  // Calcular costo_total como suma de mano de obra + partes
+  const costoTotal = (diagnosticoData.costoReparacion || 0) + (diagnosticoData.costoPartes || 0);
 
   const { data, error } = await supabase
     .from("ordenes_reparacion")
@@ -564,6 +578,7 @@ export async function updateDiagnostico(
       diagnostico_tecnico: diagnosticoData.diagnosticoTecnico,
       costo_reparacion: diagnosticoData.costoReparacion,
       costo_partes: diagnosticoData.costoPartes,
+      costo_total: costoTotal,
       partes_reemplazadas: diagnosticoData.partesReemplazadas,
       fecha_estimada_entrega: diagnosticoData.fechaEstimadaEntrega || null,
       notas_tecnico: diagnosticoData.notasTecnico || null,
