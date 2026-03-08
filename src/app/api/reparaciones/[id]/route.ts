@@ -6,6 +6,8 @@ import {
   cambiarEstadoOrden,
 } from "@/lib/db/reparaciones";
 import { notificarCambioEstado } from "@/lib/notificaciones-reparaciones";
+import { getAuthContext } from "@/lib/auth/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { EstadoOrdenReparacion, DiagnosticoFormData } from "@/types";
 
 /**
@@ -213,13 +215,30 @@ export async function PUT(
 
 /**
  * DELETE /api/reparaciones/[id]
- * Cancela una orden de reparación (soft delete)
+ * Elimina permanentemente una orden de reparación.
+ * SOLO super_admin tiene acceso.
  */
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { userId, isSuperAdmin } = await getAuthContext();
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: "No autenticado" },
+        { status: 401 }
+      );
+    }
+
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Solo super_admin puede eliminar órdenes" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     // Validar UUID
@@ -227,28 +246,45 @@ export async function DELETE(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(id)) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "ID inválido",
-          message: "El ID proporcionado no es un UUID válido",
-        },
+        { success: false, error: "ID inválido" },
         { status: 400 }
       );
     }
 
-    // Soft delete: cambiar estado a "cancelado"
-    await cambiarEstadoOrden(id, "cancelado", "Orden cancelada por usuario");
+    const supabase = createAdminClient();
+
+    // Eliminar registros dependientes primero para evitar FK violations
+    await supabase.from("tracking_tokens").delete().eq("orden_id", id);
+    await supabase.from("notificaciones").delete().eq("orden_reparacion_id", id);
+    await supabase.from("anticipos_reparacion").delete().eq("orden_id", id);
+    await supabase.from("imagenes_reparacion").delete().eq("orden_id", id);
+    await supabase.from("reparacion_piezas").delete().eq("orden_id", id);
+    await supabase.from("historial_estado_orden").delete().eq("orden_id", id);
+
+    // Eliminar la orden principal
+    const { error } = await supabase
+      .from("ordenes_reparacion")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error al eliminar orden:", error);
+      return NextResponse.json(
+        { success: false, error: "Error al eliminar la orden", message: error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Orden cancelada correctamente",
+      message: "Orden eliminada permanentemente",
     });
   } catch (error) {
     console.error("Error en DELETE /api/reparaciones/[id]:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "Error al cancelar orden de reparación",
+        error: "Error al eliminar orden de reparación",
         message: error instanceof Error ? error.message : "Error desconocido",
       },
       { status: 500 }

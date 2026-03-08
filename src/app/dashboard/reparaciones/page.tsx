@@ -37,6 +37,11 @@ export default function ReparacionesPage() {
   const [selectedOrdenForEstado, setSelectedOrdenForEstado] = useState<OrdenReparacionDetallada | null>(null);
   const [selectedOrden, setSelectedOrden] = useState<OrdenReparacionDetallada | null>(null);
 
+  // Delete confirmation
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteConfirmFolio, setDeleteConfirmFolio] = useState<string>("");
+  const [deleting, setDeleting] = useState(false);
+
   // Todos los roles autenticados pueden ver reparaciones
   useEffect(() => {
     if (!authLoading && user) {
@@ -142,6 +147,25 @@ export default function ReparacionesPage() {
   function handleCambiarEstado(orden: OrdenReparacionDetallada) {
     setSelectedOrdenForEstado(orden);
     setModalCambiarEstadoOpen(true);
+  }
+
+  async function handleEliminarOrden() {
+    if (!deleteConfirmId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${deleteConfirmId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setDeleteConfirmId(null);
+        await fetchOrdenes();
+      } else {
+        alert(data.error || "Error al eliminar");
+      }
+    } catch {
+      alert("Error al eliminar la orden");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -309,6 +333,9 @@ export default function ReparacionesPage() {
             <table className="min-w-full">
               <thead style={{ background: "var(--color-bg-elevated)" }}>
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
+                    Acciones
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
                     Folio
                   </th>
@@ -330,9 +357,6 @@ export default function ReparacionesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
                     Costo
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: "var(--color-text-muted)" }}>
-                    Acciones
-                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -352,6 +376,75 @@ export default function ReparacionesPage() {
                         : "transparent";
                     }}
                   >
+                    {/* ACCIONES — columna izquierda */}
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        {/* Botón Diagnóstico */}
+                        {(orden.estado === "recibido" || orden.estado === "diagnostico") && (
+                          <button
+                            onClick={() => {
+                              setSelectedOrden(orden);
+                              setModalDiagnosticoOpen(true);
+                            }}
+                            className="px-2 py-1 rounded text-xs font-medium"
+                            style={{
+                              color: "var(--color-accent)",
+                              border: "1px solid var(--color-accent)",
+                            }}
+                          >
+                            Diagnóstico
+                          </button>
+                        )}
+
+                        {/* Botón Ver detalles */}
+                        <button
+                          onClick={() => router.push(`/dashboard/reparaciones/${orden.id}`)}
+                          className="px-2 py-1 rounded text-xs font-medium"
+                          style={{
+                            color: "var(--color-text-secondary)",
+                            border: "1px solid var(--color-border)",
+                          }}
+                        >
+                          Ver
+                        </button>
+
+                        {/* Botón Cambiar Estado */}
+                        {orden.estado !== "entregado" &&
+                          orden.estado !== "cancelado" &&
+                          user && ["admin", "tecnico", "super_admin", "vendedor", "cobrador"].includes(user.role) && (
+                            <button
+                              onClick={() => handleCambiarEstado(orden)}
+                              className="px-2 py-1 rounded text-xs font-medium"
+                              style={{
+                                color: user.role === "vendedor" || user.role === "cobrador" ? "var(--color-warning)" : "var(--color-primary-mid)",
+                                border: `1px solid ${user.role === "vendedor" || user.role === "cobrador" ? "var(--color-warning)" : "var(--color-primary-mid)"}`,
+                              }}
+                              title={user.role === "vendedor" || user.role === "cobrador" ? "Cambiar estado (solo si el técnico no está disponible)" : "Cambiar estado"}
+                            >
+                              Estado
+                            </button>
+                          )}
+
+                        {/* Botón Eliminar — solo super_admin */}
+                        {user?.role === "super_admin" && (
+                          <button
+                            onClick={() => {
+                              setDeleteConfirmId(orden.id);
+                              setDeleteConfirmFolio(orden.folio);
+                            }}
+                            className="px-2 py-1 rounded text-xs font-medium"
+                            style={{
+                              color: "var(--color-danger)",
+                              border: "1px solid var(--color-danger)",
+                            }}
+                            title="Eliminar orden permanentemente"
+                          >
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
+                    </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span
@@ -403,42 +496,6 @@ export default function ReparacionesPage() {
                         {formatCurrency(orden.costoTotal)}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      {/* Botón Diagnóstico (si está en recibido o diagnostico) */}
-                      {(orden.estado === "recibido" ||
-                        orden.estado === "diagnostico") && (
-                        <button
-                          onClick={() => {
-                            setSelectedOrden(orden);
-                            setModalDiagnosticoOpen(true);
-                          }}
-                          style={{ color: "var(--color-accent)" }}
-                        >
-                          Diagnóstico
-                        </button>
-                      )}
-
-                      {/* Botón Ver detalles */}
-                      <button
-                        onClick={() => router.push(`/dashboard/reparaciones/${orden.id}`)}
-                        style={{ color: "var(--color-text-secondary)" }}
-                      >
-                        Ver
-                      </button>
-
-                      {/* Botón Cambiar Estado — tecnico y admin (jerarquía); vendedor como fallback */}
-                      {orden.estado !== "entregado" &&
-                        orden.estado !== "cancelado" &&
-                        user && ["admin", "tecnico", "super_admin", "vendedor", "cobrador"].includes(user.role) && (
-                          <button
-                            onClick={() => handleCambiarEstado(orden)}
-                            style={{ color: user.role === "vendedor" || user.role === "cobrador" ? "var(--color-warning)" : "var(--color-primary-mid)" }}
-                            title={user.role === "vendedor" || user.role === "cobrador" ? "Cambiar estado (solo si el técnico no está disponible)" : "Cambiar estado"}
-                          >
-                            Estado
-                          </button>
-                        )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -487,6 +544,80 @@ export default function ReparacionesPage() {
           folio={selectedOrdenForEstado.folio}
           estadoActual={selectedOrdenForEstado.estado}
         />
+      )}
+
+      {/* Confirmación de eliminación — solo super_admin */}
+      {deleteConfirmId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="rounded-xl p-8 max-w-sm w-full mx-4"
+            style={{
+              background: "var(--color-bg-surface)",
+              boxShadow: "var(--shadow-xl)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <div className="text-center mb-6">
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"
+                style={{ background: "var(--color-danger-bg)" }}
+              >
+                🗑️
+              </div>
+              <h3
+                className="text-lg font-bold mb-2"
+                style={{ color: "var(--color-text-primary)" }}
+              >
+                Eliminar orden de servicio
+              </h3>
+              <p
+                className="text-sm"
+                style={{ color: "var(--color-text-secondary)" }}
+              >
+                ¿Estás seguro que deseas eliminar la orden{" "}
+                <span
+                  className="font-semibold"
+                  style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-primary)" }}
+                >
+                  {deleteConfirmFolio}
+                </span>
+                ?
+              </p>
+              <p className="text-xs mt-2" style={{ color: "var(--color-danger)" }}>
+                Esta acción es permanente y no se puede deshacer.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-lg text-sm font-medium"
+                style={{
+                  background: "var(--color-bg-elevated)",
+                  color: "var(--color-text-secondary)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEliminarOrden}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-lg text-sm font-bold"
+                style={{
+                  background: "var(--color-danger)",
+                  color: "#fff",
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting ? "Eliminando..." : "Sí, eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
