@@ -50,9 +50,17 @@ export async function notificarCambioEstado(
 
     if (!config) return notificaciones;
 
+    // Para estado "presupuesto": crear token de tracking y usarlo en el mensaje
+    let trackingUrlPresupuesto: string | undefined;
+    if (nuevoEstado === "presupuesto") {
+      trackingUrlPresupuesto = await crearTrackingToken(orden.id);
+    }
+
     for (const destino of config.destinos) {
       try {
-        const mensaje = config.generarMensaje(orden, notas);
+        const mensaje = nuevoEstado === "presupuesto" && trackingUrlPresupuesto
+          ? generarMensajePresupuesto(orden, trackingUrlPresupuesto)
+          : config.generarMensaje(orden, notas);
         const notificacion = await crearNotificacionReparacion({
           ordenId: orden.id,
           clienteId: destino.tipo === "cliente" ? orden.clienteId : undefined,
@@ -178,6 +186,43 @@ function getConfiguracionNotificacion(
   };
 
   return configuraciones[estado] || null;
+}
+
+/**
+ * Crea o renueva un token de tracking (64 caracteres) para que el cliente
+ * pueda aprobar/rechazar el presupuesto desde el link de WhatsApp.
+ * Retorna la URL completa del tracking link, o undefined si falla.
+ */
+async function crearTrackingToken(
+  ordenId: string
+): Promise<string | undefined> {
+  try {
+    const supabase = createAdminClient();
+    const crypto = await import("crypto");
+    const token = crypto.randomBytes(32).toString("hex"); // 64 chars hex
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30); // 30 días
+
+    const { error } = await supabase.from("tracking_tokens").insert({
+      orden_id: ordenId,
+      token,
+      expires_at: expiresAt.toISOString(),
+      accesos: 0,
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error("Error al crear tracking token:", error);
+      return undefined;
+    }
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone-one.vercel.app";
+    return `${baseUrl}/tracking/${token}`;
+  } catch (err) {
+    console.error("Error en crearTrackingToken:", err);
+    return undefined;
+  }
 }
 
 /**

@@ -112,6 +112,19 @@ export async function PUT(
 
       ordenActualizada = await updateDiagnostico(id, diagnosticoData);
 
+      // Si el diagnóstico resultó en estado "presupuesto", notificar al cliente
+      // (esto crea el tracking token y envía el WhatsApp)
+      if (ordenActualizada?.estado === "presupuesto") {
+        try {
+          const ordenDetallada = await getOrdenReparacionDetalladaById(id);
+          if (ordenDetallada) {
+            await notificarCambioEstado(ordenDetallada, "presupuesto");
+          }
+        } catch (notifError) {
+          console.error("Error al notificar presupuesto (no bloquea):", notifError);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         data: ordenActualizada,

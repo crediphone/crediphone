@@ -10,10 +10,16 @@ import { OrdenReparacion, OrdenReparacionDetallada } from "@/types";
  * @param orden - Orden de reparación con diagnóstico y costos
  * @returns Mensaje formateado para WhatsApp
  */
-export function generarMensajePresupuesto(orden: OrdenReparacion | OrdenReparacionDetallada): string {
+export function generarMensajePresupuesto(
+  orden: OrdenReparacion | OrdenReparacionDetallada,
+  trackingUrl?: string
+): string {
   const nombreCliente = "clienteNombre" in orden
     ? `${orden.clienteNombre} ${orden.clienteApellido || ""}`.trim()
     : "Cliente";
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone-one.vercel.app";
+  const linkSeguimiento = trackingUrl || `${baseUrl}/reparacion/${orden.folio}`;
 
   const mensaje = `
 🔧 *PRESUPUESTO DE REPARACIÓN - CREDIPHONE*
@@ -41,9 +47,7 @@ ${
 }
 
 🔗 *Seguimiento en línea:*
-${process.env.NEXT_PUBLIC_APP_URL || "https://crediphone.com"}/tracking/${
-    orden.id
-  }
+${linkSeguimiento}
 
 ¿Autorizas la reparación? Responde a este mensaje o ingresa al link de seguimiento.
 
@@ -201,9 +205,7 @@ ${
     : ""
 }
 🔗 *Seguimiento en tiempo real:*
-${process.env.NEXT_PUBLIC_APP_URL || "https://crediphone.com"}/tracking/${
-    orden.id
-  }
+${(process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone-one.vercel.app")}/reparacion/${orden.folio}
 
 ¿Tienes dudas? ¡Contáctanos!
 📱 CREDIPHONE
@@ -399,7 +401,7 @@ Queremos informarte que ${pieza ? `la pieza *${pieza}*` : "una de las piezas nec
 ⏳ Te notificaremos en cuanto tengamos novedades. Agradecemos mucho tu paciencia.
 
 🔗 Puedes consultar el estado de tu reparación en cualquier momento:
-${process.env.NEXT_PUBLIC_APP_URL || "https://crediphone.com"}/tracking/${orden.id}
+${(process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone-one.vercel.app")}/reparacion/${orden.folio}
 
 ¿Tienes alguna pregunta? Con gusto te atendemos.
 📱 CREDIPHONE
@@ -436,7 +438,7 @@ La refacción que requiere tu dispositivo ya fue solicitada a nuestro proveedor,
 Lamentamos los inconvenientes que esto pueda ocasionarte. Tu equipo está seguro con nosotros y tan pronto llegue la pieza, procederemos de inmediato.
 
 🔗 Seguimiento en línea:
-${process.env.NEXT_PUBLIC_APP_URL || "https://crediphone.com"}/tracking/${orden.id}
+${(process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone-one.vercel.app")}/reparacion/${orden.folio}
 
 Cualquier duda estamos a tus órdenes.
 📱 CREDIPHONE
