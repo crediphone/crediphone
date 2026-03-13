@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ProductSearchBar } from "@/components/pos/ProductSearchBar";
+import { ProductCategoryGrid } from "@/components/pos/ProductCategoryGrid";
 import { ShoppingCart, CartItem } from "@/components/pos/ShoppingCart";
 import { PaymentMethodSelector } from "@/components/pos/PaymentMethodSelector";
 import { ReciboModal } from "@/components/pos/ReciboModal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon } from "lucide-react";
 import type {
   Producto,
   CajaSesion,
@@ -50,6 +51,20 @@ export default function POSPage() {
   // Estadísticas
   const [stats, setStats] = useState<EstadisticasPOS | null>(null);
 
+  // FASE 29: modo dual Standard / Visual
+  const [posMode, setPosMode] = useState<"standard" | "visual">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("pos_mode") as "standard" | "visual") || "standard";
+    }
+    return "standard";
+  });
+  const [searchFocusTrigger, setSearchFocusTrigger] = useState(0);
+
+  const togglePosMode = (mode: "standard" | "visual") => {
+    setPosMode(mode);
+    localStorage.setItem("pos_mode", mode);
+  };
+
   // Redirect non-admin/vendedor
   useEffect(() => {
     if (user && !["admin", "vendedor", "super_admin"].includes(user.role)) {
@@ -64,6 +79,43 @@ export default function POSPage() {
       fetchEstadisticas();
     }
   }, [user]);
+
+  // FASE 29: F-keys globales
+  useEffect(() => {
+    const handleFKey = (e: KeyboardEvent) => {
+      // Solo actuar cuando el modal de cierre NO está abierto
+      if (showCerrarTurnoModal) return;
+      // Ignorar si el foco está en un input/textarea (excepto F3)
+      const tag = (e.target as HTMLElement)?.tagName;
+      const inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+
+      if (e.key === "F3") {
+        e.preventDefault();
+        if (posMode === "standard") {
+          setSearchFocusTrigger((n) => n + 1);
+        }
+        return;
+      }
+      if (inInput) return; // el resto de F-keys no interrumpe el tipeo
+
+      if (e.key === "F10") {
+        e.preventDefault();
+        // Dispara handleCompletarVenta si hay carrito y pago válido
+        document.getElementById("btn-completar-venta")?.click();
+        return;
+      }
+
+      if (e.key === "F12") {
+        e.preventDefault();
+        // Pago rápido: efectivo por monto exacto, sin confirmación manual
+        document.getElementById("btn-pago-rapido-f12")?.click();
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleFKey);
+    return () => window.removeEventListener("keydown", handleFKey);
+  }, [posMode, showCerrarTurnoModal]);
 
   const fetchSesionActiva = async () => {
     try {
@@ -256,6 +308,47 @@ export default function POSPage() {
     }
   };
 
+  // FASE 29: F12 — pago rápido efectivo exacto
+  const handlePagoRapido = async () => {
+    if (cartItems.length === 0 || !sesionCaja) return;
+    const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const total = subtotal - descuento;
+    if (processingVenta) return;
+    setProcessingVenta(true);
+    try {
+      const ventaFormData: NuevaVentaFormData = {
+        items: cartItems.map((item) => ({
+          productoId: item.producto.id,
+          cantidad: item.cantidad,
+          precioUnitario: item.precioUnitario,
+        })),
+        descuento,
+        metodoPago: "efectivo",
+        montoRecibido: total,
+      };
+      const response = await fetch("/api/pos/ventas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ventaFormData),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setVentaCompletada(data.data);
+        setShowReciboModal(true);
+        setCartItems([]);
+        setDescuento(0);
+        fetchEstadisticas();
+      } else {
+        alert(data.error || "Error al crear venta");
+      }
+    } catch (error) {
+      console.error("Error pago rápido:", error);
+      alert("Error al procesar la venta");
+    } finally {
+      setProcessingVenta(false);
+    }
+  };
+
   const handleCerrarTurnoRapido = async () => {
     if (!sesionCaja) return;
     const monto = parseFloat(montoFinalTurno);
@@ -442,6 +535,50 @@ export default function POSPage() {
           </div>
         </div>
 
+        {/* FASE 29: Toggle modo Standard / Visual */}
+        <div className="flex items-center gap-2 mt-4">
+          <ModeToggle
+            active={posMode === "standard"}
+            icon={<SearchIcon className="w-3.5 h-3.5" />}
+            label="Standard"
+            onClick={() => togglePosMode("standard")}
+          />
+          <ModeToggle
+            active={posMode === "visual"}
+            icon={<LayoutGrid className="w-3.5 h-3.5" />}
+            label="Visual"
+            onClick={() => togglePosMode("visual")}
+          />
+          {/* Barra de shortcuts — solo en modo standard */}
+          {posMode === "standard" && (
+            <div className="flex items-center gap-1.5 ml-3">
+              {[
+                { key: "F3", label: "Búsqueda" },
+                { key: "F10", label: "Pagar" },
+                { key: "F12", label: "Pago Rápido" },
+              ].map(({ key, label }) => (
+                <span
+                  key={key}
+                  className="flex items-center gap-1 text-xs px-2 py-0.5 rounded"
+                  style={{
+                    background: "var(--color-bg-elevated)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-text-muted)",
+                  }}
+                >
+                  <kbd
+                    className="font-mono text-xs font-semibold"
+                    style={{ color: "var(--color-text-secondary)" }}
+                  >
+                    {key}
+                  </kbd>
+                  <span>{label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
@@ -469,17 +606,29 @@ export default function POSPage() {
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column - Product Search */}
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Buscar Producto
-            </h2>
-            <ProductSearchBar onSelectProduct={handleSelectProduct} />
-          </div>
+        {/* Left Column — Standard: búsqueda | Visual: grid categorías */}
+        <div className="space-y-4">
+          {posMode === "standard" ? (
+            <>
+              <h2 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                Buscar Producto
+              </h2>
+              <ProductSearchBar
+                onSelectProduct={handleSelectProduct}
+                focusTrigger={searchFocusTrigger}
+              />
+            </>
+          ) : (
+            <>
+              <h2 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                Productos por Categoría
+              </h2>
+              <ProductCategoryGrid onSelectProduct={handleSelectProduct} />
+            </>
+          )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
               Descuento
             </label>
             <Input
@@ -505,24 +654,29 @@ export default function POSPage() {
           />
 
           {cartItems.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <PaymentMethodSelector total={total} onChange={setPaymentData} />
 
+              {/* Botón Completar Venta — id para F10 */}
               <Button
+                id="btn-completar-venta"
                 onClick={handleCompletarVenta}
-                disabled={
-                  processingVenta ||
-                  cartItems.length === 0 ||
-                  !paymentData?.isValid
-                }
+                disabled={processingVenta || cartItems.length === 0 || !paymentData?.isValid}
                 className="w-full"
                 size="lg"
               >
                 <CartIcon className="w-5 h-5 mr-2" />
-                {processingVenta
-                  ? "Procesando..."
-                  : `Completar Venta - $${total.toFixed(2)}`}
+                {processingVenta ? "Procesando..." : `Completar Venta — $${total.toFixed(2)}`}
               </Button>
+
+              {/* Botón oculto F12 pago rápido */}
+              <button
+                id="btn-pago-rapido-f12"
+                onClick={handlePagoRapido}
+                className="hidden"
+                tabIndex={-1}
+                aria-hidden
+              />
             </div>
           )}
         </div>
@@ -661,5 +815,42 @@ export default function POSPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ── ModeToggle — sub-componente local ───────────────── */
+function ModeToggle({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+      style={{
+        background: active
+          ? "var(--color-primary)"
+          : hover
+          ? "var(--color-bg-elevated)"
+          : "var(--color-bg-surface)",
+        color: active ? "var(--color-primary-text)" : "var(--color-text-secondary)",
+        border: active
+          ? "1px solid var(--color-primary)"
+          : "1px solid var(--color-border-subtle)",
+      }}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

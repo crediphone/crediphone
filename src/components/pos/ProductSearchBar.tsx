@@ -8,9 +8,11 @@ import type { Producto } from "@/types";
 
 interface ProductSearchBarProps {
   onSelectProduct: (producto: Producto) => void;
+  /** FASE 29: incrementar para enfocar el input desde el padre (F3) */
+  focusTrigger?: number;
 }
 
-export function ProductSearchBar({ onSelectProduct }: ProductSearchBarProps) {
+export function ProductSearchBar({ onSelectProduct, focusTrigger }: ProductSearchBarProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [productos, setProductos] = useState<Producto[]>([]);
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
@@ -20,6 +22,15 @@ export function ProductSearchBar({ onSelectProduct }: ProductSearchBarProps) {
   const [showScanner, setShowScanner] = useState(false);
   const [scanMsg, setScanMsg] = useState("");
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // FASE 29: focus al recibir señal de F3
+  useEffect(() => {
+    if (focusTrigger && focusTrigger > 0) {
+      const input = searchRef.current?.querySelector("input");
+      input?.focus();
+      input?.select();
+    }
+  }, [focusTrigger]);
 
   useEffect(() => {
     fetchProductos();
