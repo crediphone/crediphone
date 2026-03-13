@@ -37,6 +37,10 @@ export default function POSPage() {
   // Estado de pago
   const [paymentData, setPaymentData] = useState<any>(null);
 
+  // Modal cobro rápido efectivo (F9)
+  const [showCobroModal, setShowCobroModal] = useState(false);
+  const [cobroMonto, setCobroMonto] = useState("");
+
   // Modal cierre rápido de turno (FASE 28)
   const [showCerrarTurnoModal, setShowCerrarTurnoModal] = useState(false);
   const [montoFinalTurno, setMontoFinalTurno] = useState("");
@@ -83,8 +87,8 @@ export default function POSPage() {
   // FASE 29: F-keys globales
   useEffect(() => {
     const handleFKey = (e: KeyboardEvent) => {
-      // Solo actuar cuando el modal de cierre NO está abierto
-      if (showCerrarTurnoModal) return;
+      // Solo actuar cuando ningún modal esté abierto
+      if (showCerrarTurnoModal || showCobroModal) return;
       // Ignorar si el foco está en un input/textarea (excepto F3)
       const tag = (e.target as HTMLElement)?.tagName;
       const inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
@@ -98,10 +102,13 @@ export default function POSPage() {
       }
       if (inInput) return; // el resto de F-keys no interrumpe el tipeo
 
-      if (e.key === "F10") {
+      if (e.key === "F9" || e.key === "F10") {
         e.preventDefault();
-        // Dispara handleCompletarVenta si hay carrito y pago válido
-        document.getElementById("btn-completar-venta")?.click();
+        // Abrir modal de cobro rápido (F9 en Chrome, F10 en PWA donde no interfiere el browser)
+        if (cartItems.length > 0 && sesionCaja) {
+          setCobroMonto("");
+          setShowCobroModal(true);
+        }
         return;
       }
 
@@ -349,6 +356,48 @@ export default function POSPage() {
     }
   };
 
+  // F9: cobrar en efectivo — monto exacto si se deja vacío, o con cambio si se ingresa más
+  const handleCobroModal = async () => {
+    if (cartItems.length === 0 || !sesionCaja || processingVenta) return;
+    const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const total = subtotal - descuento;
+    const montoIngresado = cobroMonto.trim() === "" ? total : parseFloat(cobroMonto);
+    if (isNaN(montoIngresado) || montoIngresado < total) return;
+    setShowCobroModal(false);
+    setProcessingVenta(true);
+    try {
+      const ventaFormData: NuevaVentaFormData = {
+        items: cartItems.map((item) => ({
+          productoId: item.producto.id,
+          cantidad: item.cantidad,
+          precioUnitario: item.precioUnitario,
+        })),
+        descuento,
+        metodoPago: "efectivo",
+        montoRecibido: montoIngresado,
+      };
+      const response = await fetch("/api/pos/ventas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ventaFormData),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setVentaCompletada(data.data);
+        setShowReciboModal(true);
+        setCartItems([]);
+        setDescuento(0);
+        fetchEstadisticas();
+      } else {
+        alert(data.error || "Error al crear venta");
+      }
+    } catch {
+      alert("Error al procesar la venta");
+    } finally {
+      setProcessingVenta(false);
+    }
+  };
+
   const handleCerrarTurnoRapido = async () => {
     if (!sesionCaja) return;
     const monto = parseFloat(montoFinalTurno);
@@ -554,7 +603,7 @@ export default function POSPage() {
             <div className="flex items-center gap-1.5 ml-3">
               {[
                 { key: "F3", label: "Búsqueda" },
-                { key: "F10", label: "Pagar" },
+                { key: "F9/F10", label: "Pagar" },
                 { key: "F12", label: "Pago Rápido" },
               ].map(({ key, label }) => (
                 <span
@@ -616,6 +665,7 @@ export default function POSPage() {
               <ProductSearchBar
                 onSelectProduct={handleSelectProduct}
                 focusTrigger={searchFocusTrigger}
+                topProductIds={stats?.productosMasVendidos?.slice(0, 6).map((p) => p.productoId)}
               />
             </>
           ) : (
@@ -657,7 +707,7 @@ export default function POSPage() {
             <div className="space-y-3">
               <PaymentMethodSelector total={total} onChange={setPaymentData} />
 
-              {/* Botón Completar Venta — id para F10 */}
+              {/* Botón Completar Venta — id para F9 */}
               <Button
                 id="btn-completar-venta"
                 onClick={handleCompletarVenta}
@@ -691,6 +741,114 @@ export default function POSPage() {
           onNuevaVenta={handleNuevaVenta}
         />
       )}
+
+      {/* Modal: Cobro Rápido Efectivo (F9) */}
+      {showCobroModal && cartItems.length > 0 && (() => {
+        const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
+        const total = subtotal - descuento;
+        const montoIngresado = cobroMonto.trim() === "" ? total : parseFloat(cobroMonto) || 0;
+        const cambio = Math.max(0, montoIngresado - total);
+        const montoInsuficiente = cobroMonto.trim() !== "" && montoIngresado < total;
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.55)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowCobroModal(false); }}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl p-6"
+              style={{ background: "var(--color-bg-surface)", boxShadow: "var(--shadow-xl)" }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                  Cobro en Efectivo
+                </h2>
+                <button
+                  onClick={() => setShowCobroModal(false)}
+                  className="p-1 rounded-lg"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Total */}
+              <div
+                className="rounded-xl p-4 mb-4 text-center"
+                style={{ background: "var(--color-bg-elevated)" }}
+              >
+                <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: "var(--color-text-muted)" }}>
+                  Total a cobrar
+                </p>
+                <p className="text-4xl font-bold" style={{ color: "var(--color-accent)", fontFamily: "var(--font-data)" }}>
+                  ${total.toFixed(2)}
+                </p>
+              </div>
+
+              {/* Input monto recibido */}
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
+                ¿Cuánto paga el cliente? <span style={{ color: "var(--color-text-muted)" }}>(vacío = exacto)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder={`$${total.toFixed(2)}`}
+                value={cobroMonto}
+                onChange={(e) => setCobroMonto(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !montoInsuficiente) handleCobroModal();
+                  if (e.key === "Escape") setShowCobroModal(false);
+                }}
+                className="w-full px-4 py-3 rounded-xl text-2xl font-mono mb-3"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: `2px solid ${montoInsuficiente ? "var(--color-danger)" : "var(--color-border)"}`,
+                  color: "var(--color-text-primary)",
+                  outline: "none",
+                }}
+              />
+
+              {/* Cambio o error */}
+              {montoInsuficiente ? (
+                <p className="text-sm text-center mb-3" style={{ color: "var(--color-danger)" }}>
+                  Monto insuficiente — faltan ${(total - montoIngresado).toFixed(2)}
+                </p>
+              ) : cambio > 0 ? (
+                <div
+                  className="rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between"
+                  style={{ background: "var(--color-success-bg)" }}
+                >
+                  <span className="text-sm font-medium" style={{ color: "var(--color-success-text)" }}>Cambio</span>
+                  <span className="text-xl font-bold" style={{ color: "var(--color-success)", fontFamily: "var(--font-data)" }}>
+                    ${cambio.toFixed(2)}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-center mb-3" style={{ color: "var(--color-text-muted)" }}>
+                  Pago exacto — presiona Enter para cobrar
+                </p>
+              )}
+
+              {/* Botón cobrar */}
+              <button
+                onClick={handleCobroModal}
+                disabled={processingVenta || montoInsuficiente}
+                className="w-full py-3 rounded-xl text-base font-semibold transition-all"
+                style={{
+                  background: processingVenta || montoInsuficiente ? "var(--color-bg-elevated)" : "var(--color-accent)",
+                  color: processingVenta || montoInsuficiente ? "var(--color-text-muted)" : "#fff",
+                  cursor: processingVenta || montoInsuficiente ? "not-allowed" : "pointer",
+                }}
+              >
+                {processingVenta ? "Procesando..." : cambio > 0 ? `Cobrar — dar $${cambio.toFixed(2)} de cambio` : "Cobrar"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal: Cerrar Turno Rápido (FASE 28) */}
       {showCerrarTurnoModal && sesionCaja && (

@@ -66,6 +66,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     <div
       className="flex h-screen"
       style={{ background: "var(--color-bg-base)" }}
+      suppressHydrationWarning
     >
       {/* Sidebar */}
       <Sidebar
@@ -86,6 +87,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
             borderBottom: "1px solid var(--color-border)",
             boxShadow: "var(--shadow-xs)",
           }}
+          suppressHydrationWarning
         >
           <button
             onClick={() => setSidebarOpen(true)}
@@ -101,6 +103,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
             }}
             onMouseEnter={() => setMenuBtnHover(true)}
             onMouseLeave={() => setMenuBtnHover(false)}
+            suppressHydrationWarning
           >
             <Menu className="w-5 h-5" />
           </button>

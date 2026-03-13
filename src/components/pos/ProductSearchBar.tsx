@@ -10,9 +10,11 @@ interface ProductSearchBarProps {
   onSelectProduct: (producto: Producto) => void;
   /** FASE 29: incrementar para enfocar el input desde el padre (F3) */
   focusTrigger?: number;
+  /** FASE 29: IDs de productos más vendidos para acceso rápido */
+  topProductIds?: string[];
 }
 
-export function ProductSearchBar({ onSelectProduct, focusTrigger }: ProductSearchBarProps) {
+export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds }: ProductSearchBarProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [productos, setProductos] = useState<Producto[]>([]);
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
@@ -89,7 +91,20 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger }: ProductSearc
     setSearchTerm("");
     setShowResults(false);
     setScanMsg("");
+    // FASE 29: re-enfocar para siguiente búsqueda rápida
+    setTimeout(() => {
+      const input = searchRef.current?.querySelector("input");
+      input?.focus();
+      input?.select();
+    }, 0);
   };
+
+  // FASE 29: productos de acceso rápido (top vendidos)
+  const topProductos = topProductIds
+    ? topProductIds
+        .map((id) => productos.find((p) => p.id === id))
+        .filter((p): p is Producto => !!p && p.stock > 0)
+    : [];
 
   // Cuando se escanea un código de barras
   const handleBarcodeScan = (codigo: string) => {
@@ -162,6 +177,15 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger }: ProductSearc
           }}
         >
           <p className="text-xs">{loadError}</p>
+        </div>
+      )}
+
+      {/* FASE 29: Accesos rápidos — productos más vendidos */}
+      {topProductos.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {topProductos.map((producto) => (
+            <TopProductChip key={producto.id} producto={producto} onSelect={handleSelect} />
+          ))}
         </div>
       )}
 
@@ -312,5 +336,40 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger }: ProductSearc
         </div>
       )}
     </div>
+  );
+}
+
+/* ── FASE 29: chip de acceso rápido ───────────────────── */
+function TopProductChip({
+  producto,
+  onSelect,
+}: {
+  producto: Producto;
+  onSelect: (p: Producto) => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(producto)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={`${producto.nombre} — $${producto.precio.toFixed(2)} (stock: ${producto.stock})`}
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+      style={{
+        background: hover ? "var(--color-accent)" : "var(--color-accent-light)",
+        color: hover ? "#fff" : "var(--color-accent)",
+        border: `1px solid ${hover ? "var(--color-accent)" : "var(--color-border-subtle)"}`,
+        boxShadow: hover ? "var(--shadow-sm)" : "none",
+      }}
+    >
+      <span className="truncate max-w-30">{producto.nombre}</span>
+      <span
+        className="shrink-0 font-mono text-xs"
+        style={{ opacity: 0.75 }}
+      >
+        ×{producto.stock}
+      </span>
+    </button>
   );
 }
