@@ -15,6 +15,7 @@ function mapSesionFromDB(row: any): CajaSesion {
     id: row.id,
     folio: row.folio,
     usuarioId: row.usuario_id,
+    usuarioNombre: row.users?.name ?? undefined,
     montoInicial: parseFloat(row.monto_inicial),
     fechaApertura: new Date(row.fecha_apertura),
     notasApertura: row.notas_apertura,
@@ -274,7 +275,7 @@ export async function getSesionesCaja(limit = 50, distribuidorId?: string): Prom
 
   let query = supabase
     .from("caja_sesiones")
-    .select("*")
+    .select("*, users!caja_sesiones_usuario_id_fkey(name)")
     .order("fecha_apertura", { ascending: false })
     .limit(limit);
 

@@ -811,6 +811,7 @@ export interface CajaSesion {
   distribuidorId?: string; // FASE 21
   folio: string; // CAJA-YYYY-#####
   usuarioId: string;
+  usuarioNombre?: string; // FASE 28: nombre del empleado que abrió el turno
 
   // Apertura
   montoInicial: number;

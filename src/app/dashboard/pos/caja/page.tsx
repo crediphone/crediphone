@@ -35,6 +35,8 @@ export default function CajaPage() {
   const [conceptoMovimiento, setConceptoMovimiento] = useState("");
 
   const [processing, setProcessing] = useState(false);
+  // FASE 28: sesión abierta de otro empleado en este distribuidor
+  const [sesionOtroEmpleado, setSesionOtroEmpleado] = useState<{ folio: string; nombre: string } | null>(null);
 
   useEffect(() => {
     if (user && !["admin", "vendedor", "super_admin"].includes(user.role)) {
@@ -67,7 +69,18 @@ export default function CajaPage() {
     try {
       const response = await fetch("/api/pos/caja");
       const data = await response.json();
-      if (data.success) setSesiones(data.data);
+      if (data.success) {
+        setSesiones(data.data);
+        // FASE 28: detectar si otro empleado tiene sesión abierta
+        const otraAbierta = (data.data as CajaSesion[]).find(
+          (s) => s.estado === "abierta" && s.usuarioId !== user?.id
+        );
+        setSesionOtroEmpleado(
+          otraAbierta
+            ? { folio: otraAbierta.folio, nombre: otraAbierta.usuarioNombre || "otro empleado" }
+            : null
+        );
+      }
     } catch (error) {
       console.error("Error fetching sesiones:", error);
     }
@@ -171,6 +184,24 @@ export default function CajaPage() {
           Administra turnos de caja, movimientos y corte de caja
         </p>
       </div>
+
+      {/* FASE 28: Banner sesión de otro empleado */}
+      {sesionOtroEmpleado && !sesionActiva && (
+        <div
+          className="mb-6 p-4 rounded-xl flex items-start gap-3"
+          style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}
+        >
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--color-warning)" }} />
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "var(--color-warning-text)" }}>
+              {sesionOtroEmpleado.nombre} tiene la caja abierta ({sesionOtroEmpleado.folio})
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--color-warning-text)" }}>
+              Solo puede existir una sesión activa por tienda. Para abrir tu propio turno, coordina con {sesionOtroEmpleado.nombre} primero.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Sesión Actual */}
       <Card className="p-6 mb-6">

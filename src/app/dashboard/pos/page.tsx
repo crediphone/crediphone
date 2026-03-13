@@ -10,7 +10,7 @@ import { ReciboModal } from "@/components/pos/ReciboModal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X } from "lucide-react";
 import type {
   Producto,
   CajaSesion,
@@ -35,6 +35,12 @@ export default function POSPage() {
 
   // Estado de pago
   const [paymentData, setPaymentData] = useState<any>(null);
+
+  // Modal cierre rápido de turno (FASE 28)
+  const [showCerrarTurnoModal, setShowCerrarTurnoModal] = useState(false);
+  const [montoFinalTurno, setMontoFinalTurno] = useState("");
+  const [notasCierreTurno, setNotasCierreTurno] = useState("");
+  const [cerrandoTurno, setCerrandoTurno] = useState(false);
 
   // Estado de proceso
   const [processingVenta, setProcessingVenta] = useState(false);
@@ -250,6 +256,38 @@ export default function POSPage() {
     }
   };
 
+  const handleCerrarTurnoRapido = async () => {
+    if (!sesionCaja) return;
+    const monto = parseFloat(montoFinalTurno);
+    if (isNaN(monto) || monto < 0) {
+      alert("Ingresa un monto final válido");
+      return;
+    }
+    setCerrandoTurno(true);
+    try {
+      const response = await fetch(`/api/pos/caja/${sesionCaja.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cerrar", montoFinal: monto, notas: notasCierreTurno || undefined }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSesionCaja(null);
+        setShowCerrarTurnoModal(false);
+        setMontoFinalTurno("");
+        setNotasCierreTurno("");
+        fetchEstadisticas();
+      } else {
+        alert(data.error || "Error al cerrar turno");
+      }
+    } catch (error) {
+      console.error("Error cerrando turno:", error);
+      alert("Error al cerrar turno");
+    } finally {
+      setCerrandoTurno(false);
+    }
+  };
+
   const handleNuevaVenta = () => {
     setVentaCompletada(null);
     setCartItems([]);
@@ -308,7 +346,7 @@ export default function POSPage() {
             border: "1px solid var(--color-warning)",
           }}
         >
-          <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: "var(--color-warning)" }}>
+          <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: "var(--color-warning)" }}>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div className="flex-1">
@@ -319,7 +357,7 @@ export default function POSPage() {
               Solo puede haber una sesión de caja activa a la vez. Para operar, solicita a {cajaOtroEmpleado.nombre} que cierre su turno.
             </p>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex gap-2 shrink-0">
             <Button
               variant="secondary"
               onClick={() => router.push("/dashboard/pos/caja")}
@@ -377,13 +415,23 @@ export default function POSPage() {
               </span>
             </div>
 
-            <Button
-              variant="secondary"
-              onClick={() => router.push("/dashboard/pos/caja")}
-            >
-              <CloseIcon className="w-4 h-4 mr-2" />
-              {sesionCaja ? "Cerrar Caja" : "Abrir Caja"}
-            </Button>
+            {sesionCaja ? (
+              <Button
+                variant="secondary"
+                onClick={() => setShowCerrarTurnoModal(true)}
+              >
+                <CloseIcon className="w-4 h-4 mr-2" />
+                Cerrar Turno
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => router.push("/dashboard/pos/caja")}
+              >
+                <DollarSign className="w-4 h-4 mr-2" />
+                Abrir Caja
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={() => router.push("/dashboard/pos/historial")}
@@ -488,6 +536,129 @@ export default function POSPage() {
           onClose={() => setShowReciboModal(false)}
           onNuevaVenta={handleNuevaVenta}
         />
+      )}
+
+      {/* Modal: Cerrar Turno Rápido (FASE 28) */}
+      {showCerrarTurnoModal && sesionCaja && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-6"
+            style={{
+              background: "var(--color-bg-surface)",
+              boxShadow: "var(--shadow-xl)",
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                  Cerrar Turno
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
+                  {sesionCaja.folio}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCerrarTurnoModal(false)}
+                className="p-1 rounded-lg"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Resumen del turno */}
+            <div
+              className="rounded-xl p-4 mb-5 grid grid-cols-3 gap-3 text-center"
+              style={{ background: "var(--color-bg-elevated)" }}
+            >
+              <div>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Ventas</p>
+                <p className="text-xl font-bold mt-0.5" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                  {sesionCaja.numeroVentas}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Efectivo</p>
+                <p className="text-lg font-bold mt-0.5" style={{ color: "var(--color-success)", fontFamily: "var(--font-data)" }}>
+                  ${sesionCaja.totalVentasEfectivo.toFixed(0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Otros</p>
+                <p className="text-lg font-bold mt-0.5" style={{ color: "var(--color-accent)", fontFamily: "var(--font-data)" }}>
+                  ${(sesionCaja.totalVentasTransferencia + sesionCaja.totalVentasTarjeta).toFixed(0)}
+                </p>
+              </div>
+            </div>
+
+            {/* Monto final */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                Dinero en caja al cierre
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={montoFinalTurno}
+                onChange={(e) => setMontoFinalTurno(e.target.value)}
+                placeholder="0.00"
+                className="w-full px-3 py-2.5 rounded-lg text-lg font-mono"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                  outline: "none",
+                }}
+                autoFocus
+              />
+            </div>
+
+            {/* Notas opcionales */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                Notas (opcional)
+              </label>
+              <textarea
+                rows={2}
+                value={notasCierreTurno}
+                onChange={(e) => setNotasCierreTurno(e.target.value)}
+                placeholder="Observaciones del turno..."
+                className="w-full px-3 py-2.5 rounded-lg text-sm resize-none"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* Acciones */}
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setShowCerrarTurnoModal(false)}
+                className="flex-1"
+                disabled={cerrandoTurno}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleCerrarTurnoRapido}
+                className="flex-1"
+                disabled={cerrandoTurno || !montoFinalTurno}
+              >
+                <CloseIcon className="w-4 h-4 mr-2" />
+                {cerrandoTurno ? "Cerrando..." : "Cerrar Turno"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
