@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, role } = await getAuthContext();
+    const { userId, role, distribuidorId } = await getAuthContext();
     if (!userId) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ubicacion = await createUbicacion(formData);
+    const ubicacion = await createUbicacion(formData, distribuidorId ?? null);
 
     return NextResponse.json({ success: true, data: ubicacion });
   } catch (error: any) {

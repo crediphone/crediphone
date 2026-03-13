@@ -115,7 +115,8 @@ export async function getUbicacionByCodigo(
  * Create new location
  */
 export async function createUbicacion(
-  formData: NuevaUbicacionFormData
+  formData: NuevaUbicacionFormData,
+  distribuidorId: string | null
 ): Promise<UbicacionInventario> {
   // Generate codigo if not provided
   let codigo = formData.codigo;
@@ -148,6 +149,7 @@ export async function createUbicacion(
       tipo: formData.tipo,
       descripcion: formData.descripcion,
       capacidad_maxima: formData.capacidadMaxima,
+      distribuidor_id: distribuidorId,
     })
     .select()
     .single();
