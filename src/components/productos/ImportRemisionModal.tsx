@@ -10,6 +10,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useDistribuidor } from "@/components/DistribuidorProvider";
 import {
   Upload,
   FileText,
@@ -169,6 +170,7 @@ function parsearTicket(texto: string): ProductoParsed[] {
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function ImportRemisionModal({ isOpen, onClose, onImportado }: ImportRemisionModalProps) {
+  const { distribuidorActivo } = useDistribuidor();
   const [productos, setProductos] = useState<ProductoParsed[]>([]);
   const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
   const [arrastrando, setArrastrando] = useState(false);
@@ -275,7 +277,11 @@ export default function ImportRemisionModal({ isOpen, onClose, onImportado }: Im
 
       const response = await fetch("/api/productos/importar-remision", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // super_admin: enviar el distribuidor activo seleccionado en el sidebar
+          ...(distribuidorActivo?.id ? { "X-Distribuidor-Id": distribuidorActivo.id } : {}),
+        },
         body: JSON.stringify({
           folioRemision,
           productos: listos.map((p) => ({

@@ -605,6 +605,11 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
     ubicacionFisica: producto?.ubicacionFisica     || "",
     codigoBarras:    producto?.codigoBarras        || "",
     sku:             producto?.sku                 || "",
+    // FASE 27: campos de equipo celular
+    imei:            producto?.imei               || "",
+    color:           producto?.color              || "",
+    ram:             producto?.ram                || "",
+    almacenamiento:  producto?.almacenamiento     || "",
   });
   const [loading, setLoading]       = useState(false);
   const [errors, setErrors]         = useState<Record<string, string>>({});
@@ -657,6 +662,11 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
           ubicacionFisica: formData.ubicacionFisica || undefined,
           codigoBarras:    formData.codigoBarras    || undefined,
           sku:             formData.sku             || undefined,
+          // FASE 27: campos de equipo celular
+          imei:            formData.imei            || undefined,
+          color:           formData.color           || undefined,
+          ram:             formData.ram             || undefined,
+          almacenamiento:  formData.almacenamiento  || undefined,
         }),
       });
       if (res.ok) { onSuccess(); } else { const data = await res.json(); console.error("Error al guardar:", data); }
@@ -708,6 +718,51 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
           {proveedores.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
         </select>
       </div>
+
+      {/* FASE 27: Campos exclusivos para equipos celulares */}
+      {(formData.tipo === "equipo_nuevo" || formData.tipo === "equipo_usado") && (
+        <div
+          className="p-4 rounded-xl space-y-3"
+          style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-border)" }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-info-text)" }}>
+            Datos del Equipo Celular
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="IMEI"
+              name="imei"
+              value={formData.imei}
+              onChange={handleChange}
+              placeholder="123456789012345"
+              maxLength={15}
+            />
+            <Input
+              label="Color"
+              name="color"
+              value={formData.color}
+              onChange={handleChange}
+              placeholder="Negro, Azul, Verde..."
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="RAM"
+              name="ram"
+              value={formData.ram}
+              onChange={handleChange}
+              placeholder="4GB, 6GB, 8GB..."
+            />
+            <Input
+              label="Almacenamiento"
+              name="almacenamiento"
+              value={formData.almacenamiento}
+              onChange={handleChange}
+              placeholder="64GB, 128GB, 256GB..."
+            />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <Input label="Precio de Venta *" name="precio" type="number" step="0.01" value={formData.precio} onChange={handleChange} error={errors.precio} placeholder="2999.00" required />

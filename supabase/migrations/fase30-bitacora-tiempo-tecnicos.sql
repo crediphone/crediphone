@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS reparacion_tiempo_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  orden_id UUID NOT NULL REFERENCES reparaciones(id) ON DELETE CASCADE,
+  orden_id UUID NOT NULL REFERENCES ordenes_reparacion(id) ON DELETE CASCADE,
   tecnico_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   distribuidor_id UUID REFERENCES distribuidores(id) ON DELETE CASCADE,
   inicio_trabajo TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

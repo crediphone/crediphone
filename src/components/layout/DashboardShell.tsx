@@ -8,13 +8,16 @@ import { Sidebar } from "./Sidebar";
 import { CampanaNotificaciones } from "@/components/notificaciones/CampanaNotificaciones";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import { ConfigProvider, useConfig } from "@/components/ConfigProvider";
+import { DistribuidorProvider } from "@/components/DistribuidorProvider";
 import { useNotificacionesRealtime } from "@/hooks/useNotificacionesRealtime";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <ConfigProvider>
-        <DashboardShellInner>{children}</DashboardShellInner>
+        <DistribuidorProvider>
+          <DashboardShellInner>{children}</DashboardShellInner>
+        </DistribuidorProvider>
       </ConfigProvider>
     </AuthProvider>
   );

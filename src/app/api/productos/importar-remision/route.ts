@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProducto } from "@/lib/db/productos";
-import { getDistribuidorId } from "@/lib/auth/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthContext } from "@/lib/auth/server";
 
 interface ProductoImport {
   nombre: string;
@@ -23,41 +21,33 @@ interface ProductoImport {
 
 export async function POST(request: Request) {
   try {
-    let distribuidorId = await getDistribuidorId();
+    const { userId, role, distribuidorId, isSuperAdmin } = await getAuthContext();
 
-    if (!distribuidorId) {
-      const supabase = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
+    }
+    if (!["admin", "super_admin"].includes(role || "")) {
+      return NextResponse.json({ success: false, error: "Sin permiso" }, { status: 403 });
+    }
 
-      if (user) {
-        const adminClient = createAdminClient();
-        const { data: userData } = await adminClient
-          .from("users")
-          .select("role")
-          .eq("id", user.id)
-          .single();
-
-        if (userData?.role === "super_admin") {
-          const { data: defaultDist } = await adminClient
-            .from("distribuidores")
-            .select("id")
-            .eq("slug", "default")
-            .single();
-
-          if (defaultDist) {
-            distribuidorId = defaultDist.id;
-          } else {
-            return NextResponse.json(
-              { success: false, error: "No se encontró distribuidor para Super Admin" },
-              { status: 400 }
-            );
-          }
-        } else {
-          return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
-        }
-      } else {
-        return NextResponse.json({ success: false, error: "No autorizado" }, { status: 401 });
+    // Para super_admin: el distribuidor activo se envía como header desde el cliente
+    let targetDistribuidorId: string | null = distribuidorId;
+    if (isSuperAdmin) {
+      const headerDistId = request.headers.get("X-Distribuidor-Id");
+      if (!headerDistId) {
+        return NextResponse.json(
+          { success: false, error: "Selecciona un distribuidor antes de importar. Usa el selector en el menú lateral." },
+          { status: 400 }
+        );
       }
+      targetDistribuidorId = headerDistId;
+    }
+
+    if (!targetDistribuidorId) {
+      return NextResponse.json(
+        { success: false, error: "No se pudo determinar el distribuidor" },
+        { status: 400 }
+      );
     }
 
     const body: { productos: ProductoImport[]; folioRemision?: string } = await request.json();
@@ -77,7 +67,7 @@ export async function POST(request: Request) {
     for (const p of productos) {
       try {
         await createProducto({
-          distribuidorId:  distribuidorId as string,
+          distribuidorId:  targetDistribuidorId as string,
           nombre:          p.nombre,
           marca:           p.marca  || "",
           modelo:          p.modelo || "",

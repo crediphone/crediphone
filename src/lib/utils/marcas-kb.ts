@@ -427,8 +427,9 @@ export function extraerStorage(texto: string): {
     return { ram, almacenamiento, textoSinStorage };
   }
 
-  // Formato solo almacenamiento: "256GB", "128GB", "64GB", "512GB"
-  const matchStorage = texto.match(/\b(\d+)\s*G[B]?\b/i);
+  // Formato solo almacenamiento: "256GB", "128GB", "64GB", "512GB", "1024GB"
+  // ⚠ IMPORTANTE: solo valores reales de almacenamiento para evitar capturar "5G" (tecnología celular)
+  const matchStorage = texto.match(/\b(32|64|128|256|512|1024)\s*GB?\b/i);
   if (matchStorage) {
     const almacenamiento = `${matchStorage[1]}GB`;
     const textoSinStorage = texto

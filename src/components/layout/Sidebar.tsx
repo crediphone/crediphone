@@ -1,10 +1,12 @@
 "use client";
 
+import { useState as useStateLocal } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { UserRole, ModulosHabilitados } from "@/types";
 import { useConfig } from "@/components/ConfigProvider";
+import { useDistribuidor } from "@/components/DistribuidorProvider";
 import {
   LayoutDashboard,
   Users,
@@ -31,6 +33,9 @@ import {
   AlertTriangle,
   Settings,
   Smartphone,
+  ChevronDown,
+  Eye,
+  Store,
 } from "lucide-react";
 
 interface NavItem {
@@ -96,6 +101,170 @@ interface SidebarProps {
   userRole: UserRole | null;
   userName: string | null;
   onLogout: () => void;
+}
+
+/* ── Selector de distribuidor ────────────────────────────── */
+function DistribuidorSelector() {
+  const { distribuidorActivo, distribuidores, setDistribuidorActivo } = useDistribuidor();
+  const [open, setOpen] = useStateLocal(false);
+
+  if (distribuidores.length === 0) return null;
+
+  const label = distribuidorActivo ? distribuidorActivo.nombre : "Vista Global";
+
+  return (
+    <div
+      className="px-2 py-2 relative shrink-0"
+      style={{ borderBottom: "1px solid var(--color-sidebar-border)" }}
+    >
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"
+        style={{
+          background: open
+            ? "var(--color-sidebar-surface)"
+            : "var(--color-sidebar-surface)",
+          border: "1px solid var(--color-sidebar-border)",
+          color: "var(--color-text-inverted)",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.borderColor =
+            "var(--color-sidebar-active)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.borderColor =
+            "var(--color-sidebar-border)";
+        }}
+      >
+        <Store
+          className="w-3.5 h-3.5 shrink-0"
+          style={{ color: "var(--color-sidebar-active)" }}
+        />
+        <span className="flex-1 text-left truncate text-xs font-medium">
+          {label}
+        </span>
+        <ChevronDown
+          className="w-3.5 h-3.5 shrink-0 transition-transform"
+          style={{
+            color: "var(--color-sidebar-text-dim)",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-2 right-2 top-full mt-1 rounded-xl overflow-hidden z-50 py-1"
+          style={{
+            background: "var(--color-sidebar-surface)",
+            border: "1px solid var(--color-sidebar-border)",
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          {/* Distribuidores disponibles */}
+          {distribuidores.map((d) => {
+            const isActive = distribuidorActivo?.id === d.id;
+            return (
+              <button
+                key={d.id}
+                onClick={() => {
+                  setDistribuidorActivo(d);
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left transition-colors"
+                style={{
+                  background: isActive
+                    ? "rgba(0,184,217,0.12)"
+                    : "transparent",
+                  color: isActive
+                    ? "var(--color-sidebar-active)"
+                    : "var(--color-sidebar-text)",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive)
+                    (e.currentTarget as HTMLElement).style.background =
+                      "rgba(255,255,255,0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive)
+                    (e.currentTarget as HTMLElement).style.background =
+                      "transparent";
+                }}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{
+                    background: isActive
+                      ? "var(--color-sidebar-active)"
+                      : d.activo
+                      ? "var(--color-success)"
+                      : "var(--color-text-muted)",
+                  }}
+                />
+                <span className="truncate font-medium">{d.nombre}</span>
+                {isActive && (
+                  <span
+                    className="ml-auto text-[10px]"
+                    style={{ color: "var(--color-sidebar-active)" }}
+                  >
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {/* Separador */}
+          <div
+            className="my-1 mx-3"
+            style={{
+              borderTop: "1px solid var(--color-sidebar-border)",
+            }}
+          />
+
+          {/* Vista Global */}
+          <button
+            onClick={() => {
+              setDistribuidorActivo(null);
+              setOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-left transition-colors"
+            style={{
+              background:
+                distribuidorActivo === null
+                  ? "rgba(0,184,217,0.12)"
+                  : "transparent",
+              color:
+                distribuidorActivo === null
+                  ? "var(--color-sidebar-active)"
+                  : "var(--color-sidebar-text-dim)",
+            }}
+            onMouseEnter={(e) => {
+              if (distribuidorActivo !== null)
+                (e.currentTarget as HTMLElement).style.background =
+                  "rgba(255,255,255,0.05)";
+            }}
+            onMouseLeave={(e) => {
+              if (distribuidorActivo !== null)
+                (e.currentTarget as HTMLElement).style.background =
+                  "transparent";
+            }}
+          >
+            <Eye className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Vista Global</span>
+            {distribuidorActivo === null && (
+              <span
+                className="ml-auto text-[10px]"
+                style={{ color: "var(--color-sidebar-active)" }}
+              >
+                ✓
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ── Componente ──────────────────────────────────────────── */
@@ -178,6 +347,9 @@ export function Sidebar({ isOpen, onClose, userRole, userName, onLogout }: Sideb
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* ── Selector de distribuidor (solo super_admin) ───── */}
+        {userRole === "super_admin" && <DistribuidorSelector />}
 
         {/* ── Navegación ────────────────────────────────────── */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
