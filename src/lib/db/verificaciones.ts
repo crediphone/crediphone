@@ -9,6 +9,7 @@ import type {
   NuevaVerificacionFormData,
   ScanProductoFormData,
   EstadisticasVerificacion,
+  DiferenciaVerificacion,
 } from "@/types";
 
 // ==========================================
@@ -310,26 +311,48 @@ export async function scanProducto(
     .select("*")
     .eq("verificacion_id", formData.verificacionId)
     .eq("codigo_escaneado", codigo)
+    .order("created_at", { ascending: false })
     .limit(1);
 
-  const esDuplicado = existing && existing.length > 0;
   const esProductoNuevo = !producto;
+  const cantidad = formData.cantidad ?? 1;
 
-  // Create scan record
-  const { data, error } = await supabase
-    .from("verificaciones_items")
-    .insert({
-      verificacion_id: formData.verificacionId,
-      producto_id: producto?.id,
-      codigo_escaneado: codigo,
-      cantidad_escaneada: 1,
-      es_duplicado: esDuplicado,
-      es_producto_nuevo: esProductoNuevo,
-      ubicacion_encontrada_id: formData.ubicacionEncontradaId,
-      notas_scan: formData.notasScan,
-    })
-    .select()
-    .single();
+  let data: any;
+  let error: any;
+
+  if (existing && existing.length > 0) {
+    // FASE 30: Upsert — actualizar la cantidad contada en lugar de crear duplicado
+    const result = await supabase
+      .from("verificaciones_items")
+      .update({
+        cantidad_escaneada: cantidad,
+        es_duplicado: false,
+        notas_scan: formData.notasScan ?? existing[0].notas_scan,
+      })
+      .eq("id", existing[0].id)
+      .select()
+      .single();
+    data = result.data;
+    error = result.error;
+  } else {
+    // Primer escaneo de este producto — crear registro
+    const result = await supabase
+      .from("verificaciones_items")
+      .insert({
+        verificacion_id: formData.verificacionId,
+        producto_id: producto?.id,
+        codigo_escaneado: codigo,
+        cantidad_escaneada: cantidad,
+        es_duplicado: false,
+        es_producto_nuevo: esProductoNuevo,
+        ubicacion_encontrada_id: formData.ubicacionEncontradaId,
+        notas_scan: formData.notasScan,
+      })
+      .select()
+      .single();
+    data = result.data;
+    error = result.error;
+  }
 
   if (error) throw error;
 
@@ -393,6 +416,85 @@ export async function getProductosFaltantes(
 
   // Return products not scanned
   return allProductos.filter((p) => !scannedIds.has(p.id));
+}
+
+// ==========================================
+// FASE 30: Diferencias y Ajuste de Stock
+// ==========================================
+
+/**
+ * Retorna la comparación entre cantidades contadas y stock del sistema.
+ * Solo productos que ya fueron escaneados en la sesión.
+ */
+export async function getDiferenciasVerificacion(
+  verificacionId: string
+): Promise<DiferenciaVerificacion[]> {
+  const supabase = createAdminClient();
+
+  // Items escaneados con datos del producto
+  const { data: items } = await supabase
+    .from("verificaciones_items")
+    .select(
+      `id, producto_id, cantidad_escaneada,
+       productos!inner(id, nombre, marca, modelo, codigo_barras, stock)`
+    )
+    .eq("verificacion_id", verificacionId)
+    .not("producto_id", "is", null);
+
+  if (!items) return [];
+
+  // Agrupar por producto_id (puede haber varios scans si hubo duplicados históricos)
+  const map = new Map<string, DiferenciaVerificacion>();
+  for (const item of items) {
+    const p = (item as any).productos;
+    if (!p) continue;
+    // Usar el item más reciente (last write wins)
+    map.set(p.id, {
+      productoId: p.id,
+      nombre: p.nombre,
+      marca: p.marca,
+      modelo: p.modelo,
+      codigoBarras: p.codigo_barras ?? undefined,
+      stockSistema: p.stock,
+      cantidadContada: (item as any).cantidad_escaneada,
+      diferencia: (item as any).cantidad_escaneada - p.stock,
+    });
+  }
+
+  return Array.from(map.values()).sort((a, b) =>
+    Math.abs(b.diferencia) - Math.abs(a.diferencia)
+  );
+}
+
+/**
+ * Aplica los ajustes de stock: actualiza productos.stock con las cantidades contadas.
+ * Solo admin/super_admin pueden llamar esto.
+ * Retorna cuántos productos fueron actualizados.
+ */
+export async function ajustarStockVerificacion(
+  verificacionId: string
+): Promise<{ actualizados: number; detalles: { nombre: string; antes: number; despues: number }[] }> {
+  const supabase = createAdminClient();
+
+  const diferencias = await getDiferenciasVerificacion(verificacionId);
+  const conDiferencia = diferencias.filter((d) => d.diferencia !== 0);
+
+  const detalles: { nombre: string; antes: number; despues: number }[] = [];
+
+  for (const d of conDiferencia) {
+    await supabase
+      .from("productos")
+      .update({ stock: d.cantidadContada })
+      .eq("id", d.productoId);
+
+    detalles.push({
+      nombre: `${d.marca} ${d.modelo} ${d.nombre}`.trim(),
+      antes: d.stockSistema,
+      despues: d.cantidadContada,
+    });
+  }
+
+  return { actualizados: conDiferencia.length, detalles };
 }
 
 // ==========================================

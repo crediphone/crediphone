@@ -12,6 +12,7 @@ import { ModalEditarPresupuesto } from "@/components/reparaciones/ModalEditarPre
 import { PiezasInventarioPanel } from "@/components/reparaciones/PiezasInventarioPanel";
 import { AnticipoCajaPanel } from "@/components/reparaciones/anticipos/AnticipoCajaPanel";
 import { CentroMensajesPanel } from "@/components/reparaciones/mensajeria/CentroMensajesPanel";
+import { BitacoraTiempoPanel } from "@/components/reparaciones/BitacoraTiempoPanel";
 import { Tabs } from "@/components/ui/Tabs";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -497,6 +498,11 @@ export default function OrdenDetailPage() {
       id: "mensajeria",
       label: "💬 Mensajería",
       content: <CentroMensajesPanel orden={orden} onUpdate={recargarOrden} />,
+    },
+    {
+      id: "tiempo",
+      label: "⏱ Tiempo",
+      content: <BitacoraTiempoPanel ordenId={orden.id} />,
     },
   ];
 

@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       const scanData: ScanProductoFormData = {
         verificacionId: body.verificacionId,
         codigoEscaneado: body.codigoEscaneado,
+        cantidad: body.cantidad ? Number(body.cantidad) : undefined,
         ubicacionEncontradaId: body.ubicacionEncontradaId,
         notasScan: body.notasScan,
       };

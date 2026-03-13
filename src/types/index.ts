@@ -1043,8 +1043,21 @@ export interface NuevaVerificacionFormData {
 export interface ScanProductoFormData {
   verificacionId: string;
   codigoEscaneado: string;
+  cantidad?: number;          // FASE 30: unidades contadas físicamente (default 1)
   ubicacionEncontradaId?: string;
   notasScan?: string;
+}
+
+// Diferencia entre conteo físico y stock del sistema
+export interface DiferenciaVerificacion {
+  productoId: string;
+  nombre: string;
+  marca: string;
+  modelo: string;
+  codigoBarras?: string;
+  stockSistema: number;
+  cantidadContada: number;
+  diferencia: number;         // positivo = más de lo esperado, negativo = faltante
 }
 
 // Form data para mover producto
@@ -1062,4 +1075,28 @@ export interface EstadisticasVerificacion {
   productosFaltantesHoy: number;
   alertasPendientes: number;
   ubicacionesActivas: number;
+}
+
+// =====================================================
+// FASE 30: Bitácora de tiempo para técnicos
+// =====================================================
+
+export interface TiempoLog {
+  id: string;
+  ordenId: string;
+  tecnicoId: string;
+  tecnicoNombre?: string;
+  distribuidorId?: string;
+  inicioTrabajo: Date;
+  finTrabajo?: Date;
+  duracionMinutos?: number;
+  notas?: string;
+  createdAt: Date;
+}
+
+export interface TiempoResumen {
+  totalMinutos: number;
+  totalSesiones: number;
+  sesionActiva?: TiempoLog; // sesión sin finTrabajo
+  logs: TiempoLog[];
 }

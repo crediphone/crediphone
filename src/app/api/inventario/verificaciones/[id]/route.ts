@@ -6,6 +6,8 @@ import {
   cancelarVerificacion,
   getVerificacionItems,
   getProductosFaltantes,
+  getDiferenciasVerificacion,
+  ajustarStockVerificacion,
 } from "@/lib/db/verificaciones";
 
 export async function GET(
@@ -30,6 +32,11 @@ export async function GET(
     if (action === "faltantes") {
       const faltantes = await getProductosFaltantes(id);
       return NextResponse.json({ success: true, data: faltantes });
+    }
+
+    if (action === "diferencias") {
+      const diferencias = await getDiferenciasVerificacion(id);
+      return NextResponse.json({ success: true, data: diferencias });
     }
 
     const verificacion = await getVerificacionById(id);
@@ -105,6 +112,21 @@ export async function PUT(
     if (action === "cancelar") {
       const updated = await cancelarVerificacion(id);
       return NextResponse.json({ success: true, data: updated });
+    }
+
+    if (action === "ajustar_stock") {
+      // Solo admin / super_admin
+      const { role } = await import("@/lib/auth/server").then((m) =>
+        m.getAuthContext()
+      );
+      if (!["admin", "super_admin"].includes(role ?? "")) {
+        return NextResponse.json(
+          { success: false, error: "Solo administradores pueden ajustar el stock" },
+          { status: 403 }
+        );
+      }
+      const resultado = await ajustarStockVerificacion(id);
+      return NextResponse.json({ success: true, data: resultado });
     }
 
     return NextResponse.json(

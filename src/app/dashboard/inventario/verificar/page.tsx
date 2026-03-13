@@ -1,46 +1,73 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { BarcodeScanner } from "@/components/inventario/BarcodeScanner";
 import { LocationSelector } from "@/components/inventario/LocationSelector";
-import { ProductLocationCard } from "@/components/inventario/ProductLocationCard";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import {
   CheckCircle,
-  AlertCircle,
+  AlertTriangle,
   Package,
-  XCircle,
   PlayCircle,
   StopCircle,
+  ClipboardCheck,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  RefreshCw,
+  Wrench,
+  BarChart2,
+  ScanLine,
 } from "lucide-react";
 import type {
   VerificacionInventarioDetallada,
   VerificacionItemDetallado,
   Producto,
+  DiferenciaVerificacion,
 } from "@/types";
+
+// ── Tipos internos ─────────────────────────────────────────────────────────────
+
+interface PendingItem {
+  codigo: string;
+  productoNombre?: string;
+  productaMarca?: string;
+  productoModelo?: string;
+  stockSistema?: number;
+  cantidadActual?: number; // si ya estaba escaneado
+}
+
+type Tab = "scanner" | "contados" | "diferencias";
+
+// ── Página ─────────────────────────────────────────────────────────────────────
 
 export default function VerificarInventarioPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const [verificacion, setVerificacion] =
-    useState<VerificacionInventarioDetallada | null>(null);
-  const [ubicacionSeleccionada, setUbicacionSeleccionada] = useState<
-    string | undefined
-  >();
-  const [scanning, setScanning] = useState(false);
-  const [lastScanned, setLastScanned] = useState<{
-    codigo: string;
-    producto?: Producto;
-    isDuplicate: boolean;
-    isNew: boolean;
-  } | null>(null);
+  // Estado verificación
+  const [verificacion, setVerificacion] = useState<VerificacionInventarioDetallada | null>(null);
+  const [ubicacionSeleccionada, setUbicacionSeleccionada] = useState<string | undefined>();
+  const [tab, setTab] = useState<Tab>("scanner");
 
+  // Datos
   const [items, setItems] = useState<VerificacionItemDetallado[]>([]);
-  const [productosFaltantes, setProductosFaltantes] = useState<Producto[]>([]);
+  const [faltantes, setFaltantes] = useState<Producto[]>([]);
+  const [diferencias, setDiferencias] = useState<DiferenciaVerificacion[]>([]);
+
+  // Modal de cantidad
+  const [pendingItem, setPendingItem] = useState<PendingItem | null>(null);
+  const [cantidadInput, setCantidadInput] = useState("1");
+  const cantidadRef = useRef<HTMLInputElement>(null);
+
+  // UI state
+  const [iniciando, setIniciando] = useState(false);
+  const [ajustando, setAjustando] = useState(false);
+  const [lastScanFeedback, setLastScanFeedback] = useState<{
+    tipo: "ok" | "nuevo" | "actualizado";
+    texto: string;
+  } | null>(null);
 
   useEffect(() => {
     if (user && !["admin", "vendedor", "super_admin"].includes(user.role)) {
@@ -50,375 +77,856 @@ export default function VerificarInventarioPage() {
     }
   }, [user, router]);
 
+  // Enfocar input cantidad al aparecer modal
+  useEffect(() => {
+    if (pendingItem) {
+      setCantidadInput(String(pendingItem.cantidadActual ?? 1));
+      setTimeout(() => cantidadRef.current?.select(), 50);
+    }
+  }, [pendingItem]);
+
   const checkVerificacionActiva = async () => {
-    try {
-      const response = await fetch(
-        "/api/inventario/verificaciones?action=activa"
-      );
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        setVerificacion(data.data);
-        loadVerificacionItems(data.data.id);
-        loadProductosFaltantes(data.data.id);
-      }
-    } catch (error) {
-      console.error("Error checking active verification:", error);
+    const res = await fetch("/api/inventario/verificaciones?action=activa");
+    const data = await res.json();
+    if (data.success && data.data) {
+      setVerificacion(data.data);
+      await Promise.all([
+        loadItems(data.data.id),
+        loadFaltantes(data.data.id),
+        loadDiferencias(data.data.id),
+      ]);
     }
   };
 
-  const loadVerificacionItems = async (verificacionId: string) => {
-    try {
-      const response = await fetch(
-        `/api/inventario/verificaciones/${verificacionId}?action=items`
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setItems(data.data);
-      }
-    } catch (error) {
-      console.error("Error loading items:", error);
-    }
+  const loadItems = async (id: string) => {
+    const res = await fetch(`/api/inventario/verificaciones/${id}?action=items`);
+    const data = await res.json();
+    if (data.success) setItems(data.data);
   };
 
-  const loadProductosFaltantes = async (verificacionId: string) => {
-    try {
-      const response = await fetch(
-        `/api/inventario/verificaciones/${verificacionId}?action=faltantes`
-      );
-      const data = await response.json();
+  const loadFaltantes = async (id: string) => {
+    const res = await fetch(`/api/inventario/verificaciones/${id}?action=faltantes`);
+    const data = await res.json();
+    if (data.success) setFaltantes(data.data);
+  };
 
-      if (data.success) {
-        setProductosFaltantes(data.data);
-      }
-    } catch (error) {
-      console.error("Error loading missing products:", error);
-    }
+  const loadDiferencias = async (id: string) => {
+    const res = await fetch(`/api/inventario/verificaciones/${id}?action=diferencias`);
+    const data = await res.json();
+    if (data.success) setDiferencias(data.data);
+  };
+
+  const reloadAll = async (id: string) => {
+    await Promise.all([
+      checkVerificacionActiva(),
+      loadItems(id),
+      loadFaltantes(id),
+      loadDiferencias(id),
+    ]);
   };
 
   const handleIniciarVerificacion = async () => {
+    setIniciando(true);
     try {
-      const response = await fetch("/api/inventario/verificaciones", {
+      const res = await fetch("/api/inventario/verificaciones", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ubicacionId: ubicacionSeleccionada,
-        }),
+        body: JSON.stringify({ ubicacionId: ubicacionSeleccionada }),
       });
-
-      const data = await response.json();
-
+      const data = await res.json();
       if (data.success) {
         setVerificacion(data.data);
         setItems([]);
-        setProductosFaltantes([]);
-        loadProductosFaltantes(data.data.id);
+        setFaltantes([]);
+        setDiferencias([]);
+        await loadFaltantes(data.data.id);
       } else {
         alert(data.error || "Error al iniciar verificación");
       }
-    } catch (error) {
-      console.error("Error starting verification:", error);
-      alert("Error al iniciar verificación");
+    } finally {
+      setIniciando(false);
     }
   };
 
+  // Step 1: barcode scanned → show quantity modal
   const handleScan = async (codigo: string) => {
     if (!verificacion) return;
 
-    setScanning(true);
-    try {
-      const response = await fetch("/api/inventario/verificaciones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "scan",
-          verificacionId: verificacion.id,
-          codigoEscaneado: codigo,
-        }),
+    // Buscar si ya fue escaneado en esta sesión
+    const yaEscaneado = items.find(
+      (it) =>
+        it.codigoEscaneado === codigo ||
+        it.producto?.codigoBarras === codigo ||
+        (it.producto as any)?.sku === codigo
+    );
+
+    // Buscar datos del producto en faltantes o items para mostrar en modal
+    const prod =
+      yaEscaneado?.producto ??
+      faltantes.find(
+        (p) =>
+          p.codigoBarras === codigo ||
+          (p as any).sku === codigo
+      );
+
+    setPendingItem({
+      codigo,
+      productoNombre: prod?.nombre,
+      productaMarca: prod?.marca,
+      productoModelo: prod?.modelo,
+      stockSistema: prod?.stock,
+      cantidadActual: yaEscaneado ? yaEscaneado.cantidadEscaneada : undefined,
+    });
+  };
+
+  // Step 2: user confirms quantity → submit to API
+  const handleConfirmarCantidad = async () => {
+    if (!pendingItem || !verificacion) return;
+
+    const cantidad = Math.max(0, parseInt(cantidadInput) || 0);
+    setPendingItem(null);
+
+    const res = await fetch("/api/inventario/verificaciones", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "scan",
+        verificacionId: verificacion.id,
+        codigoEscaneado: pendingItem.codigo,
+        cantidad,
+      }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      const esActualizado = pendingItem.cantidadActual !== undefined;
+      const nombre = pendingItem.productoNombre ?? pendingItem.codigo;
+      setLastScanFeedback({
+        tipo: esActualizado ? "actualizado" : "ok",
+        texto: esActualizado
+          ? `${nombre} actualizado → ${cantidad} uds.`
+          : `${nombre} — ${cantidad} uds. registradas`,
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        const item: VerificacionItemDetallado = data.data;
-
-        // Update last scanned
-        setLastScanned({
-          codigo,
-          producto: item.producto,
-          isDuplicate: item.esDuplicado,
-          isNew: item.esProductoNuevo,
-        });
-
-        // Reload items and stats
-        await checkVerificacionActiva();
-        await loadVerificacionItems(verificacion.id);
-        await loadProductosFaltantes(verificacion.id);
-      } else {
-        alert(data.error || "Error al escanear producto");
-      }
-    } catch (error) {
-      console.error("Error scanning:", error);
-      alert("Error al escanear producto");
-    } finally {
-      setScanning(false);
+      setTimeout(() => setLastScanFeedback(null), 3000);
+      await reloadAll(verificacion.id);
+    } else {
+      alert(data.error || "Error al registrar");
     }
   };
 
   const handleCompletarVerificacion = async () => {
     if (!verificacion) return;
+    const conDif = diferencias.filter((d) => d.diferencia !== 0).length;
+    const msg =
+      `¿Completar verificación?\n\n` +
+      `Productos contados: ${items.length}\n` +
+      `Faltantes (no contados): ${faltantes.length}\n` +
+      `Con diferencia de stock: ${conDif}\n\n` +
+      `Nota: Los ajustes de stock deben aplicarse manualmente.`;
+    if (!confirm(msg)) return;
 
-    if (
-      !confirm(
-        `¿Completar verificación?\n\nEscaneados: ${verificacion.totalProductosEscaneados}\nFaltantes: ${verificacion.totalProductosFaltantes}\nDuplicados: ${verificacion.totalDuplicados}`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/inventario/verificaciones/${verificacion.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "completar",
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        alert("Verificación completada exitosamente");
-        setVerificacion(null);
-        setItems([]);
-        setProductosFaltantes([]);
-        setLastScanned(null);
-      } else {
-        alert(data.error || "Error al completar verificación");
-      }
-    } catch (error) {
-      console.error("Error completing verification:", error);
-      alert("Error al completar verificación");
+    const res = await fetch(`/api/inventario/verificaciones/${verificacion.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "completar" }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert("Verificación completada.");
+      setVerificacion(null);
+      setItems([]);
+      setFaltantes([]);
+      setDiferencias([]);
+    } else {
+      alert(data.error || "Error");
     }
   };
 
   const handleCancelarVerificacion = async () => {
     if (!verificacion) return;
-
-    if (!confirm("¿Cancelar esta verificación? Se perderán todos los escaneos realizados.")) {
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/inventario/verificaciones/${verificacion.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "cancelar",
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        setVerificacion(null);
-        setItems([]);
-        setProductosFaltantes([]);
-        setLastScanned(null);
-      } else {
-        alert(data.error || "Error al cancelar verificación");
-      }
-    } catch (error) {
-      console.error("Error canceling verification:", error);
-      alert("Error al cancelar verificación");
+    if (!confirm("¿Cancelar esta verificación? Se perderán todos los conteos.")) return;
+    const res = await fetch(`/api/inventario/verificaciones/${verificacion.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cancelar" }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setVerificacion(null);
+      setItems([]);
+      setFaltantes([]);
+      setDiferencias([]);
     }
   };
 
-  if (!user || !["admin", "vendedor", "super_admin"].includes(user.role)) {
-    return null;
-  }
+  const handleAjustarStock = async () => {
+    if (!verificacion) return;
+    const conDif = diferencias.filter((d) => d.diferencia !== 0).length;
+    if (conDif === 0) {
+      alert("No hay diferencias que ajustar.");
+      return;
+    }
+    if (!confirm(`¿Aplicar ${conDif} ajuste(s) de stock? Esta acción actualiza los valores en el sistema.`)) return;
+
+    setAjustando(true);
+    try {
+      const res = await fetch(`/api/inventario/verificaciones/${verificacion.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "ajustar_stock" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✓ ${data.data.actualizados} productos ajustados correctamente.`);
+        await reloadAll(verificacion.id);
+      } else {
+        alert(data.error || "Error al ajustar");
+      }
+    } finally {
+      setAjustando(false);
+    }
+  };
+
+  if (!user || !["admin", "vendedor", "super_admin"].includes(user.role)) return null;
+
+  const isAdmin = ["admin", "super_admin"].includes(user.role);
+  const conDiferencia = diferencias.filter((d) => d.diferencia !== 0);
+  const stockPositivo = conDiferencia.filter((d) => d.diferencia > 0);
+  const stockNegativo = conDiferencia.filter((d) => d.diferencia < 0);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-          Verificación de Inventario
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Escanee productos para verificar su existencia y ubicación
-        </p>
-      </div>
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8" style={{ background: "var(--color-bg-base)" }}>
+      <div className="max-w-5xl mx-auto space-y-6">
 
-      {!verificacion ? (
-        /* No active verification - Show start form */
-        <Card className="p-6 max-w-2xl mx-auto">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Iniciar Nueva Verificación
-          </h2>
+        {/* ── Header ───────────────────────────────────────────────────── */}
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--color-text-primary)" }}>
+            Verificación de Inventario
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+            Conteo físico de unidades y ajuste de stock
+          </p>
+        </div>
 
-          <LocationSelector
-            value={ubicacionSeleccionada}
-            onChange={setUbicacionSeleccionada}
-            showAllOption
-            showCounts
-          />
+        {!verificacion ? (
+          /* ── Sin verificación activa ─────────────────────────────────── */
+          <div
+            className="max-w-lg mx-auto rounded-2xl p-6"
+            style={{
+              background: "var(--color-bg-surface)",
+              border: "1px solid var(--color-border-subtle)",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <h2 className="text-base font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+              <PlayCircle className="w-5 h-5" style={{ color: "var(--color-accent)" }} />
+              Nueva sesión de conteo
+            </h2>
 
-          <div className="mt-6">
-            <Button onClick={handleIniciarVerificacion} className="w-full">
-              <PlayCircle className="w-5 h-5 mr-2" />
-              Iniciar Verificación
-            </Button>
-          </div>
+            <LocationSelector
+              value={ubicacionSeleccionada}
+              onChange={setUbicacionSeleccionada}
+              showAllOption
+              showCounts
+            />
 
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>Nota:</strong> Puede verificar una ubicación específica o
-              todo el inventario. Los productos escaneados se marcarán como
-              verificados.
-            </p>
-          </div>
-        </Card>
-      ) : (
-        /* Active verification - Show scanner */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Scanner */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-3 gap-4">
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Escaneados
-                  </p>
-                </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {verificacion.totalProductosEscaneados}
-                </p>
-              </Card>
+            <button
+              onClick={handleIniciarVerificacion}
+              disabled={iniciando}
+              className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm"
+              style={{
+                background: "var(--color-accent)",
+                color: "#fff",
+                opacity: iniciando ? 0.7 : 1,
+              }}
+            >
+              <PlayCircle className="w-4 h-4" />
+              {iniciando ? "Iniciando..." : "Iniciar conteo"}
+            </button>
 
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Faltantes
-                  </p>
-                </div>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                  {verificacion.totalProductosFaltantes}
-                </p>
-              </Card>
-
-              <Card className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <XCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Duplicados
-                  </p>
-                </div>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {verificacion.totalDuplicados}
-                </p>
-              </Card>
-            </div>
-
-            {/* Scanner */}
-            <Card className="p-6">
-              <BarcodeScanner
-                onScan={handleScan}
-                isScanning={scanning}
-                lastScannedCode={lastScanned?.codigo}
-                productName={
-                  lastScanned?.producto
-                    ? `${lastScanned.producto.nombre} - ${lastScanned.producto.marca}`
-                    : lastScanned?.isNew
-                    ? "⚠️ Producto NO registrado"
-                    : undefined
-                }
-                productImage={lastScanned?.producto?.imagen}
-              />
-
-              {lastScanned?.isDuplicate && (
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    ⚠️ Este producto ya fue escaneado anteriormente en esta
-                    verificación.
-                  </p>
-                </div>
-              )}
-
-              {lastScanned?.isNew && (
-                <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                  <p className="text-sm text-orange-800 dark:text-orange-200">
-                    ⚠️ Producto no encontrado en el sistema. Se ha creado una
-                    alerta para el administrador.
-                  </p>
-                </div>
-              )}
-            </Card>
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <Button
-                onClick={handleCompletarVerificacion}
-                className="flex-1"
-                disabled={verificacion.totalProductosEscaneados === 0}
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Completar Verificación
-              </Button>
-
-              <Button
-                onClick={handleCancelarVerificacion}
-                variant="danger"
-              >
-                <StopCircle className="w-4 h-4 mr-2" />
-                Cancelar
-              </Button>
+            <div
+              className="mt-4 p-3 rounded-xl text-sm"
+              style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)" }}
+            >
+              Escanea el código de barras de cada producto e ingresa cuántas unidades tienes físicamente. Al terminar, se generará un reporte de diferencias con opción de ajustar el stock.
             </div>
           </div>
 
-          {/* Right Column - Missing Products */}
-          <div className="space-y-6">
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Productos Faltantes ({productosFaltantes.length})
-              </h3>
+        ) : (
+          /* ── Verificación activa ─────────────────────────────────────── */
+          <div className="space-y-5">
 
-              {productosFaltantes.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                  ¡Todos los productos han sido verificados!
-                </p>
-              ) : (
-                <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                  {productosFaltantes.slice(0, 20).map((producto) => (
-                    <ProductLocationCard
-                      key={producto.id}
-                      producto={producto}
-                      showLocation
-                      showBarcode
-                    />
-                  ))}
-                  {productosFaltantes.length > 20 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-2">
-                      Y {productosFaltantes.length - 20} más...
-                    </p>
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <KpiMini icon={<ScanLine className="w-4 h-4" />} label="Contados" value={items.length} color="accent" />
+              <KpiMini icon={<Package className="w-4 h-4" />} label="Faltantes" value={faltantes.length} color="warning" />
+              <KpiMini icon={<TrendingDown className="w-4 h-4" />} label="Stock bajo" value={stockNegativo.length} color="danger" />
+              <KpiMini icon={<TrendingUp className="w-4 h-4" />} label="Stock alto" value={stockPositivo.length} color="success" />
+            </div>
+
+            {/* Tabs */}
+            <div
+              className="flex gap-1 p-1 rounded-xl"
+              style={{ background: "var(--color-bg-elevated)" }}
+            >
+              <TabBtn active={tab === "scanner"} onClick={() => setTab("scanner")}>
+                <ScanLine className="w-4 h-4" />
+                Escanear
+              </TabBtn>
+              <TabBtn active={tab === "contados"} onClick={() => setTab("contados")}>
+                <ClipboardCheck className="w-4 h-4" />
+                Contados
+                {items.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full font-bold"
+                    style={{ background: "var(--color-accent-light)", color: "var(--color-accent)" }}>
+                    {items.length}
+                  </span>
+                )}
+              </TabBtn>
+              <TabBtn active={tab === "diferencias"} onClick={() => setTab("diferencias")}>
+                <BarChart2 className="w-4 h-4" />
+                Diferencias
+                {conDiferencia.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full font-bold"
+                    style={{ background: "var(--color-danger-bg)", color: "var(--color-danger-text)" }}>
+                    {conDiferencia.length}
+                  </span>
+                )}
+              </TabBtn>
+            </div>
+
+            {/* ── Tab: Escanear ───────────────────────────────────────── */}
+            {tab === "scanner" && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                {/* Scanner */}
+                <div
+                  className="rounded-2xl p-5"
+                  style={{
+                    background: "var(--color-bg-surface)",
+                    border: "1px solid var(--color-border-subtle)",
+                    boxShadow: "var(--shadow-sm)",
+                  }}
+                >
+                  <p className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+                    <ScanLine className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                    Escanear código de barras
+                  </p>
+
+                  <BarcodeScanner onScan={handleScan} />
+
+                  {/* Feedback último escaneo */}
+                  {lastScanFeedback && (
+                    <div
+                      className="mt-3 px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2"
+                      style={{
+                        background: lastScanFeedback.tipo === "actualizado"
+                          ? "var(--color-warning-bg)"
+                          : "var(--color-success-bg)",
+                        color: lastScanFeedback.tipo === "actualizado"
+                          ? "var(--color-warning-text)"
+                          : "var(--color-success-text)",
+                      }}
+                    >
+                      <CheckCircle className="w-4 h-4 shrink-0" />
+                      {lastScanFeedback.texto}
+                    </div>
                   )}
                 </div>
+
+                {/* Faltantes */}
+                <div
+                  className="rounded-2xl"
+                  style={{
+                    background: "var(--color-bg-surface)",
+                    border: "1px solid var(--color-border-subtle)",
+                    boxShadow: "var(--shadow-sm)",
+                  }}
+                >
+                  <div
+                    className="px-5 py-4 flex items-center justify-between"
+                    style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                  >
+                    <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--color-warning)" }}>
+                      <Package className="w-4 h-4" />
+                      Pendientes de contar ({faltantes.length})
+                    </p>
+                    <button onClick={() => verificacion && loadFaltantes(verificacion.id)}>
+                      <RefreshCw className="w-4 h-4" style={{ color: "var(--color-text-muted)" }} />
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto max-h-72">
+                    {faltantes.length === 0 ? (
+                      <div className="flex flex-col items-center py-10">
+                        <CheckCircle className="w-8 h-8" style={{ color: "var(--color-success)" }} />
+                        <p className="mt-2 text-sm font-medium" style={{ color: "var(--color-success)" }}>
+                          ¡Todos contados!
+                        </p>
+                      </div>
+                    ) : (
+                      faltantes.slice(0, 30).map((p) => (
+                        <FaltanteRow key={p.id} producto={p} />
+                      ))
+                    )}
+                    {faltantes.length > 30 && (
+                      <p className="text-xs text-center py-2" style={{ color: "var(--color-text-muted)" }}>
+                        y {faltantes.length - 30} más...
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Tab: Contados ───────────────────────────────────────── */}
+            {tab === "contados" && (
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                  background: "var(--color-bg-surface)",
+                  border: "1px solid var(--color-border-subtle)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                {items.length === 0 ? (
+                  <div className="flex flex-col items-center py-16">
+                    <ScanLine className="w-10 h-10" style={{ color: "var(--color-text-muted)" }} />
+                    <p className="mt-3 text-sm font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                      Aún no has escaneado ningún producto
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className="grid px-4 py-2 text-xs font-semibold uppercase tracking-wide"
+                      style={{
+                        gridTemplateColumns: "1fr 5rem 5rem 5rem",
+                        gap: "0.75rem",
+                        background: "var(--color-bg-elevated)",
+                        color: "var(--color-text-muted)",
+                        borderBottom: "1px solid var(--color-border-subtle)",
+                      }}
+                    >
+                      <span>Producto</span>
+                      <span className="text-right">Sistema</span>
+                      <span className="text-right">Contado</span>
+                      <span className="text-right">Dif.</span>
+                    </div>
+                    {items.map((item, idx) => (
+                      <ContadoRow key={item.id} item={item} idx={idx} total={items.length} />
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab: Diferencias ───────────────────────────────────── */}
+            {tab === "diferencias" && (
+              <div className="space-y-4">
+                {/* Acción ajustar stock (solo admin) */}
+                {isAdmin && conDiferencia.length > 0 && (
+                  <div
+                    className="flex items-center justify-between px-4 py-3 rounded-xl"
+                    style={{
+                      background: "var(--color-warning-bg)",
+                      border: "1px solid var(--color-warning)",
+                    }}
+                  >
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: "var(--color-warning-text)" }}>
+                        {conDiferencia.length} producto{conDiferencia.length !== 1 ? "s" : ""} con diferencia de stock
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--color-warning-text)", opacity: 0.8 }}>
+                        Puedes aplicar los ajustes para sincronizar el sistema con el conteo físico
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleAjustarStock}
+                      disabled={ajustando}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold shrink-0"
+                      style={{
+                        background: ajustando ? "var(--color-bg-elevated)" : "var(--color-warning)",
+                        color: ajustando ? "var(--color-text-muted)" : "#fff",
+                      }}
+                    >
+                      <Wrench className="w-4 h-4" />
+                      {ajustando ? "Ajustando..." : "Aplicar ajustes"}
+                    </button>
+                  </div>
+                )}
+
+                {diferencias.length === 0 ? (
+                  <div
+                    className="flex flex-col items-center py-16 rounded-2xl"
+                    style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border-subtle)" }}
+                  >
+                    <CheckCircle className="w-10 h-10" style={{ color: "var(--color-success)" }} />
+                    <p className="mt-3 font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                      Sin diferencias registradas
+                    </p>
+                    <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
+                      Escanea productos para ver las diferencias aquí
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className="rounded-2xl overflow-hidden"
+                    style={{
+                      background: "var(--color-bg-surface)",
+                      border: "1px solid var(--color-border-subtle)",
+                      boxShadow: "var(--shadow-sm)",
+                    }}
+                  >
+                    <div
+                      className="grid px-4 py-2 text-xs font-semibold uppercase tracking-wide"
+                      style={{
+                        gridTemplateColumns: "1fr 5rem 5rem 5rem 5rem",
+                        gap: "0.75rem",
+                        background: "var(--color-bg-elevated)",
+                        color: "var(--color-text-muted)",
+                        borderBottom: "1px solid var(--color-border-subtle)",
+                      }}
+                    >
+                      <span>Producto</span>
+                      <span className="text-right">Sistema</span>
+                      <span className="text-right">Físico</span>
+                      <span className="text-right">Diferencia</span>
+                      <span className="text-right">Estado</span>
+                    </div>
+                    {diferencias.map((d, idx) => (
+                      <DiferenciaRow key={d.productoId} d={d} idx={idx} total={diferencias.length} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Acciones globales */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleCompletarVerificacion}
+                disabled={items.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm"
+                style={{
+                  background: items.length === 0 ? "var(--color-bg-elevated)" : "var(--color-accent)",
+                  color: items.length === 0 ? "var(--color-text-muted)" : "#fff",
+                }}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Completar verificación
+              </button>
+              <button
+                onClick={handleCancelarVerificacion}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm"
+                style={{
+                  background: "var(--color-danger-bg)",
+                  color: "var(--color-danger-text)",
+                  border: "1px solid var(--color-danger-bg)",
+                }}
+              >
+                <StopCircle className="w-4 h-4" />
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Modal cantidad ─────────────────────────────────────────────── */}
+      {pendingItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPendingItem(null);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+            style={{
+              background: "var(--color-bg-surface)",
+              boxShadow: "var(--shadow-xl)",
+            }}
+          >
+            {/* Producto */}
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--color-text-muted)" }}>
+                Producto escaneado
+              </p>
+              {pendingItem.productoNombre ? (
+                <>
+                  <p className="font-semibold text-lg leading-tight" style={{ color: "var(--color-text-primary)" }}>
+                    {pendingItem.productoNombre}
+                  </p>
+                  <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+                    {[pendingItem.productaMarca, pendingItem.productoModelo].filter(Boolean).join(" ")}
+                  </p>
+                </>
+              ) : (
+                <p className="font-mono text-sm" style={{ color: "var(--color-warning)" }}>
+                  {pendingItem.codigo} — no registrado
+                </p>
               )}
-            </Card>
+            </div>
+
+            {/* Stock del sistema */}
+            {pendingItem.stockSistema !== undefined && (
+              <div
+                className="flex items-center justify-between px-3 py-2 rounded-lg"
+                style={{ background: "var(--color-bg-elevated)" }}
+              >
+                <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                  Stock en sistema
+                </span>
+                <span
+                  className="font-bold text-lg"
+                  style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}
+                >
+                  {pendingItem.stockSistema}
+                </span>
+              </div>
+            )}
+
+            {pendingItem.cantidadActual !== undefined && (
+              <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+                Ya contaste {pendingItem.cantidadActual} unidades — puedes actualizar el número
+              </p>
+            )}
+
+            {/* Input cantidad */}
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-primary)" }}>
+                Cantidad física contada
+              </label>
+              <input
+                ref={cantidadRef}
+                type="number"
+                min="0"
+                value={cantidadInput}
+                onChange={(e) => setCantidadInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleConfirmarCantidad();
+                  if (e.key === "Escape") setPendingItem(null);
+                }}
+                className="w-full text-2xl font-bold text-center py-3 rounded-xl outline-none"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: "2px solid var(--color-accent)",
+                  color: "var(--color-text-primary)",
+                  fontFamily: "var(--font-data)",
+                }}
+              />
+              <p className="text-xs mt-1 text-center" style={{ color: "var(--color-text-muted)" }}>
+                Enter para confirmar · Esc para cancelar
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingItem(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                style={{
+                  background: "var(--color-bg-elevated)",
+                  color: "var(--color-text-secondary)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarCantidad}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "var(--color-accent)", color: "#fff" }}
+              >
+                Confirmar
+              </button>
+            </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Sub-componentes ────────────────────────────────────────────────────────────
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+      style={{
+        background: active ? "var(--color-bg-surface)" : hover ? "var(--color-bg-surface)" : "transparent",
+        color: active ? "var(--color-text-primary)" : "var(--color-text-muted)",
+        boxShadow: active ? "var(--shadow-xs)" : "none",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function KpiMini({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
+  const colors: Record<string, { bg: string; text: string }> = {
+    accent:  { bg: "var(--color-accent-light)",  text: "var(--color-accent)" },
+    warning: { bg: "var(--color-warning-bg)",     text: "var(--color-warning)" },
+    danger:  { bg: "var(--color-danger-bg)",      text: "var(--color-danger)" },
+    success: { bg: "var(--color-success-bg)",     text: "var(--color-success)" },
+  };
+  const c = colors[color] ?? colors.accent;
+  return (
+    <div
+      className="rounded-xl p-3 flex items-center gap-3"
+      style={{ background: c.bg }}
+    >
+      <div style={{ color: c.text }}>{icon}</div>
+      <div>
+        <p className="text-xl font-bold leading-none" style={{ color: c.text, fontFamily: "var(--font-data)" }}>
+          {value}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: c.text }}>{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function FaltanteRow({ producto }: { producto: Producto }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-2.5"
+      style={{
+        background: hover ? "var(--color-bg-elevated)" : "transparent",
+        borderBottom: "1px solid var(--color-border-subtle)",
+        transition: "background var(--duration-fast)",
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <AlertTriangle className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-warning)" }} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>
+          {producto.nombre}
+        </p>
+        <p className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>
+          {[producto.marca, producto.modelo].filter(Boolean).join(" ")}
+        </p>
+      </div>
+      <span className="text-sm font-bold shrink-0" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-data)" }}>
+        {producto.stock}
+      </span>
+    </div>
+  );
+}
+
+function ContadoRow({ item, idx, total }: { item: VerificacionItemDetallado; idx: number; total: number }) {
+  const [hover, setHover] = useState(false);
+  const stockSistema = item.producto?.stock ?? 0;
+  const diferencia = item.cantidadEscaneada - stockSistema;
+  const difColor = diferencia === 0
+    ? "var(--color-success)"
+    : diferencia > 0
+    ? "var(--color-info)"
+    : "var(--color-danger)";
+
+  return (
+    <div
+      className="grid items-center px-4 py-2.5 text-sm"
+      style={{
+        gridTemplateColumns: "1fr 5rem 5rem 5rem",
+        gap: "0.75rem",
+        background: hover ? "var(--color-bg-elevated)" : "transparent",
+        borderBottom: idx < total - 1 ? "1px solid var(--color-border-subtle)" : "none",
+        transition: "background var(--duration-fast)",
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div className="min-w-0">
+        <p className="font-medium truncate" style={{ color: "var(--color-text-primary)" }}>
+          {item.producto?.nombre ?? item.codigoEscaneado}
+        </p>
+        <p className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>
+          {[item.producto?.marca, item.producto?.modelo].filter(Boolean).join(" ")}
+        </p>
+      </div>
+      <p className="text-right" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-data)" }}>
+        {stockSistema}
+      </p>
+      <p className="text-right font-bold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+        {item.cantidadEscaneada}
+      </p>
+      <div className="flex items-center justify-end gap-1">
+        {diferencia === 0 ? (
+          <Minus className="w-3.5 h-3.5" style={{ color: difColor }} />
+        ) : diferencia > 0 ? (
+          <TrendingUp className="w-3.5 h-3.5" style={{ color: difColor }} />
+        ) : (
+          <TrendingDown className="w-3.5 h-3.5" style={{ color: difColor }} />
+        )}
+        <span className="font-bold text-sm" style={{ color: difColor, fontFamily: "var(--font-data)" }}>
+          {diferencia > 0 ? `+${diferencia}` : diferencia}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function DiferenciaRow({ d, idx, total }: { d: DiferenciaVerificacion; idx: number; total: number }) {
+  const [hover, setHover] = useState(false);
+  const esPositivo = d.diferencia > 0;
+  const esExacto = d.diferencia === 0;
+  const difColor = esExacto ? "var(--color-success)" : esPositivo ? "var(--color-info)" : "var(--color-danger)";
+  const badgeStyle = esExacto
+    ? { bg: "var(--color-success-bg)", text: "var(--color-success-text)", label: "Correcto" }
+    : esPositivo
+    ? { bg: "var(--color-info-bg)", text: "var(--color-info-text)", label: "Sobrante" }
+    : { bg: "var(--color-danger-bg)", text: "var(--color-danger-text)", label: "Faltante" };
+
+  return (
+    <div
+      className="grid items-center px-4 py-3 text-sm"
+      style={{
+        gridTemplateColumns: "1fr 5rem 5rem 5rem 5rem",
+        gap: "0.75rem",
+        background: hover ? "var(--color-bg-elevated)" : "transparent",
+        borderBottom: idx < total - 1 ? "1px solid var(--color-border-subtle)" : "none",
+        transition: "background var(--duration-fast)",
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div className="min-w-0">
+        <p className="font-medium truncate" style={{ color: "var(--color-text-primary)" }}>
+          {d.nombre}
+        </p>
+        <p className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>
+          {[d.marca, d.modelo].filter(Boolean).join(" ")}
+          {d.codigoBarras && (
+            <span className="ml-1 font-mono">{d.codigoBarras}</span>
+          )}
+        </p>
+      </div>
+      <p className="text-right" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-data)" }}>
+        {d.stockSistema}
+      </p>
+      <p className="text-right font-bold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+        {d.cantidadContada}
+      </p>
+      <p className="text-right font-bold" style={{ color: difColor, fontFamily: "var(--font-data)" }}>
+        {d.diferencia > 0 ? `+${d.diferencia}` : d.diferencia}
+      </p>
+      <div className="flex justify-end">
+        <span
+          className="text-xs px-2 py-0.5 rounded-full font-medium"
+          style={{ background: badgeStyle.bg, color: badgeStyle.text }}
+        >
+          {badgeStyle.label}
+        </span>
+      </div>
     </div>
   );
 }
