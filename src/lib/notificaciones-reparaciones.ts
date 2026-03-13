@@ -8,6 +8,7 @@ import type {
   OrdenReparacionDetallada,
   EstadoOrdenReparacion,
 } from "@/types";
+import { sendPushToUser } from "@/lib/push/web-push-service";
 import {
   generarMensajePresupuesto,
   generarMensajeReparacionCompletada,
@@ -94,6 +95,25 @@ export async function notificarCambioEstado(
           err
         );
       }
+    }
+    // FASE 28: Push nativo a destinatarios con canal "sistema" (fire-and-forget)
+    const destinatariosConPush = config?.destinos
+      .filter((d) => d.canal === "sistema" && d.tipo !== "cliente")
+      .map((d) => {
+        if (d.tipo === "tecnico") return orden.tecnicoId;
+        return null; // admin se resuelve en el futuro si se agrega adminId al tipo
+      })
+      .filter((id): id is string => !!id);
+
+    if (destinatariosConPush && destinatariosConPush.length > 0) {
+      const pushPayload = {
+        title: `Orden ${orden.folio}`,
+        body: config!.generarMensaje(orden),
+        url: `/dashboard/reparaciones/${orden.id}`,
+      };
+      Promise.allSettled(
+        destinatariosConPush.map((id) => sendPushToUser(id, pushPayload))
+      ).catch(() => {}); // fire-and-forget silencioso
     }
   } catch (error) {
     console.error("Error en notificarCambioEstado:", error);
