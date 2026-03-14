@@ -1214,6 +1214,7 @@ export default function POSPage() {
           isOpen={showReciboModal}
           onClose={() => setShowReciboModal(false)}
           onNuevaVenta={handleNuevaVenta}
+          clienteTelefono={clienteSeleccionado?.telefono ?? undefined}
         />
       )}
 
