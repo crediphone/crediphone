@@ -1117,3 +1117,80 @@ export interface TiempoResumen {
   sesionActiva?: TiempoLog; // sesión sin finTrabajo
   logs: TiempoLog[];
 }
+
+// =====================================================
+// FASE 33: Devoluciones parciales de venta POS
+// =====================================================
+
+export type MetodoReembolso = "efectivo" | "transferencia";
+export type EstadoDevolucion = "procesada" | "anulada";
+
+/** Encabezado de devolución */
+export interface Devolucion {
+  id: string;
+  distribuidorId?: string;
+  ventaId: string;
+  folio: string;               // DEV-VENTA-2026-00001
+  procesadoPor?: string;
+  montoDevuelto: number;
+  metodoReembolso: MetodoReembolso;
+  referenciaReembolso?: string;
+  bloqueadoPayjoy: boolean;
+  motivo?: string;
+  notas?: string;
+  estado: EstadoDevolucion;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Línea de devolución */
+export interface DevolucionItem {
+  id: string;
+  devolucionId: string;
+  ventaItemId: string;
+  productoId?: string;
+  cantidadDevuelta: number;
+  precioUnitario: number;
+  subtotalDevuelto: number;
+  stockReintegrado: boolean;
+  createdAt: Date;
+}
+
+/** Devolucion con datos enriquecidos (para UI) */
+export interface DevolucionDetallada extends Devolucion {
+  ventaFolio?: string;
+  ventaFecha?: Date;
+  clienteNombre?: string;
+  procesadoPorNombre?: string;
+  items: DevolucionItemDetallado[];
+}
+
+export interface DevolucionItemDetallado extends DevolucionItem {
+  productoNombre?: string;
+  productoMarca?: string;
+  productoModelo?: string;
+  imei?: string;
+}
+
+/** Payload para crear una devolución */
+export interface NuevaDevolucionPayload {
+  ventaId: string;
+  items: {
+    ventaItemId: string;
+    cantidadDevuelta: number;
+  }[];
+  metodoReembolso: MetodoReembolso;
+  referenciaReembolso?: string;
+  motivo?: string;
+  notas?: string;
+}
+
+/** Validación de elegibilidad para devolver una venta */
+export interface DevolucionElegibilidad {
+  elegible: boolean;
+  razon?: string;            // Mensaje si NO es elegible
+  diasTranscurridos: number;
+  limiteMaximoDias: number;
+  esPayjoy: boolean;
+  primerPagoPayjoy?: boolean; // true = cliente ya pagó → bloqueado
+}

@@ -882,3 +882,89 @@ export function generarTicketPagoCredito(data: TicketPagoData): string {
 </body>
 </html>`;
 }
+
+// ── 5. TICKET DEVOLUCIÓN POS ─────────────────────────
+
+export interface TicketDevolucionData {
+  folio: string;               // DEV-VENTA-2026-00001
+  ventaFolio: string;          // VENTA-2026-00042
+  fechaDevolucion: Date | string;
+  clienteNombre?: string;
+  clienteApellido?: string;
+  items: {
+    productoNombre: string;
+    cantidadDevuelta: number;
+    precioUnitario: number;
+    subtotalDevuelto: number;
+    imei?: string;
+  }[];
+  montoDevuelto: number;
+  metodoReembolso: "efectivo" | "transferencia";
+  referenciaReembolso?: string;
+  procesadoPorNombre?: string;
+  distribuidorNombre?: string;
+  motivo?: string;
+}
+
+export function generarTicketDevolucion(data: TicketDevolucionData): string {
+  const itemsHtml = data.items
+    .map(
+      (it) => `
+  <div class="item">
+    <div class="item-name">${it.productoNombre}</div>
+    ${it.imei ? `<div class="sm" style="color:#888">IMEI: ${it.imei}</div>` : ""}
+    <div class="row">
+      <span>${it.cantidadDevuelta} x ${fmtTicket(it.precioUnitario)}</span>
+      <span class="bold">${fmtTicket(it.subtotalDevuelto)}</span>
+    </div>
+  </div>`
+    )
+    .join("\n");
+
+  const metodoLabel =
+    data.metodoReembolso === "efectivo" ? "Efectivo" : "Transferencia";
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Devolución ${data.folio}</title>
+  <style>${CSS_TICKET}</style>
+</head>
+<body>
+  <div class="center bold lg">CREDIPHONE</div>
+  ${data.distribuidorNombre ? `<div class="center sm">${data.distribuidorNombre}</div>` : ""}
+  <div class="center bold sm" style="background:#fee2e2;padding:4px 0;border-radius:4px;color:#b91c1c">
+    ◄ DEVOLUCIÓN ►
+  </div>
+
+  <button class="print-btn" onclick="window.print()">🖨 Imprimir Comprobante</button>
+
+  <div class="sep"></div>
+  <div class="row"><span class="lbl">Folio Dev.:</span><span class="bold sm">${data.folio}</span></div>
+  <div class="row"><span class="lbl">Venta orig.:</span><span class="sm">${data.ventaFolio}</span></div>
+  <div class="row"><span class="lbl">Fecha:</span><span>${fmtFechaCorta(data.fechaDevolucion)}</span></div>
+  ${data.clienteNombre ? `<div class="row"><span class="lbl">Cliente:</span><span>${data.clienteNombre} ${data.clienteApellido || ""}</span></div>` : ""}
+
+  <div class="sep-solid"></div>
+  <div class="bold sm">ARTÍCULOS DEVUELTOS</div>
+  ${itemsHtml}
+
+  <div class="sep-solid"></div>
+  <div class="row bold lg">
+    <span>REEMBOLSO TOTAL:</span>
+    <span>${fmtTicket(data.montoDevuelto)}</span>
+  </div>
+  <div class="row"><span class="lbl">Método:</span><span>${metodoLabel}</span></div>
+  ${data.referenciaReembolso ? `<div class="row"><span class="lbl">Referencia:</span><span class="sm">${data.referenciaReembolso}</span></div>` : ""}
+  ${data.motivo ? `<div class="row"><span class="lbl">Motivo:</span><span class="sm">${data.motivo}</span></div>` : ""}
+  ${data.procesadoPorNombre ? `<div class="row sm"><span class="lbl">Procesó:</span><span>${data.procesadoPorNombre}</span></div>` : ""}
+
+  <div class="sep"></div>
+  <div class="footer">
+    <p>Este comprobante certifica la devolución</p>
+    <p>CREDIPHONE — Devoluciones</p>
+  </div>
+</body>
+</html>`;
+}

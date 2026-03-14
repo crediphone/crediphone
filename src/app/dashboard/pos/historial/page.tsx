@@ -16,8 +16,10 @@ import {
   Filter,
   X,
   FileSpreadsheet,
+  RotateCcw,
 } from "lucide-react";
-import type { VentaDetallada } from "@/types";
+import type { VentaDetallada, DevolucionDetallada } from "@/types";
+import { DevolucionModal } from "@/components/pos/DevolucionModal";
 
 // FASE 31: Exportar historial de ventas a Excel (CSV compatible)
 function exportarVentasExcel(ventas: VentaDetallada[], nombre = "historial_ventas") {
@@ -69,12 +71,14 @@ function VentaRow({
   onVerDetalle,
   onDescargar,
   onCancelar,
+  onDevolver,
   isAdmin,
 }: {
   venta: VentaDetallada;
   onVerDetalle: (id: string) => void;
   onDescargar: (id: string, folio: string) => void;
   onCancelar: (id: string, folio: string) => void;
+  onDevolver: (venta: VentaDetallada) => void;
   isAdmin: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -165,17 +169,31 @@ function VentaRow({
             <Download className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
           </button>
           {isAdmin && venta.estado === "completada" && (
-            <button
-              onClick={() => onCancelar(venta.id, venta.folio)}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "var(--color-danger-bg)")
-              }
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              style={{ padding: "4px", borderRadius: "0.375rem" }}
-              title="Cancelar venta"
-            >
-              <XCircle className="w-4 h-4" style={{ color: "var(--color-danger)" }} />
-            </button>
+            <>
+              {/* FASE 33: Botón devolución */}
+              <button
+                onClick={() => onDevolver(venta)}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "var(--color-warning-bg)")
+                }
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                style={{ padding: "4px", borderRadius: "0.375rem" }}
+                title="Procesar devolución"
+              >
+                <RotateCcw className="w-4 h-4" style={{ color: "var(--color-warning)" }} />
+              </button>
+              <button
+                onClick={() => onCancelar(venta.id, venta.folio)}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "var(--color-danger-bg)")
+                }
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                style={{ padding: "4px", borderRadius: "0.375rem" }}
+                title="Cancelar venta"
+              >
+                <XCircle className="w-4 h-4" style={{ color: "var(--color-danger)" }} />
+              </button>
+            </>
           )}
         </div>
       </td>
@@ -201,6 +219,10 @@ export default function HistorialPage() {
   // Modal detalle
   const [showDetalleModal, setShowDetalleModal] = useState(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState<VentaDetallada | null>(null);
+
+  // FASE 33: Modal devolución
+  const [showDevolucionModal, setShowDevolucionModal] = useState(false);
+  const [ventaParaDevolver, setVentaParaDevolver] = useState<VentaDetallada | null>(null);
 
   // Redirect non-admin/vendedor/cobrador
   useEffect(() => {
@@ -340,6 +362,32 @@ export default function HistorialPage() {
       console.error("Error canceling venta:", error);
       alert("Error al cancelar venta");
     }
+  };
+
+  // FASE 33: Abrir modal de devolución
+  const handleDevolver = async (venta: VentaDetallada) => {
+    // Necesitamos los items detallados — hacer fetch si no los tenemos
+    if (!venta.items || venta.items.length === 0) {
+      try {
+        const res = await fetch(`/api/pos/ventas/${venta.id}`);
+        const json = await res.json();
+        if (json.success) {
+          setVentaParaDevolver(json.data);
+        } else {
+          setVentaParaDevolver(venta);
+        }
+      } catch {
+        setVentaParaDevolver(venta);
+      }
+    } else {
+      setVentaParaDevolver(venta);
+    }
+    setShowDevolucionModal(true);
+  };
+
+  const handleDevolucionCreada = (_devolucion: DevolucionDetallada) => {
+    // Refrescar lista de ventas para reflejar el nuevo estado
+    fetchVentas();
   };
 
   const limpiarFiltros = () => {
@@ -614,6 +662,7 @@ export default function HistorialPage() {
                     onVerDetalle={handleVerDetalle}
                     onDescargar={handleDescargarRecibo}
                     onCancelar={handleCancelarVenta}
+                    onDevolver={handleDevolver}
                     isAdmin={isAdmin}
                   />
                 ))
@@ -820,6 +869,19 @@ export default function HistorialPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* FASE 33: Modal Devolución */}
+      {showDevolucionModal && ventaParaDevolver && (
+        <DevolucionModal
+          venta={ventaParaDevolver}
+          isOpen={showDevolucionModal}
+          onClose={() => {
+            setShowDevolucionModal(false);
+            setVentaParaDevolver(null);
+          }}
+          onDevolucionCreada={handleDevolucionCreada}
+        />
       )}
     </div>
   );
