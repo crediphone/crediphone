@@ -47,6 +47,12 @@ export default function POSPage() {
   const [notasCierreTurno, setNotasCierreTurno] = useState("");
   const [cerrandoTurno, setCerrandoTurno] = useState(false);
 
+  // Modal abrir turno directo en POS (FASE 28)
+  const [showAbrirTurnoModal, setShowAbrirTurnoModal] = useState(false);
+  const [montoApertura, setMontoApertura] = useState("");
+  const [notasApertura, setNotasApertura] = useState("");
+  const [abriendoTurno, setAbriendoTurno] = useState(false);
+
   // Estado de proceso
   const [processingVenta, setProcessingVenta] = useState(false);
   const [ventaCompletada, setVentaCompletada] = useState<VentaDetallada | null>(null);
@@ -436,6 +442,38 @@ export default function POSPage() {
     setDescuento(0);
   };
 
+  const handleAbrirTurno = async () => {
+    const monto = parseFloat(montoApertura);
+    if (isNaN(monto) || monto < 0) {
+      alert("Ingresa un monto inicial válido (puede ser 0)");
+      return;
+    }
+    setAbriendoTurno(true);
+    try {
+      const response = await fetch("/api/pos/caja", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "abrir", montoInicial: monto, notas: notasApertura || undefined }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSesionCaja(data.data);
+        setShowAbrirTurnoModal(false);
+        setMontoApertura("");
+        setNotasApertura("");
+        setCajaOtroEmpleado(null);
+        fetchEstadisticas();
+      } else {
+        alert(data.error || "Error al abrir turno");
+      }
+    } catch (error) {
+      console.error("Error abriendo turno:", error);
+      alert("Error al abrir turno");
+    } finally {
+      setAbriendoTurno(false);
+    }
+  };
+
   if (!user || !["admin", "vendedor", "super_admin"].includes(user.role)) {
     return null;
   }
@@ -446,33 +484,209 @@ export default function POSPage() {
   // Verificando sesión
   if (loadingSesion) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          Verificando sesión de caja...
+      <div
+        className="flex items-center justify-center min-h-screen"
+        style={{ background: "var(--color-bg-base)" }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          {/* Skeleton animado */}
+          <div
+            className="w-10 h-10 rounded-full animate-pulse"
+            style={{ background: "var(--color-bg-elevated)" }}
+          />
+          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+            Verificando sesión de caja...
+          </p>
         </div>
       </div>
     );
   }
 
-  // Sin sesión activa → redirigir a Caja para abrir turno
+  // Sin sesión activa → pantalla de apertura con modal integrado
   if (!sesionCaja) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-950 p-4">
-        <Card className="max-w-md w-full p-6 text-center">
-          <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+      <div
+        className="flex items-center justify-center min-h-screen p-4"
+        style={{ background: "var(--color-bg-base)" }}
+      >
+        {/* Card principal */}
+        <div
+          className="w-full max-w-sm rounded-2xl p-8 text-center"
+          style={{
+            background: "var(--color-bg-surface)",
+            border: "1px solid var(--color-border-subtle)",
+            boxShadow: "var(--shadow-md)",
+          }}
+        >
+          {/* Ícono */}
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+            style={{ background: "var(--color-accent-light)" }}
+          >
+            <DollarSign className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+          </div>
+
+          <h2
+            className="text-xl font-bold tracking-tight mb-2"
+            style={{ color: "var(--color-text-primary)" }}
+          >
             No hay turno abierto
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Debes abrir un turno de caja antes de realizar ventas.
-          </p>
-          <Button
-            onClick={() => router.push("/dashboard/pos/caja")}
-            className="w-full"
+          <p
+            className="text-sm mb-6"
+            style={{ color: "var(--color-text-muted)" }}
           >
-            Ir a gestión de caja
-          </Button>
-        </Card>
+            Abre un turno de caja para comenzar a vender.
+          </p>
+
+          {/* Alerta si otro empleado tiene caja abierta */}
+          {cajaOtroEmpleado && (
+            <div
+              className="rounded-xl p-3 mb-5 text-left"
+              style={{
+                background: "var(--color-warning-bg)",
+                border: "1px solid var(--color-warning)",
+              }}
+            >
+              <p className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>
+                Caja ocupada
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--color-warning-text)" }}>
+                {cajaOtroEmpleado.nombre} tiene una sesión activa ({cajaOtroEmpleado.folio}). Solo puede haber una a la vez.
+              </p>
+            </div>
+          )}
+
+          {/* Botón abrir turno */}
+          <button
+            onClick={() => setShowAbrirTurnoModal(true)}
+            disabled={!!cajaOtroEmpleado}
+            className="w-full py-3 rounded-xl font-semibold text-sm mb-3 transition-all"
+            style={{
+              background: cajaOtroEmpleado ? "var(--color-bg-elevated)" : "var(--color-primary)",
+              color: cajaOtroEmpleado ? "var(--color-text-muted)" : "var(--color-primary-text)",
+              cursor: cajaOtroEmpleado ? "not-allowed" : "pointer",
+            }}
+          >
+            <DollarSign className="w-4 h-4 inline mr-2" />
+            Abrir Turno
+          </button>
+
+          <button
+            onClick={() => router.push("/dashboard/pos/historial")}
+            className="w-full py-2.5 rounded-xl text-sm font-medium"
+            style={{
+              background: "var(--color-bg-elevated)",
+              color: "var(--color-text-secondary)",
+            }}
+          >
+            <Receipt className="w-4 h-4 inline mr-2" />
+            Ver historial de ventas
+          </button>
+        </div>
+
+        {/* Modal: Abrir Turno */}
+        {showAbrirTurnoModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.5)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowAbrirTurnoModal(false); }}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl p-6"
+              style={{
+                background: "var(--color-bg-surface)",
+                boxShadow: "var(--shadow-xl)",
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                    Abrir Turno
+                  </h2>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                    Registra el efectivo inicial en caja
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAbrirTurnoModal(false)}
+                  className="p-1 rounded-lg"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Monto inicial */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                  Efectivo en caja al abrir
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={montoApertura}
+                  onChange={(e) => setMontoApertura(e.target.value)}
+                  placeholder="0.00"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAbrirTurno();
+                    if (e.key === "Escape") setShowAbrirTurnoModal(false);
+                  }}
+                  className="w-full px-3 py-2.5 rounded-lg text-lg font-mono"
+                  style={{
+                    background: "var(--color-bg-sunken)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-text-primary)",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              {/* Notas opcionales */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                  Notas (opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={notasApertura}
+                  onChange={(e) => setNotasApertura(e.target.value)}
+                  placeholder="Observaciones de apertura..."
+                  className="w-full px-3 py-2.5 rounded-lg text-sm resize-none"
+                  style={{
+                    background: "var(--color-bg-sunken)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-text-primary)",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              {/* Acciones */}
+              <div className="flex gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowAbrirTurnoModal(false)}
+                  className="flex-1"
+                  disabled={abriendoTurno}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleAbrirTurno}
+                  className="flex-1"
+                  disabled={abriendoTurno}
+                >
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  {abriendoTurno ? "Abriendo..." : "Abrir Turno"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -568,10 +782,10 @@ export default function POSPage() {
             ) : (
               <Button
                 variant="secondary"
-                onClick={() => router.push("/dashboard/pos/caja")}
+                onClick={() => setShowAbrirTurnoModal(true)}
               >
                 <DollarSign className="w-4 h-4 mr-2" />
-                Abrir Caja
+                Abrir Turno
               </Button>
             )}
             <Button
@@ -631,24 +845,45 @@ export default function POSPage() {
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-            <Card className="p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Ventas Hoy</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+            <div
+              className="rounded-xl p-4"
+              style={{
+                background: "var(--color-bg-surface)",
+                border: "1px solid var(--color-border-subtle)",
+                boxShadow: "var(--shadow-xs)",
+              }}
+            >
+              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Ventas Hoy</p>
+              <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
                 {stats.ventasHoy}
               </p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Hoy</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
+            </div>
+            <div
+              className="rounded-xl p-4"
+              style={{
+                background: "var(--color-bg-surface)",
+                border: "1px solid var(--color-border-subtle)",
+                boxShadow: "var(--shadow-xs)",
+              }}
+            >
+              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Total Hoy</p>
+              <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-success)", fontFamily: "var(--font-data)" }}>
                 ${stats.totalHoy.toFixed(2)}
               </p>
-            </Card>
-            <Card className="p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Mes</p>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+            </div>
+            <div
+              className="rounded-xl p-4"
+              style={{
+                background: "var(--color-bg-surface)",
+                border: "1px solid var(--color-border-subtle)",
+                boxShadow: "var(--shadow-xs)",
+              }}
+            >
+              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>Total Mes</p>
+              <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-accent)", fontFamily: "var(--font-data)" }}>
                 ${stats.totalMes.toFixed(2)}
               </p>
-            </Card>
+            </div>
           </div>
         )}
       </div>
@@ -849,6 +1084,105 @@ export default function POSPage() {
           </div>
         );
       })()}
+
+      {/* Modal: Abrir Turno (FASE 28) */}
+      {showAbrirTurnoModal && !sesionCaja && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowAbrirTurnoModal(false); }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-6"
+            style={{
+              background: "var(--color-bg-surface)",
+              boxShadow: "var(--shadow-xl)",
+            }}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                  Abrir Turno
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                  Registra el efectivo inicial en caja
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAbrirTurnoModal(false)}
+                className="p-1 rounded-lg"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                Efectivo en caja al abrir
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={montoApertura}
+                onChange={(e) => setMontoApertura(e.target.value)}
+                placeholder="0.00"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAbrirTurno();
+                  if (e.key === "Escape") setShowAbrirTurnoModal(false);
+                }}
+                className="w-full px-3 py-2.5 rounded-lg text-lg font-mono"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                Notas (opcional)
+              </label>
+              <textarea
+                rows={2}
+                value={notasApertura}
+                onChange={(e) => setNotasApertura(e.target.value)}
+                placeholder="Observaciones de apertura..."
+                className="w-full px-3 py-2.5 rounded-lg text-sm resize-none"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setShowAbrirTurnoModal(false)}
+                className="flex-1"
+                disabled={abriendoTurno}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleAbrirTurno}
+                className="flex-1"
+                disabled={abriendoTurno}
+              >
+                <DollarSign className="w-4 h-4 mr-2" />
+                {abriendoTurno ? "Abriendo..." : "Abrir Turno"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Cerrar Turno Rápido (FASE 28) */}
       {showCerrarTurnoModal && sesionCaja && (
