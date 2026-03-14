@@ -11,7 +11,8 @@ import { ReciboModal } from "@/components/pos/ReciboModal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText } from "lucide-react";
+import { generarReporteX, abrirReporte } from "@/lib/utils/reportes";
 import type {
   Producto,
   CajaSesion,
@@ -53,6 +54,9 @@ export default function POSPage() {
   const [montoApertura, setMontoApertura] = useState("");
   const [notasApertura, setNotasApertura] = useState("");
   const [abriendoTurno, setAbriendoTurno] = useState(false);
+
+  // FASE 31: Reporte X
+  const [generandoReporteX, setGenerandoReporteX] = useState(false);
 
   // FASE 30: Cliente seleccionado, notas de venta, modal IMEI
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
@@ -428,6 +432,25 @@ export default function POSPage() {
     }
   };
 
+  // FASE 31: Generar Reporte X del turno actual
+  const handleReporteX = async () => {
+    if (!sesionCaja) return;
+    setGenerandoReporteX(true);
+    try {
+      const response = await fetch(`/api/pos/caja/${sesionCaja.id}?action=reporte`);
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+      const { sesion, movimientos, ventas, distribuidorNombre } = data.data;
+      const html = generarReporteX({ sesion, movimientos, ventas, distribuidorNombre });
+      abrirReporte(html, `Reporte X — ${sesion.folio}`);
+    } catch (error) {
+      console.error("Error generando Reporte X:", error);
+      alert("Error al generar el reporte");
+    } finally {
+      setGenerandoReporteX(false);
+    }
+  };
+
   const handleCerrarTurnoRapido = async () => {
     if (!sesionCaja) return;
     const monto = parseFloat(montoFinalTurno);
@@ -444,11 +467,26 @@ export default function POSPage() {
       });
       const data = await response.json();
       if (data.success) {
+        const sesionIdCerrada = sesionCaja.id;
         setSesionCaja(null);
         setShowCerrarTurnoModal(false);
         setMontoFinalTurno("");
         setNotasCierreTurno("");
         fetchEstadisticas();
+        // FASE 31: Generar Reporte Z automáticamente al cerrar turno
+        try {
+          const rptResp = await fetch(`/api/pos/caja/${sesionIdCerrada}?action=reporte`);
+          const rptData = await rptResp.json();
+          if (rptData.success) {
+            const { sesion, movimientos, ventas, distribuidorNombre } = rptData.data;
+            const { generarReporteZ } = await import("@/lib/utils/reportes");
+            const html = generarReporteZ({ sesion, movimientos, ventas, distribuidorNombre });
+            abrirReporte(html, `Reporte Z — ${sesion.folio}`);
+          }
+        } catch (rptError) {
+          console.error("Error generando Reporte Z:", rptError);
+          // No bloquear el cierre si falla el reporte
+        }
       } else {
         alert(data.error || "Error al cerrar turno");
       }
@@ -853,13 +891,24 @@ export default function POSPage() {
             </div>
 
             {sesionCaja ? (
-              <Button
-                variant="secondary"
-                onClick={() => setShowCerrarTurnoModal(true)}
-              >
-                <CloseIcon className="w-4 h-4 mr-2" />
-                Cerrar Turno
-              </Button>
+              <div className="flex gap-2">
+                {/* FASE 31: Reporte X */}
+                <Button
+                  variant="secondary"
+                  onClick={handleReporteX}
+                  disabled={generandoReporteX}
+                >
+                  <FileText className="w-4 h-4 mr-1" />
+                  {generandoReporteX ? "..." : "Rep. X"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowCerrarTurnoModal(true)}
+                >
+                  <CloseIcon className="w-4 h-4 mr-2" />
+                  Cerrar Turno
+                </Button>
+              </div>
             ) : (
               <Button
                 variant="secondary"

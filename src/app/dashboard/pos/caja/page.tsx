@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import {
   ArrowUpCircle, ArrowDownCircle, Clock, XCircle, Plus, Zap, AlertCircle,
+  FileText, Printer,
 } from "lucide-react";
+import { generarReporteX, generarReporteZ, abrirReporte } from "@/lib/utils/reportes";
 import type { CajaSesion, CajaMovimiento } from "@/types";
 
 export default function CajaPage() {
@@ -35,6 +37,7 @@ export default function CajaPage() {
   const [conceptoMovimiento, setConceptoMovimiento] = useState("");
 
   const [processing, setProcessing] = useState(false);
+  const [generandoReporte, setGenerandoReporte] = useState(false);
   // FASE 28: sesión abierta de otro empleado en este distribuidor
   const [sesionOtroEmpleado, setSesionOtroEmpleado] = useState<{ folio: string; nombre: string } | null>(null);
 
@@ -93,6 +96,27 @@ export default function CajaPage() {
       if (data.success) setMovimientos(data.data);
     } catch (error) {
       console.error("Error fetching movimientos:", error);
+    }
+  };
+
+  // FASE 31: Generar Reporte X (turno abierto) o Reporte Z (turno cerrado)
+  const handleGenerarReporte = async (sesionId: string, tipo: "X" | "Z") => {
+    setGenerandoReporte(true);
+    try {
+      const response = await fetch(`/api/pos/caja/${sesionId}?action=reporte`);
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error);
+
+      const { sesion, movimientos, ventas, distribuidorNombre } = data.data;
+      const html = tipo === "X"
+        ? generarReporteX({ sesion, movimientos, ventas, distribuidorNombre })
+        : generarReporteZ({ sesion, movimientos, ventas, distribuidorNombre });
+      abrirReporte(html, `Reporte ${tipo} — ${sesion.folio}`);
+    } catch (error) {
+      console.error("Error generando reporte:", error);
+      alert("Error al generar el reporte");
+    } finally {
+      setGenerandoReporte(false);
     }
   };
 
@@ -247,7 +271,7 @@ export default function CajaPage() {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button variant="secondary" onClick={() => { setTipoMovimiento("deposito"); setShowMovimientoModal(true); }}>
                 <ArrowUpCircle className="w-4 h-4 mr-2" />
                 Depósito
@@ -255,6 +279,15 @@ export default function CajaPage() {
               <Button variant="secondary" onClick={() => { setTipoMovimiento("retiro"); setShowMovimientoModal(true); }}>
                 <ArrowDownCircle className="w-4 h-4 mr-2" />
                 Retiro
+              </Button>
+              {/* FASE 31: Reporte X */}
+              <Button
+                variant="secondary"
+                onClick={() => handleGenerarReporte(sesionActiva.id, "X")}
+                disabled={generandoReporte}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                {generandoReporte ? "Generando..." : "Reporte X"}
               </Button>
               <Button variant="danger" onClick={() => setShowCerrarModal(true)}>
                 <XCircle className="w-4 h-4 mr-2" />
@@ -319,7 +352,7 @@ export default function CajaPage() {
         <div className="space-y-3">
           {sesiones.map((sesion) => (
             <div key={sesion.id} className="rounded-lg p-4" style={{ border: "1px solid var(--color-border)" }}>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <p className="font-semibold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}>
@@ -381,6 +414,28 @@ export default function CajaPage() {
                   </div>
                 </div>
               </div>
+              {/* FASE 31: Reporte Z para sesiones cerradas, Reporte X para abierta de otro */}
+              <button
+                onClick={() => handleGenerarReporte(sesion.id, sesion.estado === "cerrada" ? "Z" : "X")}
+                disabled={generandoReporte}
+                style={{
+                  background: "none",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "6px",
+                  padding: "4px 10px",
+                  cursor: "pointer",
+                  color: "var(--color-text-muted)",
+                  fontSize: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Printer className="w-3 h-3" />
+                {sesion.estado === "cerrada" ? "Rep. Z" : "Rep. X"}
+              </button>
             </div>
           ))}
         </div>

@@ -15,8 +15,44 @@ import {
   Calendar,
   Filter,
   X,
+  FileSpreadsheet,
 } from "lucide-react";
 import type { VentaDetallada } from "@/types";
+
+// FASE 31: Exportar historial de ventas a Excel (CSV compatible)
+function exportarVentasExcel(ventas: VentaDetallada[], nombre = "historial_ventas") {
+  const filas: string[][] = [
+    ["Folio", "Fecha", "Hora", "Cliente", "Vendedor", "Subtotal", "Descuento", "Total", "Método de Pago", "Estado"],
+    ...ventas.map((v) => [
+      v.folio,
+      new Date(v.fechaVenta).toLocaleDateString("es-MX"),
+      new Date(v.fechaVenta).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+      v.clienteNombre || "",
+      v.vendedorNombre || "",
+      String(v.subtotal?.toFixed(2) ?? ""),
+      String(v.descuento?.toFixed(2) ?? "0.00"),
+      String(v.total.toFixed(2)),
+      v.metodoPago,
+      v.estado,
+    ]),
+  ];
+
+  // BOM para que Excel abra correctamente el UTF-8
+  const bom = "\uFEFF";
+  const contenido = bom + filas.map((fila) =>
+    fila.map((celda) => `"${String(celda).replace(/"/g, '""')}"`).join(",")
+  ).join("\n");
+
+  const blob = new Blob([contenido], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${nombre}_${new Date().toISOString().split("T")[0]}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 const selectStyle = {
   background: "var(--color-bg-sunken)",
@@ -347,16 +383,28 @@ export default function HistorialPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1
-          className="text-2xl sm:text-3xl font-bold"
-          style={{ color: "var(--color-text-primary)" }}
-        >
-          Historial de Ventas
-        </h1>
-        <p className="mt-2" style={{ color: "var(--color-text-secondary)" }}>
-          Consulta y gestiona el historial de ventas del punto de venta
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1
+            className="text-2xl sm:text-3xl font-bold"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            Historial de Ventas
+          </h1>
+          <p className="mt-2" style={{ color: "var(--color-text-secondary)" }}>
+            Consulta y gestiona el historial de ventas del punto de venta
+          </p>
+        </div>
+        {/* FASE 31: Exportar a Excel */}
+        {filteredVentas.length > 0 && (
+          <Button
+            variant="secondary"
+            onClick={() => exportarVentasExcel(filteredVentas, "historial_ventas")}
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar Excel
+          </Button>
+        )}
       </div>
 
       {/* Stats */}

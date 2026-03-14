@@ -6,6 +6,7 @@ import {
   agregarMovimientoCaja,
   getMovimientosSesion,
 } from "@/lib/db/caja";
+import { getVentasBySesion } from "@/lib/db/ventas";
 
 /**
  * GET /api/pos/caja/[id]
@@ -60,13 +61,49 @@ export async function GET(
       );
     }
 
-    // Obtener movimientos
+    // Obtener movimientos o datos de reporte
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action");
 
     if (action === "movimientos") {
       const movimientos = await getMovimientosSesion(id);
       return NextResponse.json({ success: true, data: movimientos });
+    }
+
+    // FASE 31: Reporte X/Z — datos completos de la sesión
+    if (action === "reporte") {
+      const adminClient = createAdminClient();
+
+      // Sesión completa con nombre del usuario
+      const { data: sesionCompleta } = await adminClient
+        .from("caja_sesiones")
+        .select("*, users:usuario_id (name)")
+        .eq("id", id)
+        .single();
+
+      const movimientos = await getMovimientosSesion(id);
+      const ventas = await getVentasBySesion(id);
+
+      // Nombre del distribuidor
+      let distribuidorNombre = "";
+      if (sesionCompleta?.distribuidor_id) {
+        const { data: dist } = await adminClient
+          .from("distribuidores")
+          .select("nombre")
+          .eq("id", sesionCompleta.distribuidor_id)
+          .single();
+        distribuidorNombre = dist?.nombre || "";
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          sesion: sesionCompleta,
+          movimientos,
+          ventas,
+          distribuidorNombre,
+        },
+      });
     }
 
     return NextResponse.json(

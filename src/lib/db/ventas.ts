@@ -480,3 +480,37 @@ export async function getEstadisticasPOS(distribuidorId?: string): Promise<Estad
     productosMasVendidos,
   };
 }
+
+/**
+ * FASE 31: Obtiene todas las ventas de una sesión de caja (para Reporte X/Z)
+ */
+export async function getVentasBySesion(sesionId: string): Promise<VentaDetallada[]> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("ventas")
+    .select(`
+      *,
+      users:vendedor_id (name),
+      clientes:cliente_id (nombre, apellido),
+      ventas_items (
+        id,
+        producto_id,
+        producto_nombre,
+        cantidad,
+        precio_unitario,
+        subtotal,
+        imei,
+        notas
+      )
+    `)
+    .eq("sesion_caja_id", sesionId)
+    .order("fecha_venta", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching ventas by sesion:", error);
+    throw new Error(`Error al obtener ventas de sesión: ${error.message}`);
+  }
+
+  return (data || []).map(mapVentaDetalladaFromDB);
+}
