@@ -2,26 +2,34 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Configuracion } from "@/types";
 
 /**
- * Obtiene la configuracion del sistema (singleton)
+ * Obtiene la configuracion del sistema.
+ * Si se pasa distribuidorId, filtra por ese distribuidor (multi-tenant).
  */
-export async function getConfiguracion(): Promise<Configuracion> {
+export async function getConfiguracion(
+  distribuidorId?: string | null
+): Promise<Configuracion> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("configuracion")
-    .select("*")
-    .limit(1)
-    .single();
+
+  let query = supabase.from("configuracion").select("*");
+
+  if (distribuidorId) {
+    query = query.eq("distribuidor_id", distribuidorId);
+  }
+
+  const { data, error } = await query.limit(1).single();
 
   if (error) throw error;
   return mapConfigFromDB(data);
 }
 
 /**
- * Actualiza la configuracion del sistema
+ * Actualiza la configuracion del sistema.
+ * distribuidorId es requerido para multi-tenant — filtra la fila correcta.
  */
 export async function updateConfiguracion(
   config: Partial<Configuracion>,
-  updatedBy?: string
+  updatedBy?: string,
+  distribuidorId?: string | null
 ): Promise<Configuracion> {
   const supabase = createAdminClient();
 
@@ -107,10 +115,24 @@ export async function updateConfiguracion(
   }
   if (updatedBy) updateData.updated_by = updatedBy;
 
-  // Actualizar la unica fila (gracias al constraint singleton)
+  // 1. Obtener el ID de la fila a actualizar (filtrando por distribuidor_id)
+  let selectQuery = supabase.from("configuracion").select("id");
+  if (distribuidorId) {
+    selectQuery = selectQuery.eq("distribuidor_id", distribuidorId);
+  }
+  const { data: existing, error: selectError } = await selectQuery.limit(1).single();
+  if (selectError || !existing) {
+    throw new Error(
+      "No se encontró la fila de configuración para actualizar. " +
+        (selectError?.message || "")
+    );
+  }
+
+  // 2. Actualizar por ID para garantizar que solo se modifica 1 fila
   const { data, error } = await supabase
     .from("configuracion")
     .update(updateData)
+    .eq("id", existing.id)
     .select()
     .single();
 

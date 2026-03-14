@@ -9,7 +9,7 @@ import { getConfiguracion } from "@/lib/db/configuracion";
  */
 export async function GET(req: NextRequest) {
   try {
-    const { userId, role } = await getAuthContext();
+    const { userId, role, distribuidorId } = await getAuthContext();
 
     if (!userId) {
       return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "ventaId requerido" }, { status: 400 });
     }
 
-    // Obtener días máximos de configuración
-    const config = await getConfiguracion();
+    // Obtener días máximos de configuración (filtrado por distribuidor)
+    const config = await getConfiguracion(distribuidorId ?? null);
     const diasMax = config.diasMaxDevolucion ?? 30;
 
     const elegibilidad = await verificarElegibilidad(ventaId, diasMax);

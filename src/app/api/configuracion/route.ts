@@ -9,7 +9,8 @@ import { getAuthContext } from "@/lib/auth/server";
  */
 export async function GET() {
   try {
-    const config = await getConfiguracion();
+    const { distribuidorId } = await getAuthContext();
+    const config = await getConfiguracion(distribuidorId ?? null);
     return NextResponse.json({ success: true, data: config });
   } catch (error) {
     console.error("Error en GET /api/configuracion:", error);
@@ -27,7 +28,7 @@ export async function GET() {
  */
 export async function PUT(request: Request) {
   try {
-    const { userId, role } = await getAuthContext();
+    const { userId, role, distribuidorId } = await getAuthContext();
 
     if (!userId) {
       return NextResponse.json(
@@ -52,8 +53,8 @@ export async function PUT(request: Request) {
       body.modulosHabilitados.reparaciones = true;
     }
 
-    // Actualizar configuracion
-    const updated = await updateConfiguracion(body, userId);
+    // Actualizar configuracion — pasar distribuidorId para filtrar la fila correcta
+    const updated = await updateConfiguracion(body, userId, distribuidorId ?? null);
 
     return NextResponse.json({
       success: true,
