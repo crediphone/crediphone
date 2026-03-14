@@ -8,29 +8,41 @@ import type {
 
 /**
  * Obtiene todos los empleados
+ * @param distribuidorId - Si se proporciona, filtra por distribuidor (admin); si es undefined, devuelve todos (super_admin)
  */
-export async function getEmpleados(): Promise<Empleado[]> {
+export async function getEmpleados(distribuidorId?: string): Promise<Empleado[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("users")
     .select("*")
     .order("name", { ascending: true });
 
+  if (distribuidorId) {
+    query = query.eq("distribuidor_id", distribuidorId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return mapEmpleadosFromDB(data);
 }
 
 /**
  * Obtiene solo empleados activos
+ * @param distribuidorId - Si se proporciona, filtra por distribuidor (admin); si es undefined, devuelve todos (super_admin)
  */
-export async function getEmpleadosActivos(): Promise<Empleado[]> {
+export async function getEmpleadosActivos(distribuidorId?: string): Promise<Empleado[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("users")
     .select("*")
     .eq("activo", true)
     .order("name", { ascending: true });
 
+  if (distribuidorId) {
+    query = query.eq("distribuidor_id", distribuidorId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return mapEmpleadosFromDB(data);
 }
@@ -204,10 +216,11 @@ export async function reactivarEmpleado(id: string): Promise<Empleado> {
 
 /**
  * Busca empleados por nombre, email o teléfono
+ * @param distribuidorId - Si se proporciona, filtra por distribuidor (admin); si es undefined, busca en todos (super_admin)
  */
-export async function searchEmpleados(query: string): Promise<Empleado[]> {
+export async function searchEmpleados(query: string, distribuidorId?: string): Promise<Empleado[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let dbQuery = supabase
     .from("users")
     .select("*")
     .or(
@@ -215,6 +228,11 @@ export async function searchEmpleados(query: string): Promise<Empleado[]> {
     )
     .order("name", { ascending: true });
 
+  if (distribuidorId) {
+    dbQuery = dbQuery.eq("distribuidor_id", distribuidorId);
+  }
+
+  const { data, error } = await dbQuery;
   if (error) throw error;
   return mapEmpleadosFromDB(data);
 }
@@ -272,8 +290,9 @@ export async function calcularDesempenoCobrador(
 
 /**
  * Obtiene estadísticas generales de empleados
+ * @param distribuidorId - Si se proporciona, filtra por distribuidor (admin); si es undefined, estadísticas globales (super_admin)
  */
-export async function getEstadisticasEmpleados(): Promise<{
+export async function getEstadisticasEmpleados(distribuidorId?: string): Promise<{
   total: number;
   activos: number;
   inactivos: number;
@@ -286,10 +305,12 @@ export async function getEstadisticasEmpleados(): Promise<{
 }> {
   const supabase = createAdminClient();
 
-  // Obtener todos los empleados
-  const { data, error } = await supabase
-    .from("users")
-    .select("role, activo");
+  // Obtener empleados (filtrado por distribuidor si aplica)
+  let query = supabase.from("users").select("role, activo");
+  if (distribuidorId) {
+    query = query.eq("distribuidor_id", distribuidorId);
+  }
+  const { data, error } = await query;
 
   if (error) throw error;
 
