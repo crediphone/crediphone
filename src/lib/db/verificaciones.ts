@@ -301,13 +301,27 @@ export async function scanProducto(
   const supabase = createAdminClient();
   const codigo = formData.codigoEscaneado.trim();
 
-  // Find product by barcode or SKU
-  const { data: producto } = await supabase
+  // Get verification session data (distribuidor_id + usuario_id) upfront
+  const { data: verificacion } = await supabase
+    .from("verificaciones_inventario")
+    .select("distribuidor_id, usuario_id")
+    .eq("id", formData.verificacionId)
+    .single();
+
+  const distribuidorId = verificacion?.distribuidor_id;
+
+  // Find product by barcode or SKU (filter by distribuidor for safety)
+  const productoQuery = supabase
     .from("productos")
     .select("*")
     .or(`codigo_barras.eq.${codigo},sku.eq.${codigo}`)
-    .eq("activo", true)
-    .single();
+    .eq("activo", true);
+
+  if (distribuidorId) {
+    productoQuery.eq("distribuidor_id", distribuidorId);
+  }
+
+  const { data: producto } = await productoQuery.single();
 
   // Check if already scanned in this session
   const { data: existing } = await supabase
@@ -351,6 +365,7 @@ export async function scanProducto(
         es_producto_nuevo: esProductoNuevo,
         ubicacion_encontrada_id: formData.ubicacionEncontradaId,
         notas_scan: formData.notasScan,
+        distribuidor_id: distribuidorId,
       })
       .select()
       .single();
@@ -362,12 +377,6 @@ export async function scanProducto(
 
   // Update product last verification if found
   if (producto) {
-    const { data: verificacion } = await supabase
-      .from("verificaciones_inventario")
-      .select("usuario_id")
-      .eq("id", formData.verificacionId)
-      .single();
-
     await supabase
       .from("productos")
       .update({
