@@ -885,13 +885,15 @@ export interface NuevaVentaFormData {
     productoId: string;
     cantidad: number;
     precioUnitario: number;
+    imei?: string;   // FASE 30: IMEI del equipo vendido (solo equipos serializados)
+    notas?: string;  // FASE 30: Nota por línea de venta
   }[];
   descuento: number;
   metodoPago: MetodoPagoVenta;
   desgloseMixto?: DesglosePagoMixtoVenta;
   referenciaPago?: string;
   montoRecibido?: number; // Para efectivo
-  notas?: string;
+  notas?: string;         // FASE 30: Nota global de la venta
 }
 
 // Estadísticas del POS

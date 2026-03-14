@@ -286,7 +286,8 @@ export async function createVenta(
     cantidad: item.cantidad,
     precio_unitario: item.precioUnitario,
     subtotal: item.cantidad * item.precioUnitario,
-    // Los campos de snapshot se llenarán con trigger o dejamos que el frontend los envíe
+    imei: item.imei || null,   // FASE 30: IMEI del equipo vendido
+    notas: item.notas || null, // FASE 30: Nota por línea
   }));
 
   // Obtener nombres de productos para snapshot

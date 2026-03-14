@@ -9,6 +9,8 @@ export interface CartItem {
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
+  imei?: string;  // FASE 30: IMEI capturado al agregar equipo serializado
+  notas?: string; // FASE 30: Nota por línea de venta
 }
 
 interface ShoppingCartProps {

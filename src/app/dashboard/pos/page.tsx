@@ -11,13 +11,14 @@ import { ReciboModal } from "@/components/pos/ReciboModal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine } from "lucide-react";
 import type {
   Producto,
   CajaSesion,
   NuevaVentaFormData,
   VentaDetallada,
   EstadisticasPOS,
+  Cliente,
 } from "@/types";
 
 export default function POSPage() {
@@ -52,6 +53,17 @@ export default function POSPage() {
   const [montoApertura, setMontoApertura] = useState("");
   const [notasApertura, setNotasApertura] = useState("");
   const [abriendoTurno, setAbriendoTurno] = useState(false);
+
+  // FASE 30: Cliente seleccionado, notas de venta, modal IMEI
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+  const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([]);
+  const [buscandoCliente, setBuscandoCliente] = useState(false);
+  const [showClienteDropdown, setShowClienteDropdown] = useState(false);
+  const [notasVenta, setNotasVenta] = useState("");
+  const [showImeiModal, setShowImeiModal] = useState(false);
+  const [imeiProductoPendiente, setImeiProductoPendiente] = useState<Producto | null>(null);
+  const [imeiInput, setImeiInput] = useState("");
 
   // Estado de proceso
   const [processingVenta, setProcessingVenta] = useState(false);
@@ -94,7 +106,7 @@ export default function POSPage() {
   useEffect(() => {
     const handleFKey = (e: KeyboardEvent) => {
       // Solo actuar cuando ningún modal esté abierto
-      if (showCerrarTurnoModal || showCobroModal) return;
+      if (showCerrarTurnoModal || showCobroModal || showImeiModal) return;
       // Ignorar si el foco está en un input/textarea (excepto F3)
       const tag = (e.target as HTMLElement)?.tagName;
       const inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
@@ -282,16 +294,20 @@ export default function POSPage() {
 
     try {
       const ventaFormData: NuevaVentaFormData = {
+        clienteId: clienteSeleccionado?.id,
         items: cartItems.map((item) => ({
           productoId: item.producto.id,
           cantidad: item.cantidad,
           precioUnitario: item.precioUnitario,
+          imei: item.imei,
+          notas: item.notas,
         })),
         descuento,
         metodoPago: paymentData.metodoPago,
         desgloseMixto: paymentData.desgloseMixto,
         referenciaPago: paymentData.referenciaPago,
         montoRecibido: paymentData.montoRecibido,
+        notas: notasVenta || undefined,
       };
 
       const response = await fetch("/api/pos/ventas", {
@@ -330,14 +346,18 @@ export default function POSPage() {
     setProcessingVenta(true);
     try {
       const ventaFormData: NuevaVentaFormData = {
+        clienteId: clienteSeleccionado?.id,
         items: cartItems.map((item) => ({
           productoId: item.producto.id,
           cantidad: item.cantidad,
           precioUnitario: item.precioUnitario,
+          imei: item.imei,
+          notas: item.notas,
         })),
         descuento,
         metodoPago: "efectivo",
         montoRecibido: total,
+        notas: notasVenta || undefined,
       };
       const response = await fetch("/api/pos/ventas", {
         method: "POST",
@@ -373,14 +393,18 @@ export default function POSPage() {
     setProcessingVenta(true);
     try {
       const ventaFormData: NuevaVentaFormData = {
+        clienteId: clienteSeleccionado?.id,
         items: cartItems.map((item) => ({
           productoId: item.producto.id,
           cantidad: item.cantidad,
           precioUnitario: item.precioUnitario,
+          imei: item.imei,
+          notas: item.notas,
         })),
         descuento,
         metodoPago: "efectivo",
         montoRecibido: montoIngresado,
+        notas: notasVenta || undefined,
       };
       const response = await fetch("/api/pos/ventas", {
         method: "POST",
@@ -440,6 +464,63 @@ export default function POSPage() {
     setVentaCompletada(null);
     setCartItems([]);
     setDescuento(0);
+    setClienteSeleccionado(null);
+    setBusquedaCliente("");
+    setNotasVenta("");
+  };
+
+  // FASE 30: Búsqueda de clientes con debounce
+  const buscarClientes = async (q: string) => {
+    if (q.trim().length < 2) { setResultadosCliente([]); return; }
+    setBuscandoCliente(true);
+    try {
+      const res = await fetch(`/api/clientes?search=${encodeURIComponent(q)}&limit=6`);
+      const data = await res.json();
+      if (data.success) setResultadosCliente(data.data || []);
+    } catch { /* silencioso */ } finally {
+      setBuscandoCliente(false);
+    }
+  };
+
+  // FASE 30: Al seleccionar producto, verificar si es equipo serializado con IMEI
+  const handleSelectProductoConImei = (producto: Producto) => {
+    const esSerializado = (producto.tipo === "equipo_nuevo" || producto.tipo === "equipo_usado") && producto.imei;
+    if (esSerializado) {
+      setImeiProductoPendiente(producto);
+      setImeiInput(producto.imei ?? "");
+      setShowImeiModal(true);
+    } else {
+      handleSelectProduct(producto);
+    }
+  };
+
+  // FASE 30: Confirmar IMEI y agregar al carrito
+  const handleConfirmarImei = () => {
+    if (!imeiProductoPendiente) return;
+    const producto = imeiProductoPendiente;
+    const imei = imeiInput.trim();
+
+    const existingIndex = cartItems.findIndex(i => i.producto.id === producto.id);
+    if (existingIndex >= 0) {
+      const newItems = [...cartItems];
+      if (newItems[existingIndex].cantidad < producto.stock) {
+        newItems[existingIndex].cantidad += 1;
+        newItems[existingIndex].subtotal = newItems[existingIndex].cantidad * newItems[existingIndex].precioUnitario;
+        newItems[existingIndex].imei = imei || newItems[existingIndex].imei;
+        setCartItems(newItems);
+      }
+    } else {
+      setCartItems([...cartItems, {
+        producto,
+        cantidad: 1,
+        precioUnitario: producto.precio,
+        subtotal: producto.precio,
+        imei: imei || undefined,
+      }]);
+    }
+    setShowImeiModal(false);
+    setImeiProductoPendiente(null);
+    setImeiInput("");
   };
 
   const handleAbrirTurno = async () => {
@@ -898,7 +979,7 @@ export default function POSPage() {
                 Buscar Producto
               </h2>
               <ProductSearchBar
-                onSelectProduct={handleSelectProduct}
+                onSelectProduct={handleSelectProductoConImei}
                 focusTrigger={searchFocusTrigger}
                 topProductIds={stats?.productosMasVendidos?.slice(0, 6).map((p) => p.productoId)}
               />
@@ -908,7 +989,7 @@ export default function POSPage() {
               <h2 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
                 Productos por Categoría
               </h2>
-              <ProductCategoryGrid onSelectProduct={handleSelectProduct} />
+              <ProductCategoryGrid onSelectProduct={handleSelectProductoConImei} />
             </>
           )}
 
@@ -924,6 +1005,116 @@ export default function POSPage() {
               value={descuento}
               onChange={(e) => setDescuento(parseFloat(e.target.value) || 0)}
               placeholder="0.00"
+            />
+          </div>
+
+          {/* FASE 30: Selector de cliente */}
+          <div className="relative">
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+              Cliente <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
+            </label>
+            {clienteSeleccionado ? (
+              <div
+                className="flex items-center justify-between px-3 py-2 rounded-lg"
+                style={{
+                  background: "var(--color-accent-light)",
+                  border: "1px solid var(--color-accent)",
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                  <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+                    {clienteSeleccionado.nombre} {clienteSeleccionado.apellido ?? ""}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                    {clienteSeleccionado.telefono}
+                  </span>
+                </div>
+                <button
+                  onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
+                  className="p-0.5 rounded"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Buscar cliente por nombre o teléfono..."
+                  value={busquedaCliente}
+                  onChange={(e) => {
+                    setBusquedaCliente(e.target.value);
+                    setShowClienteDropdown(true);
+                    buscarClientes(e.target.value);
+                  }}
+                  onFocus={() => { if (busquedaCliente.length >= 2) setShowClienteDropdown(true); }}
+                  onBlur={() => setTimeout(() => setShowClienteDropdown(false), 150)}
+                  className="w-full px-3 py-2 rounded-lg text-sm pl-9"
+                  style={{
+                    background: "var(--color-bg-sunken)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-text-primary)",
+                    outline: "none",
+                  }}
+                />
+                <User className="w-4 h-4 absolute left-2.5 top-2.5" style={{ color: "var(--color-text-muted)" }} />
+                {showClienteDropdown && (buscandoCliente || resultadosCliente.length > 0) && (
+                  <div
+                    className="absolute z-20 w-full mt-1 rounded-xl overflow-hidden"
+                    style={{
+                      background: "var(--color-bg-surface)",
+                      border: "1px solid var(--color-border)",
+                      boxShadow: "var(--shadow-md)",
+                    }}
+                  >
+                    {buscandoCliente && (
+                      <div className="px-3 py-2 text-xs" style={{ color: "var(--color-text-muted)" }}>Buscando...</div>
+                    )}
+                    {resultadosCliente.map((c) => (
+                      <button
+                        key={c.id}
+                        onMouseDown={() => {
+                          setClienteSeleccionado(c);
+                          setBusquedaCliente("");
+                          setShowClienteDropdown(false);
+                        }}
+                        className="w-full px-3 py-2.5 text-left text-sm hover:opacity-80 flex items-center gap-2"
+                        style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                      >
+                        <User className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+                        <span style={{ color: "var(--color-text-primary)" }}>
+                          {c.nombre} {c.apellido ?? ""}
+                        </span>
+                        <span className="ml-auto text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
+                          {c.telefono}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* FASE 30: Notas de la venta */}
+          <div>
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+              Notas de la venta <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
+            </label>
+            <textarea
+              rows={2}
+              value={notasVenta}
+              onChange={(e) => setNotasVenta(e.target.value)}
+              placeholder="Observaciones, acuerdos, instrucciones..."
+              className="w-full px-3 py-2 rounded-lg text-sm resize-none"
+              style={{
+                background: "var(--color-bg-sunken)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-text-primary)",
+                outline: "none",
+              }}
             />
           </div>
         </div>
@@ -1084,6 +1275,86 @@ export default function POSPage() {
           </div>
         );
       })()}
+
+      {/* Modal: Captura IMEI (FASE 30) */}
+      {showImeiModal && imeiProductoPendiente && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.55)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowImeiModal(false); setImeiProductoPendiente(null); } }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-6"
+            style={{ background: "var(--color-bg-surface)", boxShadow: "var(--shadow-xl)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                  Confirmar IMEI
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                  {imeiProductoPendiente.marca} {imeiProductoPendiente.modelo}
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowImeiModal(false); setImeiProductoPendiente(null); }}
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="rounded-xl p-3 mb-4 flex items-center gap-2"
+              style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-info)" }}
+            >
+              <ScanLine className="w-4 h-4 shrink-0" style={{ color: "var(--color-info)" }} />
+              <p className="text-xs" style={{ color: "var(--color-info-text)" }}>
+                Equipo serializado. Verifica o edita el IMEI antes de vender.
+              </p>
+            </div>
+
+            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+              IMEI
+            </label>
+            <input
+              type="text"
+              maxLength={15}
+              value={imeiInput}
+              onChange={(e) => setImeiInput(e.target.value.replace(/\D/g, ""))}
+              placeholder="15 dígitos"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleConfirmarImei();
+                if (e.key === "Escape") { setShowImeiModal(false); setImeiProductoPendiente(null); }
+              }}
+              className="w-full px-3 py-2.5 rounded-lg text-lg mb-5"
+              style={{
+                background: "var(--color-bg-sunken)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-text-primary)",
+                fontFamily: "var(--font-mono)",
+                outline: "none",
+                letterSpacing: "0.1em",
+              }}
+            />
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => { setShowImeiModal(false); setImeiProductoPendiente(null); }}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmarImei} className="flex-1">
+                <ScanLine className="w-4 h-4 mr-2" />
+                Agregar al carrito
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Abrir Turno (FASE 28) */}
       {showAbrirTurnoModal && !sesionCaja && (
