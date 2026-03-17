@@ -6,6 +6,7 @@ import {
   getAnticiposByOrden,
 } from "@/lib/db/reparaciones";
 import { getSesionActiva } from "@/lib/db/caja";
+import { createTraspasoAnticipo } from "@/lib/db/traspasos";
 import type { TipoPago, DesglosePagoMixto } from "@/types";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,14 +36,23 @@ export async function GET(
 
 /**
  * POST /api/reparaciones/[id]/anticipos
- * Agrega anticipo y lo registra en la caja activa del usuario.
+ *
+ * FASE 37 — Flujo diferenciado por rol:
+ *
+ * Si quien registra es un TÉCNICO y el método es EFECTIVO:
+ *   → Se crea el anticipo en anticipos_reparacion (para actualizar el saldo)
+ *   → Se crea un traspaso_anticipo en estado 'pendiente' (el vendedor deberá confirmar)
+ *   → NO se asienta en caja todavía — la caja recibe el monto cuando el vendedor confirma
+ *
+ * En todos los demás casos (vendedor/admin, o pago no en efectivo):
+ *   → Flujo original: anticipo + caja directamente
  */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await getAuthContext();
+    const { userId, role, distribuidorId } = await getAuthContext();
     if (!userId) return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
 
     const { id } = await params;
@@ -59,23 +69,31 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Tipo de pago requerido" }, { status: 400 });
     }
 
-    // Obtener folio de la orden para el concepto en caja
     const supabase = createAdminClient();
+
+    // Obtener datos de la orden (folio + cliente)
     const { data: orden } = await supabase
       .from("ordenes_reparacion")
-      .select("folio")
+      .select("folio, cliente:clientes(nombre, apellido)")
       .eq("id", id)
       .single();
 
-    // Buscar sesión activa de caja del usuario
+    // FASE 37: Técnico + efectivo → traspaso pendiente (no va a caja directamente)
+    const esTecnicoConEfectivo = role === "tecnico" && body.tipoPago === "efectivo";
+
+    // Sesión de caja (solo se usa cuando NO es traspaso)
     let sesionCajaId: string | undefined;
-    try {
-      const sesion = await getSesionActiva(userId);
-      sesionCajaId = sesion?.id;
-    } catch {
-      // Sin sesión de caja activa — el anticipo se registra igual, solo sin caja
+    if (!esTecnicoConEfectivo) {
+      try {
+        const sesion = await getSesionActiva(userId);
+        sesionCajaId = sesion?.id;
+      } catch {
+        // Sin sesión activa — el anticipo se registra igual, solo sin caja
+      }
     }
 
+    // Crear el anticipo en anticipos_reparacion
+    // Si es traspaso: NO pasa sesionCajaId (para que NO asiente en caja)
     const anticipo = await addAnticipoReparacion(
       id,
       {
@@ -86,14 +104,41 @@ export async function POST(
         notas: body.notas,
       },
       userId,
-      sesionCajaId,
+      esTecnicoConEfectivo ? undefined : sesionCajaId, // Sin caja si es traspaso
       orden?.folio
     );
+
+    // FASE 37: Crear el traspaso pendiente
+    if (esTecnicoConEfectivo) {
+      const clienteData = orden?.cliente as { nombre?: string; apellido?: string } | null;
+      const clienteNombre = clienteData
+        ? [clienteData.nombre, clienteData.apellido].filter(Boolean).join(" ")
+        : "Cliente";
+
+      await createTraspasoAnticipo({
+        distribuidorId: distribuidorId ?? undefined,
+        reparacionId: id,
+        anticipoId: anticipo.id,
+        tecnicoId: userId,
+        folioOrden: orden?.folio || "Sin folio",
+        clienteNombre,
+        montoRegistrado: Number(body.monto),
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: anticipo,
+        message: "Anticipo registrado. El vendedor debe confirmar la recepción del efectivo.",
+        requiereTraspaso: true,
+        registradoEnCaja: false,
+      });
+    }
 
     return NextResponse.json({
       success: true,
       data: anticipo,
       message: "Anticipo registrado" + (sesionCajaId ? " y asentado en caja" : " (sin sesión de caja activa)"),
+      requiereTraspaso: false,
       registradoEnCaja: !!sesionCajaId,
     });
   } catch (error) {

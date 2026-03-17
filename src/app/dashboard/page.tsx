@@ -9,6 +9,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useConfig } from "@/components/ConfigProvider";
 import { ModalOrden } from "@/components/reparaciones/ModalOrden";
 import { OrdenDrawer } from "@/components/reparaciones/drawer/OrdenDrawer";
+import { PanelTraspasosPendientes } from "@/components/reparaciones/traspasos/PanelTraspasosPendientes";
 import type { DashboardStats as RepDashboardStats } from "@/lib/db/reparaciones-dashboard";
 import type { OrdenReparacionDetallada } from "@/types";
 
@@ -325,6 +326,13 @@ export default function DashboardPage() {
               Ver Caja
             </button>
           </Link>
+        </div>
+      )}
+
+      {/* FASE 37: Panel traspasos pendientes — solo vendedor/admin (no técnico, no cobrador) */}
+      {user && ["vendedor", "admin", "super_admin"].includes(user.role) && (
+        <div className="mb-6">
+          <PanelTraspasosPendientes compact={false} />
         </div>
       )}
 

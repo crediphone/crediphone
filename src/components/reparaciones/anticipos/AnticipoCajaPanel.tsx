@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { ModalAgregarAnticipo } from "./ModalAgregarAnticipo";
+import { PanelTraspasosPendientes } from "@/components/reparaciones/traspasos/PanelTraspasosPendientes";
+import { useAuth } from "@/components/AuthProvider";
 import type { AnticipoReparacion, OrdenReparacionDetallada, TipoPago } from "@/types";
 import {
   DollarSign, CheckCircle2, Clock, RotateCcw,
@@ -256,6 +258,9 @@ function ModalDevolverAnticipo({
 
 /* ─── Panel principal ──────────────────────────────────────────────── */
 export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelProps) {
+  const { user } = useAuth();
+  const esTecnico = user?.role === "tecnico";
+
   const [anticipos, setAnticipos] = useState<AnticipoReparacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalAgregarOpen, setModalAgregarOpen] = useState(false);
@@ -426,6 +431,14 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
         )}
       </div>
 
+      {/* FASE 37: Panel de traspasos pendientes de confirmar (visible para vendedor/admin) */}
+      {!esTecnico && (
+        <PanelTraspasosPendientes
+          reparacionId={orden.id}
+          onTraspasoConfirmado={() => { cargarAnticipos(); onOrdenUpdated(); }}
+        />
+      )}
+
       {/* Aviso sin sesión de caja */}
       <div className="flex items-start gap-2 px-4 py-3 rounded-lg text-xs"
         style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)", border: "1px solid var(--color-info)" }}
@@ -441,6 +454,7 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
         ordenId={orden.id}
         ordenFolio={orden.folio}
         saldoPendiente={saldoPendiente}
+        esTecnico={esTecnico}
         onSuccess={() => { cargarAnticipos(); onOrdenUpdated(); }}
       />
 

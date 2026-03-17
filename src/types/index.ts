@@ -673,6 +673,28 @@ export interface AnticipoReparacion {
   createdAt: Date;
 }
 
+// FASE 37: Traspaso de anticipo técnico → vendedor
+export interface TraspasoAnticipo {
+  id: string;
+  distribuidorId?: string;
+  reparacionId: string;
+  anticipoId: string;
+  tecnicoId: string;
+  vendedorId?: string;          // se llena al confirmar
+  folioOrden: string;           // snapshot
+  clienteNombre: string;        // snapshot
+  montoRegistrado: number;      // lo que el técnico dice que entrega
+  montoConfirmado?: number;     // lo que el vendedor confirma haber recibido
+  estado: "pendiente" | "confirmado" | "discrepancia";
+  confirmadoAt?: Date;
+  discrepancia?: number;        // montoRegistrado - montoConfirmado (positivo = faltante)
+  notasVendedor?: string;
+  createdAt: Date;
+  // Joins opcionales (para mostrar en UI)
+  tecnicoNombre?: string;
+  vendedorNombre?: string;
+}
+
 // Presupuesto de reparación
 export interface PresupuestoReparacion {
   precioManoObra: number;

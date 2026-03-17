@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { TipoPago, DesglosePagoMixto } from "@/types";
-import { DollarSign, AlertCircle } from "lucide-react";
+import { DollarSign, AlertCircle, ArrowRightLeft } from "lucide-react";
 
 interface ModalAgregarAnticipoProps {
   isOpen: boolean;
@@ -14,6 +14,8 @@ interface ModalAgregarAnticipoProps {
   ordenFolio: string;
   saldoPendiente: number;
   onSuccess: () => void;
+  /** FASE 37: Si el usuario actual es técnico, se muestra aviso de traspaso */
+  esTecnico?: boolean;
 }
 
 export function ModalAgregarAnticipo({
@@ -23,6 +25,7 @@ export function ModalAgregarAnticipo({
   ordenFolio,
   saldoPendiente,
   onSuccess,
+  esTecnico = false,
 }: ModalAgregarAnticipoProps) {
   const [monto, setMonto] = useState<number>(0);
   const [tipoPago, setTipoPago] = useState<TipoPago>("efectivo");
@@ -180,6 +183,23 @@ export function ModalAgregarAnticipo({
             <option value="mixto">Pago Mixto</option>
           </select>
         </div>
+
+        {/* FASE 37: Aviso de traspaso para técnico con efectivo */}
+        {esTecnico && tipoPago === "efectivo" && (
+          <div className="rounded-xl p-4" style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}>
+            <div className="flex items-start gap-3">
+              <ArrowRightLeft className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--color-warning)" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--color-warning-text)" }}>
+                  Traspaso de efectivo requerido
+                </p>
+                <p className="text-xs mt-1" style={{ color: "var(--color-warning-text)" }}>
+                  Al registrar, el sistema avisará al vendedor para que confirme la recepción del dinero. El efectivo entra a caja cuando el vendedor confirme. <strong>Entrega el dinero físico al vendedor de inmediato.</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Monto o Desglose Mixto */}
         {tipoPago === "mixto" ? (
