@@ -4,43 +4,203 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Plus, Pencil, Trash2, ToggleLeft, ToggleRight,
   Wrench, Phone, FileText, Stethoscope, Tag, X, Check,
-  DollarSign, AlertCircle,
+  DollarSign, AlertCircle, FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
-import type { Servicio, CategoriaServicio, ServicioFormData } from "@/types";
+import type { Servicio, CategoriaServicio, ServicioFormData, CategoriaServicioConfig } from "@/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const CATEGORIAS: { value: CategoriaServicio; label: string; icon: React.ReactNode }[] = [
-  { value: "telefonia", label: "Telefonía", icon: <Phone className="w-4 h-4" /> },
-  { value: "papeleria", label: "Papelería", icon: <FileText className="w-4 h-4" /> },
-  { value: "diagnostico", label: "Diagnóstico", icon: <Stethoscope className="w-4 h-4" /> },
-  { value: "reparacion", label: "Reparación", icon: <Wrench className="w-4 h-4" /> },
-  { value: "otro", label: "Otro", icon: <Tag className="w-4 h-4" /> },
-];
-
-function getCategoriaLabel(cat: CategoriaServicio) {
-  return CATEGORIAS.find((c) => c.value === cat)?.label ?? cat;
-}
-
-function getCategoriaIcon(cat: CategoriaServicio) {
-  return CATEGORIAS.find((c) => c.value === cat)?.icon ?? <Tag className="w-4 h-4" />;
+/** Ícono por value de categoría */
+function getCategoriaIcon(value: string): React.ReactNode {
+  switch (value) {
+    case "telefonia":   return <Phone className="w-4 h-4" />;
+    case "papeleria":   return <FileText className="w-4 h-4" />;
+    case "diagnostico": return <Stethoscope className="w-4 h-4" />;
+    case "reparacion":  return <Wrench className="w-4 h-4" />;
+    default:            return <Tag className="w-4 h-4" />;
+  }
 }
 
 function fmtPrecio(n: number) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
 }
 
-// ─── Modal de Creación/Edición ────────────────────────────────────────────────
+// ─── Modal Gestionar Categorías ───────────────────────────────────────────────
+
+interface ModalCategoriasProps {
+  isOpen: boolean;
+  onClose: () => void;
+  categorias: CategoriaServicioConfig[];
+  onAdd: (label: string) => Promise<void>;
+  onDelete: (value: string) => Promise<void>;
+}
+
+const DEFAULTS_VALUES = ["telefonia", "papeleria", "diagnostico", "reparacion", "otro"];
+
+function ModalCategorias({ isOpen, onClose, categorias, onAdd, onDelete }: ModalCategoriasProps) {
+  const [newLabel, setNewLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setNewLabel("");
+      setError("");
+    }
+  }, [isOpen]);
+
+  const handleAdd = async () => {
+    const label = newLabel.trim();
+    if (!label) { setError("Escribe un nombre para la categoría"); return; }
+    setSaving(true);
+    setError("");
+    try {
+      await onAdd(label);
+      setNewLabel("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al agregar categoría");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (value: string) => {
+    setDeleting(value);
+    try {
+      await onDelete(value);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const custom = categorias.filter((c) => !DEFAULTS_VALUES.includes(c.value));
+  const defaults = categorias.filter((c) => DEFAULTS_VALUES.includes(c.value));
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Gestionar categorías" size="sm">
+      <div className="space-y-4">
+        {/* Categorías predeterminadas — solo lectura */}
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--color-text-muted)" }}>
+            PREDETERMINADAS (no se pueden eliminar)
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {defaults.map((cat) => (
+              <span
+                key={cat.value}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+                style={{
+                  background: "var(--color-bg-elevated)",
+                  color: "var(--color-text-secondary)",
+                  border: "1px solid var(--color-border-subtle)",
+                }}
+              >
+                {getCategoriaIcon(cat.value)}
+                {cat.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Categorías personalizadas */}
+        {custom.length > 0 && (
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: "var(--color-text-muted)" }}>
+              PERSONALIZADAS
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {custom.map((cat) => (
+                <span
+                  key={cat.value}
+                  className="flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-xs font-medium"
+                  style={{
+                    background: "var(--color-accent-light)",
+                    color: "var(--color-accent)",
+                    border: "1px solid var(--color-accent)",
+                  }}
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  {cat.label}
+                  <button
+                    onClick={() => handleDelete(cat.value)}
+                    disabled={deleting === cat.value}
+                    className="ml-1 p-0.5 rounded-full hover:opacity-70 transition-opacity"
+                    title="Eliminar"
+                  >
+                    {deleting === cat.value ? (
+                      <span className="w-3 h-3 block animate-spin border border-current border-t-transparent rounded-full" />
+                    ) : (
+                      <X className="w-3 h-3" />
+                    )}
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Agregar nueva */}
+        <div
+          className="rounded-lg p-3 space-y-2"
+          style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border-subtle)" }}
+        >
+          <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+            Nueva categoría
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newLabel}
+              onChange={(e) => { setNewLabel(e.target.value); setError(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+              placeholder="Ej: Impresión, Recargas Izzi..."
+              className="flex-1 px-3 py-2 rounded-lg text-sm"
+              style={{
+                background: "var(--color-bg-sunken)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-text-primary)",
+                outline: "none",
+              }}
+            />
+            <Button
+              variant="primary"
+              onClick={handleAdd}
+              disabled={saving || !newLabel.trim()}
+              className="flex items-center gap-1.5 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              {saving ? "..." : "Agregar"}
+            </Button>
+          </div>
+          {error && (
+            <p className="text-xs" style={{ color: "var(--color-danger)" }}>{error}</p>
+          )}
+          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            El nombre se convierte automáticamente en identificador único.
+          </p>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <Button variant="secondary" onClick={onClose}>Cerrar</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Modal de Creación/Edición de Servicio ────────────────────────────────────
 
 interface ModalServicioProps {
   isOpen: boolean;
   onClose: () => void;
-  servicio: Servicio | null; // null = crear nuevo
+  servicio: Servicio | null;
   onSave: (data: ServicioFormData) => Promise<void>;
+  categorias: CategoriaServicioConfig[];
 }
 
 const EMPTY_FORM: ServicioFormData = {
@@ -54,7 +214,7 @@ const EMPTY_FORM: ServicioFormData = {
   activo: true,
 };
 
-function ModalServicio({ isOpen, onClose, servicio, onSave }: ModalServicioProps) {
+function ModalServicio({ isOpen, onClose, servicio, onSave, categorias }: ModalServicioProps) {
   const [form, setForm] = useState<ServicioFormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -142,7 +302,7 @@ function ModalServicio({ isOpen, onClose, servicio, onSave }: ModalServicioProps
           />
         </div>
 
-        {/* Categoría */}
+        {/* Categoría — dinámica */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
@@ -151,7 +311,7 @@ function ModalServicio({ isOpen, onClose, servicio, onSave }: ModalServicioProps
             Categoría
           </label>
           <div className="flex flex-wrap gap-2">
-            {CATEGORIAS.map((cat) => (
+            {categorias.map((cat) => (
               <button
                 key={cat.value}
                 type="button"
@@ -173,7 +333,7 @@ function ModalServicio({ isOpen, onClose, servicio, onSave }: ModalServicioProps
                   }`,
                 }}
               >
-                {cat.icon}
+                {getCategoriaIcon(cat.value)}
                 {cat.label}
               </button>
             ))}
@@ -221,7 +381,7 @@ function ModalServicio({ isOpen, onClose, servicio, onSave }: ModalServicioProps
             </button>
           </div>
 
-          {/* Precio base — siempre visible */}
+          {/* Precio base */}
           <div className="relative">
             <DollarSign
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
@@ -333,13 +493,25 @@ function ModalServicio({ isOpen, onClose, servicio, onSave }: ModalServicioProps
 
 export function ServiciosManager() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [categorias, setCategorias] = useState<CategoriaServicioConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalCategoriasOpen, setModalCategoriasOpen] = useState(false);
   const [editando, setEditando] = useState<Servicio | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Servicio | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaServicio | "todas">("todas");
+
+  const fetchCategorias = useCallback(async () => {
+    try {
+      const res = await fetch("/api/servicios/categorias");
+      const data = await res.json();
+      if (data.success) setCategorias(data.data);
+    } catch {
+      // silencioso: se usan defaults
+    }
+  }, []);
 
   const fetchServicios = useCallback(async () => {
     setLoading(true);
@@ -356,8 +528,37 @@ export function ServiciosManager() {
     }
   }, []);
 
-  useEffect(() => { fetchServicios(); }, [fetchServicios]);
+  useEffect(() => {
+    fetchCategorias();
+    fetchServicios();
+  }, [fetchCategorias, fetchServicios]);
 
+  // ── Categorías: add/delete ──
+  const handleAddCategoria = async (label: string) => {
+    const res = await fetch("/api/servicios/categorias", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "Error al agregar categoría");
+    await fetchCategorias();
+  };
+
+  const handleDeleteCategoria = async (value: string) => {
+    const res = await fetch("/api/servicios/categorias", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "Error al eliminar categoría");
+    // Si el filtro activo era esa categoría, resetear
+    if (filtroCategoria === value) setFiltroCategoria("todas");
+    await fetchCategorias();
+  };
+
+  // ── Servicios: save/toggle/delete ──
   const handleSave = async (form: ServicioFormData) => {
     if (editando) {
       await fetch(`/api/servicios/${editando.id}`, {
@@ -394,6 +595,9 @@ export function ServiciosManager() {
     setConfirmDelete(null);
     await fetchServicios();
   };
+
+  const getCategoriaLabel = (cat: string) =>
+    categorias.find((c) => c.value === cat)?.label ?? cat;
 
   const serviciosFiltrados =
     filtroCategoria === "todas"
@@ -437,7 +641,7 @@ export function ServiciosManager() {
   return (
     <div className="space-y-4">
       {/* Header de sección */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
             Servicios sin inventario
@@ -446,24 +650,35 @@ export function ServiciosManager() {
             Recargas, copias, diagnósticos y cualquier servicio que no descuenta stock
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => { setEditando(null); setModalOpen(true); }}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo servicio
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* FASE 37b: Botón gestionar categorías */}
+          <Button
+            variant="secondary"
+            onClick={() => setModalCategoriasOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <FolderOpen className="w-4 h-4" />
+            Categorías
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => { setEditando(null); setModalOpen(true); }}
+            className="flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo servicio
+          </Button>
+        </div>
       </div>
 
-      {/* Filtros de categoría */}
+      {/* Filtros de categoría — dinámicos */}
       <div className="flex flex-wrap gap-2">
-        {[{ value: "todas" as const, label: "Todos" }, ...CATEGORIAS.map((c) => ({ value: c.value, label: c.label }))].map((opt) => (
+        {[{ value: "todas" as const, label: "Todos" }, ...categorias.map((c) => ({ value: c.value, label: c.label }))].map((opt) => (
           <button
             key={opt.value}
             type="button"
             onClick={() => setFiltroCategoria(opt.value)}
-            className="text-xs px-3 py-1.5 rounded-full font-medium transition-all"
+            className="text-xs px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5"
             style={{
               background:
                 filtroCategoria === opt.value
@@ -476,6 +691,7 @@ export function ServiciosManager() {
               border: `1px solid ${filtroCategoria === opt.value ? "var(--color-primary)" : "var(--color-border)"}`,
             }}
           >
+            {opt.value !== "todas" && getCategoriaIcon(opt.value)}
             {opt.label}
           </button>
         ))}
@@ -489,7 +705,9 @@ export function ServiciosManager() {
         >
           <Wrench className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--color-border-strong)" }} />
           <p className="font-medium" style={{ color: "var(--color-text-secondary)" }}>
-            {filtroCategoria === "todas" ? "Aún no hay servicios" : `No hay servicios en "${getCategoriaLabel(filtroCategoria as CategoriaServicio)}"`}
+            {filtroCategoria === "todas"
+              ? "Aún no hay servicios"
+              : `No hay servicios en "${getCategoriaLabel(filtroCategoria)}"`}
           </p>
           <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
             Crea servicios que aparecerán en la sección Servicios del POS
@@ -628,15 +846,25 @@ export function ServiciosManager() {
         </div>
       )}
 
-      {/* Modal crear/editar */}
+      {/* Modal crear/editar servicio */}
       <ModalServicio
         isOpen={modalOpen}
         onClose={() => { setModalOpen(false); setEditando(null); }}
         servicio={editando}
         onSave={handleSave}
+        categorias={categorias}
       />
 
-      {/* Modal confirmar eliminación */}
+      {/* Modal gestionar categorías */}
+      <ModalCategorias
+        isOpen={modalCategoriasOpen}
+        onClose={() => setModalCategoriasOpen(false)}
+        categorias={categorias}
+        onAdd={handleAddCategoria}
+        onDelete={handleDeleteCategoria}
+      />
+
+      {/* Modal confirmar eliminación de servicio */}
       <Modal
         isOpen={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}

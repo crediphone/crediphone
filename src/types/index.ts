@@ -221,7 +221,17 @@ export interface Producto {
 // FASE 36: Servicios sin inventario
 // =====================================================
 
-export type CategoriaServicio = "telefonia" | "papeleria" | "diagnostico" | "reparacion" | "otro";
+/** Categoría de servicio — puede ser uno de los valores por defecto o una cadena personalizada (FASE 37b) */
+export type CategoriaServicio = string;
+
+/** Valores por defecto de categorías de servicios */
+export const CATEGORIAS_SERVICIO_DEFAULT = ["telefonia", "papeleria", "diagnostico", "reparacion", "otro"] as const;
+
+/** Categoría de servicio personalizada (nombre + valor) */
+export interface CategoriaServicioConfig {
+  value: string;   // slug (ej: "telefonia", "mi-categoria")
+  label: string;   // Nombre visible (ej: "Telefonía", "Mi Categoría")
+}
 
 export interface Servicio {
   id: string;
@@ -776,6 +786,8 @@ export interface Configuracion {
   // FASE 33: POS — configuración del punto de venta
   permitirVentasSinCliente?: boolean;
   descuentoMaximoPct?: number;
+  /** FASE 37b: Categorías de servicios personalizadas por distribuidor */
+  categoriasServicios?: CategoriaServicioConfig[];
   diasMaxDevolucion?: number;
   // FASE 33: Notificaciones avanzadas
   diasAnticipacionRecordatorio?: number;

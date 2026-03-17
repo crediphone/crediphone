@@ -5,17 +5,20 @@ import {
   Wrench, Phone, FileText, Stethoscope, Tag,
   Plus, Search, AlertCircle, DollarSign,
 } from "lucide-react";
-import type { Servicio, CategoriaServicio } from "@/types";
+import type { Servicio, CategoriaServicio, CategoriaServicioConfig } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const CATEGORIAS: { value: CategoriaServicio; label: string; icon: React.ReactNode }[] = [
-  { value: "telefonia", label: "Telefonía", icon: <Phone className="w-4 h-4" /> },
-  { value: "papeleria", label: "Papelería", icon: <FileText className="w-4 h-4" /> },
-  { value: "diagnostico", label: "Diagnóstico", icon: <Stethoscope className="w-4 h-4" /> },
-  { value: "reparacion", label: "Reparación", icon: <Wrench className="w-4 h-4" /> },
-  { value: "otro", label: "Otro", icon: <Tag className="w-4 h-4" /> },
-];
+/** Ícono por valor de categoría */
+function getCategoriaIcon(value: string): React.ReactNode {
+  switch (value) {
+    case "telefonia":   return <Phone className="w-4 h-4" />;
+    case "papeleria":   return <FileText className="w-4 h-4" />;
+    case "diagnostico": return <Stethoscope className="w-4 h-4" />;
+    case "reparacion":  return <Wrench className="w-4 h-4" />;
+    default:            return <Tag className="w-4 h-4" />;
+  }
+}
 
 function fmtPrecio(n: number) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
@@ -158,6 +161,7 @@ function ModalPrecioVariable({ servicio, onConfirm, onCancel }: ModalPrecioVaria
 
 export function ServiciosPOSPanel({ onAgregarServicio }: ServiciosPOSPanelProps) {
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [categorias, setCategorias] = useState<CategoriaServicioConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busqueda, setBusqueda] = useState("");
@@ -179,7 +183,20 @@ export function ServiciosPOSPanel({ onAgregarServicio }: ServiciosPOSPanelProps)
     }
   }, []);
 
-  useEffect(() => { fetchServicios(); }, [fetchServicios]);
+  const fetchCategorias = useCallback(async () => {
+    try {
+      const res = await fetch("/api/servicios/categorias");
+      const data = await res.json();
+      if (data.success) setCategorias(data.data);
+    } catch {
+      // silencioso — se usan defaults inline
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchServicios();
+    fetchCategorias();
+  }, [fetchServicios, fetchCategorias]);
 
   const serviciosFiltrados = servicios.filter((s) => {
     const matchCat = filtroCategoria === "todas" || s.categoria === filtroCategoria;
@@ -190,8 +207,8 @@ export function ServiciosPOSPanel({ onAgregarServicio }: ServiciosPOSPanelProps)
     return matchCat && matchBusq;
   });
 
-  // Agrupa por categoría para la vista de cuadrícula
-  const categoriasTienenServicios = CATEGORIAS.filter((cat) =>
+  // Agrupa por categoría para la vista de cuadrícula (usa categorías dinámicas)
+  const categoriasTienenServicios = categorias.filter((cat) =>
     serviciosFiltrados.some((s) => s.categoria === cat.value)
   );
 
@@ -290,9 +307,9 @@ export function ServiciosPOSPanel({ onAgregarServicio }: ServiciosPOSPanelProps)
           </div>
         </div>
 
-        {/* Filtros de categoría */}
+        {/* Filtros de categoría — dinámicos */}
         <div className="px-3 pb-2 flex gap-1.5 overflow-x-auto scrollbar-none">
-          {[{ value: "todas" as const, label: "Todos" }, ...CATEGORIAS.map((c) => ({ value: c.value, label: c.label }))].map(
+          {[{ value: "todas" as const, label: "Todos" }, ...categorias.map((c) => ({ value: c.value, label: c.label }))].map(
             (opt) => (
               <button
                 key={opt.value}
@@ -344,7 +361,7 @@ export function ServiciosPOSPanel({ onAgregarServicio }: ServiciosPOSPanelProps)
                     className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide mb-2"
                     style={{ color: "var(--color-text-muted)" }}
                   >
-                    {cat.icon}
+                    {getCategoriaIcon(cat.value)}
                     {cat.label}
                   </div>
                   <div className="space-y-1.5">
@@ -405,11 +422,9 @@ function ServicioCard({
       <div className="flex items-center gap-2.5 min-w-0">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          style={{ background: "var(--color-accent-light)" }}
+          style={{ background: "var(--color-accent-light)", color: "var(--color-accent)" }}
         >
-          {CATEGORIAS.find((c) => c.value === servicio.categoria)?.icon ?? (
-            <Tag className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
-          )}
+          {getCategoriaIcon(servicio.categoria)}
         </div>
         <div className="min-w-0">
           <p

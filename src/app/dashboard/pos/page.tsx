@@ -1140,134 +1140,10 @@ export default function POSPage() {
             <ServiciosPOSPanel onAgregarServicio={handleAgregarServicio} />
           )}
 
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-              Descuento
-            </label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              max={subtotal}
-              value={descuento}
-              onChange={(e) => setDescuento(parseFloat(e.target.value) || 0)}
-              placeholder="0.00"
-            />
-          </div>
-
-          {/* FASE 30: Selector de cliente */}
-          <div className="relative">
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-              Cliente <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
-            </label>
-            {clienteSeleccionado ? (
-              <div
-                className="flex items-center justify-between px-3 py-2 rounded-lg"
-                style={{
-                  background: "var(--color-accent-light)",
-                  border: "1px solid var(--color-accent)",
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
-                  <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
-                    {clienteSeleccionado.nombre} {clienteSeleccionado.apellido ?? ""}
-                  </span>
-                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                    {clienteSeleccionado.telefono}
-                  </span>
-                </div>
-                <button
-                  onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
-                  className="p-0.5 rounded"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Buscar cliente por nombre o teléfono..."
-                  value={busquedaCliente}
-                  onChange={(e) => {
-                    setBusquedaCliente(e.target.value);
-                    setShowClienteDropdown(true);
-                    buscarClientes(e.target.value);
-                  }}
-                  onFocus={() => { if (busquedaCliente.length >= 2) setShowClienteDropdown(true); }}
-                  onBlur={() => setTimeout(() => setShowClienteDropdown(false), 150)}
-                  className="w-full px-3 py-2 rounded-lg text-sm pl-9"
-                  style={{
-                    background: "var(--color-bg-sunken)",
-                    border: "1px solid var(--color-border)",
-                    color: "var(--color-text-primary)",
-                    outline: "none",
-                  }}
-                />
-                <User className="w-4 h-4 absolute left-2.5 top-2.5" style={{ color: "var(--color-text-muted)" }} />
-                {showClienteDropdown && (buscandoCliente || resultadosCliente.length > 0) && (
-                  <div
-                    className="absolute z-20 w-full mt-1 rounded-xl overflow-hidden"
-                    style={{
-                      background: "var(--color-bg-surface)",
-                      border: "1px solid var(--color-border)",
-                      boxShadow: "var(--shadow-md)",
-                    }}
-                  >
-                    {buscandoCliente && (
-                      <div className="px-3 py-2 text-xs" style={{ color: "var(--color-text-muted)" }}>Buscando...</div>
-                    )}
-                    {resultadosCliente.map((c) => (
-                      <button
-                        key={c.id}
-                        onMouseDown={() => {
-                          setClienteSeleccionado(c);
-                          setBusquedaCliente("");
-                          setShowClienteDropdown(false);
-                        }}
-                        className="w-full px-3 py-2.5 text-left text-sm hover:opacity-80 flex items-center gap-2"
-                        style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
-                      >
-                        <User className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
-                        <span style={{ color: "var(--color-text-primary)" }}>
-                          {c.nombre} {c.apellido ?? ""}
-                        </span>
-                        <span className="ml-auto text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
-                          {c.telefono}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* FASE 30: Notas de la venta */}
-          <div>
-            <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-              Notas de la venta <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
-            </label>
-            <textarea
-              rows={2}
-              value={notasVenta}
-              onChange={(e) => setNotasVenta(e.target.value)}
-              placeholder="Observaciones, acuerdos, instrucciones..."
-              className="w-full px-3 py-2 rounded-lg text-sm resize-none"
-              style={{
-                background: "var(--color-bg-sunken)",
-                border: "1px solid var(--color-border)",
-                color: "var(--color-text-primary)",
-                outline: "none",
-              }}
-            />
-          </div>
         </div>
 
         {/* Right Column - Cart & Payment */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           <ShoppingCart
             items={cartItems}
             descuento={descuento}
@@ -1275,6 +1151,134 @@ export default function POSPage() {
             onRemoveItem={handleRemoveItem}
             onClear={handleClearCart}
           />
+
+          {/* Descuento, Cliente y Notas — en columna derecha para evitar superposición */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                Descuento
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max={subtotal}
+                value={descuento}
+                onChange={(e) => setDescuento(parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+              />
+            </div>
+
+            {/* FASE 30: Selector de cliente */}
+            <div className="relative">
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                Cliente <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
+              </label>
+              {clienteSeleccionado ? (
+                <div
+                  className="flex items-center justify-between px-3 py-2 rounded-lg"
+                  style={{
+                    background: "var(--color-accent-light)",
+                    border: "1px solid var(--color-accent)",
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                    <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+                      {clienteSeleccionado.nombre} {clienteSeleccionado.apellido ?? ""}
+                    </span>
+                    <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                      {clienteSeleccionado.telefono}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
+                    className="p-0.5 rounded"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente por nombre o teléfono..."
+                    value={busquedaCliente}
+                    onChange={(e) => {
+                      setBusquedaCliente(e.target.value);
+                      setShowClienteDropdown(true);
+                      buscarClientes(e.target.value);
+                    }}
+                    onFocus={() => { if (busquedaCliente.length >= 2) setShowClienteDropdown(true); }}
+                    onBlur={() => setTimeout(() => setShowClienteDropdown(false), 150)}
+                    className="w-full px-3 py-2 rounded-lg text-sm pl-9"
+                    style={{
+                      background: "var(--color-bg-sunken)",
+                      border: "1px solid var(--color-border)",
+                      color: "var(--color-text-primary)",
+                      outline: "none",
+                    }}
+                  />
+                  <User className="w-4 h-4 absolute left-2.5 top-2.5" style={{ color: "var(--color-text-muted)" }} />
+                  {showClienteDropdown && (buscandoCliente || resultadosCliente.length > 0) && (
+                    <div
+                      className="absolute z-20 w-full mt-1 rounded-xl overflow-hidden"
+                      style={{
+                        background: "var(--color-bg-surface)",
+                        border: "1px solid var(--color-border)",
+                        boxShadow: "var(--shadow-md)",
+                      }}
+                    >
+                      {buscandoCliente && (
+                        <div className="px-3 py-2 text-xs" style={{ color: "var(--color-text-muted)" }}>Buscando...</div>
+                      )}
+                      {resultadosCliente.map((c) => (
+                        <button
+                          key={c.id}
+                          onMouseDown={() => {
+                            setClienteSeleccionado(c);
+                            setBusquedaCliente("");
+                            setShowClienteDropdown(false);
+                          }}
+                          className="w-full px-3 py-2.5 text-left text-sm hover:opacity-80 flex items-center gap-2"
+                          style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                        >
+                          <User className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+                          <span style={{ color: "var(--color-text-primary)" }}>
+                            {c.nombre} {c.apellido ?? ""}
+                          </span>
+                          <span className="ml-auto text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
+                            {c.telefono}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* FASE 30: Notas de la venta */}
+            <div>
+              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+                Notas de la venta <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
+              </label>
+              <textarea
+                rows={2}
+                value={notasVenta}
+                onChange={(e) => setNotasVenta(e.target.value)}
+                placeholder="Observaciones, acuerdos, instrucciones..."
+                className="w-full px-3 py-2 rounded-lg text-sm resize-none"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-primary)",
+                  outline: "none",
+                }}
+              />
+            </div>
+          </div>
 
           {cartItems.length > 0 && (
             <div className="space-y-3">
