@@ -35,6 +35,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

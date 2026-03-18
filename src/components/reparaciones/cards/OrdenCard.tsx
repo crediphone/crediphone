@@ -177,12 +177,14 @@ function EstadoSelector({
 
 // ─── Timer Display (días desde recepción) ─────────────────────────────────────
 function TimerDisplay({ orden }: { orden: OrdenReparacionDetallada }) {
+  // Capturar timestamp una sola vez al montar (evita llamada impura en render)
+  const [now] = useState(() => Date.now());
   const activa = !["entregado", "cancelado", "no_reparable"].includes(orden.estado);
   let elapsed = "--";
 
   if (orden.fechaRecepcion) {
     const inicio = new Date(orden.fechaRecepcion).getTime();
-    const diff = Math.floor((Date.now() - inicio) / 1000);
+    const diff = Math.floor((now - inicio) / 1000);
     const d = Math.floor(diff / 86400);
     const h = Math.floor((diff % 86400) / 3600);
     elapsed = d > 0 ? `${d}d ${h}h` : `${h}h`;

@@ -906,7 +906,7 @@ export default function CatalogoPage() {
                 <Package className="w-12 h-12 opacity-30" style={{ color: "var(--color-text-muted)" }} />
                 <div>
                   <p className="font-semibold" style={{ color: "var(--color-text-secondary)" }}>
-                    No encontramos productos para "{searchQuery}"
+                    No encontramos productos para &quot;{searchQuery}&quot;
                   </p>
                   <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
                     Prueba con otros términos o contáctanos directo
@@ -983,7 +983,7 @@ export default function CatalogoPage() {
                   className="text-sm leading-relaxed mb-4"
                   style={{ color: "var(--color-text-secondary)" }}
                 >
-                  "{r.texto}"
+                  &quot;{r.texto}&quot;
                 </p>
 
                 <div className="flex items-center gap-3">

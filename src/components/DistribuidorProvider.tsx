@@ -64,6 +64,7 @@ export function DistribuidorProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (user?.role !== "super_admin") return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     fetch("/api/admin/distribuidores")
       .then((r) => r.json())

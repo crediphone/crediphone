@@ -276,6 +276,7 @@ export function BadgeConfirmacionesPendientes() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCount();
     const iv = setInterval(fetchCount, 60_000);
     return () => clearInterval(iv);

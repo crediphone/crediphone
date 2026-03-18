@@ -29,6 +29,7 @@ export function SelectorTipoFirma({
 
   useEffect(() => {
     if (!firmaData && nombreInicial) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNombreDigital(nombreInicial);
     }
   }, [nombreInicial, firmaData]);

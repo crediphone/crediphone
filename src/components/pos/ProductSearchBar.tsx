@@ -25,6 +25,21 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds 
   const [scanMsg, setScanMsg] = useState("");
   const searchRef = useRef<HTMLDivElement>(null);
 
+  const fetchProductos = async () => {
+    try {
+      setLoadError("");
+      const response = await fetch("/api/productos");
+      const data = await response.json();
+      if (data.success) {
+        setProductos(data.data);
+      } else {
+        setLoadError(data.error || "Error al cargar productos");
+      }
+    } catch {
+      setLoadError("No se pudo conectar con el servidor");
+    }
+  };
+
   // FASE 29: focus al recibir señal de F3
   useEffect(() => {
     if (focusTrigger && focusTrigger > 0) {
@@ -35,11 +50,13 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds 
   }, [focusTrigger]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchProductos();
   }, []);
 
   useEffect(() => {
     if (searchTerm.trim() === "") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilteredProductos([]);
       setShowResults(false);
       return;
@@ -70,21 +87,6 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const fetchProductos = async () => {
-    try {
-      setLoadError("");
-      const response = await fetch("/api/productos");
-      const data = await response.json();
-      if (data.success) {
-        setProductos(data.data);
-      } else {
-        setLoadError(data.error || "Error al cargar productos");
-      }
-    } catch (error) {
-      setLoadError("No se pudo conectar con el servidor");
-    }
-  };
 
   const handleSelect = (producto: Producto) => {
     onSelectProduct(producto);

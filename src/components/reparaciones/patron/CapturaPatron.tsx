@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 
 interface CapturaPatronProps {
   onPatronCapturado: (patron: { puntos: number[]; codificado: string }) => void;
@@ -15,7 +15,6 @@ export function CapturaPatron({
   const [dibujando, setDibujando] = useState(false);
   const [mostrarConfirm, setMostrarConfirm] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [posicionesPuntos] = useState<{ x: number; y: number }[]>([]);
 
   const FILAS = 3;
   const COLUMNAS = 3;
@@ -23,19 +22,18 @@ export function CapturaPatron({
   const CANVAS_SIZE = 300;
   const ESPACIADO = CANVAS_SIZE / (COLUMNAS + 1);
 
-  // Inicializar posiciones de los puntos
-  useEffect(() => {
-    const nuevasPosiciones: { x: number; y: number }[] = [];
+  // Posiciones calculadas una vez (constantes derivadas)
+  const posicionesPuntos = useMemo(() => {
+    const posiciones: { x: number; y: number }[] = [];
     for (let fila = 0; fila < FILAS; fila++) {
       for (let col = 0; col < COLUMNAS; col++) {
-        nuevasPosiciones.push({
+        posiciones.push({
           x: ESPACIADO * (col + 1),
           y: ESPACIADO * (fila + 1),
         });
       }
     }
-    posicionesPuntos.length = 0;
-    posicionesPuntos.push(...nuevasPosiciones);
+    return posiciones;
   }, []);
 
   // Dibujar el canvas

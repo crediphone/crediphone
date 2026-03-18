@@ -26,6 +26,17 @@ export function BarcodeScanner({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setShowCamera(false);
+  };
+
   // Cleanup camera stream on unmount or when camera is closed
   useEffect(() => {
     return () => {
@@ -54,17 +65,6 @@ export function BarcodeScanner({
       );
       setShowCamera(false);
     }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setShowCamera(false);
   };
 
   const handleManualSubmit = (e: React.FormEvent) => {

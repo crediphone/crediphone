@@ -34,20 +34,6 @@ export function PaymentMethodSelector({
   const [mixtoTransferencia, setMixtoTransferencia] = useState("");
   const [mixtoTarjeta, setMixtoTarjeta] = useState("");
 
-  // Validar y notificar cambios
-  useEffect(() => {
-    const paymentData = validatePayment();
-    onChange(paymentData);
-  }, [
-    metodoPago,
-    montoRecibido,
-    referencia,
-    mixtoEfectivo,
-    mixtoTransferencia,
-    mixtoTarjeta,
-    total,
-  ]);
-
   const validatePayment = (): PaymentData => {
     let isValid = false;
     let errorMessage: string | undefined;
@@ -94,6 +80,20 @@ export function PaymentMethodSelector({
       errorMessage,
     };
   };
+
+  // Validar y notificar cambios
+  useEffect(() => {
+    const paymentData = validatePayment();
+    onChange(paymentData);
+  }, [
+    metodoPago,
+    montoRecibido,
+    referencia,
+    mixtoEfectivo,
+    mixtoTransferencia,
+    mixtoTarjeta,
+    total,
+  ]);
 
   const tabs = [
     {
