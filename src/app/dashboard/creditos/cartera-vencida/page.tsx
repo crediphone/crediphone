@@ -12,11 +12,43 @@ import {
   Clock,
   Users,
   ChevronLeft,
+  BarChart2,
+  Percent,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { CreditoCarteraVencida } from "@/lib/db/creditos";
 
 // ─── Tipos locales ────────────────────────────────────────────
+
+/** Tipo local del aging report (espeja AgingReport de la API) */
+interface AgingBucket {
+  key:        string;
+  label:      string;
+  count:      number;
+  saldoTotal: number;
+  moraTotal:  number;
+  porcentaje: number;
+}
+interface AgingReport {
+  fechaCorte:     string;
+  totalCreditos:  number;
+  totalCartera:   number;
+  totalEnMora:    number;
+  tasaMoraConteo: number;
+  tasaMoraMonto:  number;
+  moraAcumulada:  number;
+  buckets:        AgingBucket[];
+}
+
+const BUCKET_COLORS: Record<string, { bg: string; bar: string; text: string }> = {
+  corriente: { bg: "var(--color-success-bg)", bar: "var(--color-success)", text: "var(--color-success-text)" },
+  b1_30:     { bg: "var(--color-info-bg)",    bar: "var(--color-info)",    text: "var(--color-info-text)"    },
+  b31_60:    { bg: "var(--color-warning-bg)", bar: "var(--color-warning)", text: "var(--color-warning-text)" },
+  b61_90:    { bg: "var(--color-danger-bg)",  bar: "var(--color-danger)",  text: "var(--color-danger-text)"  },
+  b91_120:   { bg: "var(--color-danger-bg)",  bar: "var(--color-danger)",  text: "var(--color-danger-text)"  },
+  b120plus:  { bg: "var(--color-danger-bg)",  bar: "var(--color-primary)", text: "var(--color-danger-text)"  },
+};
+
 interface Resumen {
   total: number;
   totalSaldoPendiente: number;
@@ -181,6 +213,7 @@ export default function CarteraVencidaPage() {
   const router = useRouter();
   const [creditos, setCreditos] = useState<CreditoCarteraVencida[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [aging, setAging] = useState<AgingReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [recalculando, setRecalculando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -191,11 +224,18 @@ export default function CarteraVencidaPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/creditos/cartera-vencida");
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      setCreditos(data.data.creditos);
-      setResumen(data.data.resumen);
+      const [resCartera, resAging] = await Promise.all([
+        fetch("/api/creditos/cartera-vencida"),
+        fetch("/api/creditos/aging"),
+      ]);
+      const dataCartera = await resCartera.json();
+      const dataAging   = await resAging.json();
+
+      if (!dataCartera.success) throw new Error(dataCartera.error);
+      setCreditos(dataCartera.data.creditos);
+      setResumen(dataCartera.data.resumen);
+
+      if (dataAging.success) setAging(dataAging.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar cartera vencida");
     } finally {
@@ -320,6 +360,185 @@ export default function CarteraVencidaPage() {
           }}
         >
           {mensajeExito}
+        </div>
+      )}
+
+      {/* ── FASE 43: Reporte de Antigüedad de Saldos ───────────── */}
+      {aging && (
+        <div
+          style={{
+            background: "var(--color-bg-surface)",
+            borderRadius: "0.75rem",
+            border: "1px solid var(--color-border)",
+            overflow: "hidden",
+          }}
+        >
+          {/* Encabezado */}
+          <div
+            className="flex items-center justify-between px-5 py-3"
+            style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+          >
+            <div className="flex items-center gap-2">
+              <BarChart2 className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+              <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                Reporte de Antigüedad de Saldos
+              </h3>
+            </div>
+            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              Corte: {new Date(aging.fechaCorte).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+            </span>
+          </div>
+
+          {/* Tasas de mora real */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px" style={{ background: "var(--color-border-subtle)" }}>
+            {[
+              {
+                icon: Percent,
+                label: "Tasa mora (conteo)",
+                value: `${aging.tasaMoraConteo}%`,
+                sub: `${aging.buckets.find((b) => b.key !== "corriente")?.count ?? 0} de ${aging.totalCreditos} créditos`,
+                color: aging.tasaMoraConteo > 20 ? "var(--color-danger)" : aging.tasaMoraConteo > 10 ? "var(--color-warning)" : "var(--color-success)",
+              },
+              {
+                icon: Percent,
+                label: "Tasa mora (monto)",
+                value: `${aging.tasaMoraMonto}%`,
+                sub: `$${fmt(aging.totalEnMora)} en riesgo`,
+                color: aging.tasaMoraMonto > 20 ? "var(--color-danger)" : aging.tasaMoraMonto > 10 ? "var(--color-warning)" : "var(--color-success)",
+              },
+              {
+                icon: DollarSign,
+                label: "Cartera total activa",
+                value: `$${fmt(aging.totalCartera)}`,
+                sub: `${aging.totalCreditos} créditos vigentes`,
+                color: "var(--color-text-primary)",
+              },
+              {
+                icon: TrendingUp,
+                label: "Mora acumulada total",
+                value: `$${fmt(aging.moraAcumulada)}`,
+                sub: "interés moratorio generado",
+                color: aging.moraAcumulada > 0 ? "var(--color-danger)" : "var(--color-success)",
+              },
+            ].map(({ icon: Icon, label, value, sub, color }) => (
+              <div
+                key={label}
+                className="p-4"
+                style={{ background: "var(--color-bg-surface)" }}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Icon className="w-3.5 h-3.5" style={{ color }} />
+                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{label}</span>
+                </div>
+                <p className="text-xl font-bold" style={{ color, fontFamily: "var(--font-data)" }}>{value}</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabla de buckets */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead style={{ background: "var(--color-bg-elevated)" }}>
+                <tr>
+                  {["Antigüedad", "# Créditos", "Saldo pendiente", "Mora acumulada", "% Cartera"].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider whitespace-nowrap"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {aging.buckets.map((bucket) => {
+                  const colors = BUCKET_COLORS[bucket.key] ?? BUCKET_COLORS["b120plus"];
+                  return (
+                    <tr
+                      key={bucket.key}
+                      style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                    >
+                      {/* Antigüedad con barra */}
+                      <td className="px-4 py-3 min-w-[180px]">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ background: colors.bar }}
+                          />
+                          <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+                            {bucket.label}
+                          </span>
+                        </div>
+                        <div
+                          className="h-1.5 rounded-full overflow-hidden"
+                          style={{ background: "var(--color-bg-elevated)", width: "100px" }}
+                        >
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.min(100, bucket.porcentaje)}%`,
+                              background: colors.bar,
+                            }}
+                          />
+                        </div>
+                      </td>
+                      {/* Conteo */}
+                      <td className="px-4 py-3">
+                        {bucket.count > 0 ? (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ background: colors.bg, color: colors.text }}
+                          >
+                            {bucket.count}
+                          </span>
+                        ) : (
+                          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>—</span>
+                        )}
+                      </td>
+                      {/* Saldo */}
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-sm font-medium"
+                          style={{
+                            color: bucket.saldoTotal > 0 ? colors.text : "var(--color-text-muted)",
+                            fontFamily: "var(--font-data)",
+                          }}
+                        >
+                          {bucket.saldoTotal > 0 ? `$${fmt(bucket.saldoTotal)}` : "—"}
+                        </span>
+                      </td>
+                      {/* Mora */}
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-sm"
+                          style={{
+                            color: bucket.moraTotal > 0 ? "var(--color-danger)" : "var(--color-text-muted)",
+                            fontFamily: "var(--font-data)",
+                          }}
+                        >
+                          {bucket.moraTotal > 0 ? `$${fmt(bucket.moraTotal)}` : "—"}
+                        </span>
+                      </td>
+                      {/* Porcentaje */}
+                      <td className="px-4 py-3">
+                        <span
+                          className="text-sm font-semibold tabular-nums"
+                          style={{
+                            color: bucket.porcentaje > 0 ? colors.text : "var(--color-text-muted)",
+                            fontFamily: "var(--font-data)",
+                          }}
+                        >
+                          {bucket.porcentaje > 0 ? `${bucket.porcentaje.toFixed(1)}%` : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

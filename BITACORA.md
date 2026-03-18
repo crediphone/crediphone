@@ -155,8 +155,12 @@ Bolsa virtual de reparaciones en caja: `sesion_caja_id` en `anticipos_reparacion
 
 ---
 
+### 📊 FASE 42 — ✅ COMPLETADA (commit `a4f78c8`, 2026-03-18)
+Sidebar con acordeones colapsables: NavAccordion + AccordionNavItem. INVENTARIO colapsado en 2 grupos (Catálogo + Stock), REPARACIONES panel por rol, REPORTES simplificado.
+
+---
+
 ### 🔄 FASES FUTURAS (en orden)
-- FASE 42: Sidebar reorganización (ver arriba)
 - FASE 43: Aging report + tasa de mora real
 - FASE 44: Dashboard ejecutivo por rol (widgets distintos por rol)
 - FASE 45: Notificaciones WhatsApp automáticas por cambio estado reparación
@@ -242,4 +246,4 @@ Por eso existe este archivo. Si algo importante pasa en una sesión (nueva decis
 
 ---
 
-*Última actualización: 2026-03-18 — Trini + Claude (FASE 41: bolsa virtual reparaciones en caja, anticipos sin sesión anti-fraude)*
+*Última actualización: 2026-03-18 — Trini + Claude (FASE 42: sidebar acordeones colapsables, Inventario/Reparaciones/Reportes comprimidos)*
