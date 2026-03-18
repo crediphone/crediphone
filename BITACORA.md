@@ -74,6 +74,8 @@ el usuario no es super_admin.
 | 39 | Sistema de autorización de descuentos: zonas verde/amarillo/rojo, polling, WhatsApp token, panel admin, config | `614ede1` |
 | SEC | SECURITY-001 + SECURITY-002: 17 API routes con auth + multi-tenant reportes | `7a5e4f5` |
 | REACT-001 | 12 errores críticos ESLint: vars before declare, setState en effects, mutación state, Date.now en render, JSX quotes | `1085bd5` |
+| Sesión Visual | Íconos corregidos (7) + Sidebar reorganizado en 7 grupos | `sesion-visual` |
+| 40 | Conteo ciego, fondo fijo, Pay In/Out, tolerancia descuadre, alerta admin | `68ae3fc` |
 
 ---
 
@@ -143,27 +145,8 @@ Layers       → WarehouseIcon       (Ubicaciones)
 
 ---
 
-### 📊 FASE 40: Reporte X, Reporte Z, Conteo Ciego, Fondo Fijo
-**Lo que debes decirle a Claude:**
-> "Lee BITACORA.md y NOTAS_TRINI.md. Vamos a implementar FASE 40 completa."
-
-**Scope completo de FASE 40:**
-- Fondo de caja fijo configurable por admin (guardado en `configuracion.fondo_caja`)
-- Reporte X: snapshot del turno actual sin cerrarlo (accesible desde POS, no cierra sesión)
-- Reporte Z: cierre formal con conteo ciego por denominaciones
-- Conteo ciego: empleado declara efectivo SIN ver el monto esperado del sistema
-- Conteo por denominación: $1000×N + $500×N + $200×N + $100×N + $50×N + $20×N + monedas
-- Pay In / Pay Out: entradas/salidas de caja sin relación a ventas (gastos chicos)
-- Tolerancia de diferencia configurable (default: $0)
-- Alerta automática al admin si hay descuadre
-- Historial de cierres Z por sesión (PDF descargable)
-
-**Migración DB requerida (fase40-caja.sql):**
-```sql
--- En configuracion: fondo_caja NUMERIC DEFAULT 500, tolerancia_descuadre NUMERIC DEFAULT 0
--- Nueva tabla: movimientos_caja (pay in / pay out)
--- En caja_sesiones: conteo_denominaciones JSONB, monto_declarado_cierre NUMERIC
-```
+### 📊 FASE 40 — ✅ COMPLETADA (commit `68ae3fc`, 2026-03-18)
+Conteo ciego por denominaciones, fondo fijo configurable, Pay In/Out, tolerancia descuadre, alerta admin si descuadre > tolerancia.
 
 ---
 
@@ -260,4 +243,4 @@ Por eso existe este archivo. Si algo importante pasa en una sesión (nueva decis
 
 ---
 
-*Última actualización: 2026-03-18 — Trini + Claude (REACT-001 resuelto: 12 errores ESLint críticos)*
+*Última actualización: 2026-03-18 — Trini + Claude (FASE 40: conteo ciego, fondo fijo, Pay In/Out, tolerancia descuadre)*
