@@ -803,6 +803,49 @@ export const CORE_MODULES: (keyof ModulosHabilitados)[] = [
 ];
 
 // Configuracion general del sistema
+// ─── FASE 39: Autorizaciones de descuento ─────────────────────────────────────
+
+export interface LimitesDescuento {
+  /** % máximo que vendedor puede dar SIN pedir nada (default 5) */
+  vendedorLibrePct: number;
+  /** % máximo con razón obligatoria pero sin aprobación remota (default 15) */
+  vendedorConRazonPct: number;
+  /** ¿Permite descuentos en monto fijo ($) además de %? (default true) */
+  permiteMontFijo: boolean;
+  /** Monto fijo máximo en $ sin requerir aprobación (default 500) */
+  montoFijoMaximoSinAprobacion: number;
+}
+
+export type EstadoAutorizacion = "pendiente" | "aprobado" | "declinado" | "expirado";
+
+export interface ItemContextoVenta {
+  nombre: string;
+  cantidad: number;
+  precio: number;
+}
+
+export interface SolicitudAutorizacion {
+  id: string;
+  distribuidorId?: string;
+  empleadoId: string;
+  empleadoNombre?: string;
+  autorizadorId?: string;
+  autorizadorNombre?: string;
+  tipo: "descuento";
+  montoVenta: number;
+  montoDescuento: number;
+  porcentajeCalculado: number;
+  esMontFijo: boolean;
+  razon?: string;
+  contexto?: { items: ItemContextoVenta[]; subtotal: number };
+  estado: EstadoAutorizacion;
+  respondidoAt?: Date;
+  comentarioAutorizador?: string;
+  linkToken: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
 export interface Configuracion {
   id: string;
   distribuidorId?: string; // FASE 21
@@ -850,6 +893,8 @@ export interface Configuracion {
   // FASE 33: Notificaciones avanzadas
   diasAnticipacionRecordatorio?: number;
   mensajeRecordatorio?: string;
+  // FASE 39: Límites de descuento
+  limitesDescuento?: LimitesDescuento;
   // Auditoria
   updatedAt: Date;
   updatedBy?: string;

@@ -11,6 +11,7 @@ import { ModalOrden } from "@/components/reparaciones/ModalOrden";
 import { OrdenDrawer } from "@/components/reparaciones/drawer/OrdenDrawer";
 import { PanelTraspasosPendientes } from "@/components/reparaciones/traspasos/PanelTraspasosPendientes";
 import { PanelConfirmacionesDeposito } from "@/components/reparaciones/confirmaciones/PanelConfirmacionesDeposito";
+import { PanelAutorizacionesPendientes } from "@/components/autorizaciones/PanelAutorizacionesPendientes";
 import type { DashboardStats as RepDashboardStats } from "@/lib/db/reparaciones-dashboard";
 import type { OrdenReparacionDetallada } from "@/types";
 
@@ -327,6 +328,13 @@ export default function DashboardPage() {
               Ver Caja
             </button>
           </Link>
+        </div>
+      )}
+
+      {/* FASE 39: Panel autorizaciones de descuento — solo admin/super_admin */}
+      {user && ["admin", "super_admin"].includes(user.role) && (
+        <div className="mb-4">
+          <PanelAutorizacionesPendientes compact={false} />
         </div>
       )}
 

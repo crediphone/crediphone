@@ -9,6 +9,7 @@ import { ShoppingCart, CartItem } from "@/components/pos/ShoppingCart";
 import { ServiciosPOSPanel, ServicioPOSItem } from "@/components/pos/ServiciosPOSPanel";
 import { PaymentMethodSelector } from "@/components/pos/PaymentMethodSelector";
 import { ReciboModal } from "@/components/pos/ReciboModal";
+import { DescuentoPOS } from "@/components/pos/DescuentoPOS";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -1154,20 +1155,19 @@ export default function POSPage() {
 
           {/* Descuento, Cliente y Notas — en columna derecha para evitar superposición */}
           <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                Descuento
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                max={subtotal}
-                value={descuento}
-                onChange={(e) => setDescuento(parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
-              />
-            </div>
+            {/* FASE 39: Control de descuento inteligente con zonas y autorización */}
+            <DescuentoPOS
+              subtotal={subtotal}
+              empleadoNombre={user?.name ?? user?.email ?? ""}
+              contextoItems={cartItems.map((item) => ({
+                nombre: item.esServicio
+                  ? (item.servicioNombre ?? "Servicio")
+                  : (item.producto?.nombre ?? "Producto"),
+                cantidad: item.cantidad,
+                precio: item.precioUnitario,
+              }))}
+              onChange={(d) => setDescuento(d)}
+            />
 
             {/* FASE 30: Selector de cliente */}
             <div className="relative">

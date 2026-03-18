@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Tabs } from "@/components/ui/Tabs";
-import type { Configuracion, ModulosHabilitados } from "@/types";
+import type { Configuracion, ModulosHabilitados, LimitesDescuento } from "@/types";
 import { CORE_MODULES } from "@/types";
 import {
   Save,
@@ -20,6 +20,8 @@ import {
   ShoppingCart,
   Bell,
   ChevronRight,
+  Tag,
+  Percent,
 } from "lucide-react";
 import PayjoyConfigSection from "@/components/payjoy/PayjoyConfigSection";
 import { SonidosNotificacionConfig } from "@/components/configuracion/SonidosNotificacionConfig";
@@ -169,6 +171,16 @@ export default function ConfiguracionPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // FASE 39: Límites de descuento
+  const [limites, setLimites] = useState<LimitesDescuento>({
+    vendedorLibrePct: 5,
+    vendedorConRazonPct: 15,
+    permiteMontFijo: true,
+    montoFijoMaximoSinAprobacion: 500,
+  });
+  const [savingLimites, setSavingLimites] = useState(false);
+  const [messageLimites, setMessageLimites] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   useEffect(() => {
     if (user && user.role !== "admin" && user.role !== "super_admin") {
       router.push("/dashboard");
@@ -178,6 +190,38 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     if (config) setFormData({ ...config });
   }, [config]);
+
+  // FASE 39: Cargar límites de descuento
+  useEffect(() => {
+    fetch("/api/configuracion/limites-descuento")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setLimites(d.data); })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveLimites = async () => {
+    setSavingLimites(true);
+    setMessageLimites(null);
+    try {
+      const res = await fetch("/api/configuracion/limites-descuento", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(limites),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      setLimites(data.data);
+      setMessageLimites({ type: "success", text: "Límites guardados correctamente" });
+    } catch (err) {
+      setMessageLimites({
+        type: "error",
+        text: err instanceof Error ? err.message : "Error al guardar",
+      });
+    } finally {
+      setSavingLimites(false);
+      setTimeout(() => setMessageLimites(null), 3000);
+    }
+  };
 
   const handleChange = (field: keyof Configuracion, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -594,6 +638,163 @@ export default function ConfiguracionPage() {
               </div>
             </div>
             <SaveButton saving={saving} onSave={handleSave} />
+          </Card>
+
+          {/* FASE 39: Límites de descuento */}
+          <Card className="p-6">
+            <SectionHeader
+              icon={<Tag className="w-5 h-5" style={{ color: "var(--color-warning)" }} />}
+              title="Control de Descuentos"
+              subtitle="Define qué descuentos puede aplicar el vendedor libremente y cuáles requieren autorización del admin"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+              <div>
+                <label style={labelSt}>
+                  Descuento libre del vendedor (%)
+                </label>
+                <div className="relative">
+                  <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--color-text-muted)" }} />
+                  <Input
+                    type="number" step="1" min="0" max="100"
+                    value={limites.vendedorLibrePct}
+                    onChange={(e) =>
+                      setLimites((prev) => ({
+                        ...prev,
+                        vendedorLibrePct: parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    className="pl-8"
+                  />
+                </div>
+                <p style={hintSt}>
+                  Hasta este % el vendedor aplica descuento sin ningún trámite.
+                  Default: 5%
+                </p>
+              </div>
+              <div>
+                <label style={labelSt}>
+                  Descuento con razón (%)
+                </label>
+                <div className="relative">
+                  <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--color-text-muted)" }} />
+                  <Input
+                    type="number" step="1" min="0" max="100"
+                    value={limites.vendedorConRazonPct}
+                    onChange={(e) =>
+                      setLimites((prev) => ({
+                        ...prev,
+                        vendedorConRazonPct: parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    className="pl-8"
+                  />
+                </div>
+                <p style={hintSt}>
+                  Entre el % libre y este %, el vendedor debe escribir una razón.
+                  Default: 15%
+                </p>
+              </div>
+              <div>
+                <label style={labelSt}>Monto fijo máximo sin aprobación ($)</label>
+                <Input
+                  type="number" step="10" min="0"
+                  value={limites.montoFijoMaximoSinAprobacion}
+                  onChange={(e) =>
+                    setLimites((prev) => ({
+                      ...prev,
+                      montoFijoMaximoSinAprobacion: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  disabled={!limites.permiteMontFijo}
+                />
+                <p style={hintSt}>
+                  Si usas descuento por monto fijo, este es el máximo libre. Default: $500
+                </p>
+              </div>
+              <div className="flex items-start gap-3 pt-2">
+                <button
+                  onClick={() =>
+                    setLimites((prev) => ({
+                      ...prev,
+                      permiteMontFijo: !prev.permiteMontFijo,
+                    }))
+                  }
+                  className="mt-1 w-10 h-5 rounded-full relative transition-colors shrink-0"
+                  style={{
+                    background: limites.permiteMontFijo
+                      ? "var(--color-accent)"
+                      : "var(--color-bg-sunken)",
+                    border: "1px solid var(--color-border)",
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                    style={{
+                      left: limites.permiteMontFijo ? "calc(100% - 18px)" : "2px",
+                    }}
+                  />
+                </button>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+                    Permitir descuento por monto fijo ($)
+                  </p>
+                  <p style={hintSt}>
+                    Si está activo, el vendedor puede ingresar el descuento como monto fijo en pesos además del porcentual.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Resumen visual */}
+            <div
+              className="rounded-xl p-4 mb-4 text-sm"
+              style={{ background: "var(--color-bg-elevated)" }}
+            >
+              <p className="font-medium mb-2" style={{ color: "var(--color-text-primary)" }}>
+                Resumen de zonas:
+              </p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full" style={{ background: "var(--color-success)" }} />
+                  <span style={{ color: "var(--color-text-secondary)" }}>
+                    0% – {limites.vendedorLibrePct}%: Libre (sin trámite)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full" style={{ background: "var(--color-warning)" }} />
+                  <span style={{ color: "var(--color-text-secondary)" }}>
+                    {limites.vendedorLibrePct}% – {limites.vendedorConRazonPct}%: Requiere razón escrita
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full" style={{ background: "var(--color-danger)" }} />
+                  <span style={{ color: "var(--color-text-secondary)" }}>
+                    &gt;{limites.vendedorConRazonPct}%: Requiere autorización del admin (link WhatsApp)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {messageLimites && (
+              <div
+                className="rounded-lg px-4 py-2.5 text-sm mb-4"
+                style={{
+                  background: messageLimites.type === "success" ? "var(--color-success-bg)" : "var(--color-danger-bg)",
+                  color: messageLimites.type === "success" ? "var(--color-success-text)" : "var(--color-danger-text)",
+                }}
+              >
+                {messageLimites.text}
+              </div>
+            )}
+
+            <Button
+              variant="primary"
+              onClick={handleSaveLimites}
+              disabled={savingLimites}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {savingLimites ? "Guardando..." : "Guardar límites de descuento"}
+            </Button>
           </Card>
         </div>
       ),
