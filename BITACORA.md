@@ -8,48 +8,21 @@
 ## 🔴 BUGS CRÍTICOS ACTIVOS — NO TOCAR HASTA RESOLVERLOS
 
 ### [SECURITY-001] 17 API Routes sin autenticación propia
-**Severidad:** CRÍTICA — en producción cualquiera con las URLs puede hacer llamadas directas
+**Severidad:** CRÍTICA
 **Detectado:** 2026-03-18
-**Estado:** PENDIENTE DE CORRECCIÓN
-**Causa raíz:** El middleware (`src/proxy.ts`) solo protege rutas `/dashboard`, NO rutas `/api`.
-Cada API route debe validar auth internamente con `getAuthContext()`.
-
-**Rutas afectadas (sin auth propia):**
-```
-[GET, PUT, DELETE]  /api/pagos/[id]
-[GET, POST]         /api/pagos               ← POST crea pagos sin validar rol
-[GET, POST]         /api/creditos            ← POST crea créditos sin validar rol
-[POST]              /api/creditos/[id]/pdf
-[GET, PUT, DELETE]  /api/empleados/[id]      ← DELETE borra empleados sin auth
-[GET]               /api/empleados/vendedores
-[GET, PUT, DELETE]  /api/productos/[id]
-[GET]               /api/reportes            ← Datos financieros sin filtro ni auth
-[GET]               /api/reportes/comisiones ← Comisiones de todos sin auth
-[POST]              /api/reportes/pdf
-[GET]               /api/scoring/[id]
-[GET]               /api/reparaciones/dashboard
-[POST]              /api/reparaciones/[id]/asignar-tecnico
-[PUT]               /api/reparaciones/[id]/editar-info
-[GET]               /api/reparaciones/[id]/historial
-[GET, PUT]          /api/notificaciones
-[GET]               /api/recordatorios
-```
-
-**Fix requerido:** Agregar al inicio de cada handler:
-```typescript
-const { userId, role, distribuidorId, isSuperAdmin } = await getAuthContext();
-if (!userId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-```
-
-**Adicional en /api/reportes:** Además de auth, agregar filtro por `distribuidor_id`. Actualmente devuelve datos de TODOS los distribuidores.
+**Estado:** ✅ RESUELTO — commit `7a5e4f5` (2026-03-18)
+**Solución:** Creado `src/lib/auth/guard.ts` con helper `requireAuth(roles?)`.
+Aplicado a las 17 rutas. tsc --noEmit: LIMPIO.
 
 ---
 
 ### [SECURITY-002] Multi-tenant roto en Reportes
 **Severidad:** CRÍTICA
-**Estado:** PENDIENTE
-`/api/reportes/route.ts` y `/api/reportes/comisiones/route.ts` no filtran por distribuidor.
-Un admin de tienda A obtiene datos de tienda B si llama directamente a la API.
+**Detectado:** 2026-03-18
+**Estado:** ✅ RESUELTO — commit `7a5e4f5` (2026-03-18)
+**Solución:** `/api/reportes/route.ts`, `/api/reportes/comisiones/route.ts` y
+`/api/reportes/pdf/route.ts` ahora filtran por `distribuidor_id` cuando
+el usuario no es super_admin.
 
 ---
 
@@ -99,6 +72,7 @@ Un admin de tienda A obtiene datos de tienda B si llama directamente a la API.
 | 37 | (ver historial) | — |
 | 38 | (ver historial) | — |
 | 39 | Sistema de autorización de descuentos: zonas verde/amarillo/rojo, polling, WhatsApp token, panel admin, config | `614ede1` |
+| SEC | SECURITY-001 + SECURITY-002: 17 API routes con auth + multi-tenant reportes | `7a5e4f5` |
 
 ---
 
@@ -285,4 +259,4 @@ Por eso existe este archivo. Si algo importante pasa en una sesión (nueva decis
 
 ---
 
-*Última actualización: 2026-03-18 — Trini + Claude (sesión de auditoría completa)*
+*Última actualización: 2026-03-18 — Trini + Claude (sesión seguridad: SECURITY-001 + SECURITY-002 resueltos)*
