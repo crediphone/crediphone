@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDashboardCompleto } from "@/lib/db/reparaciones-dashboard";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * GET /api/reparaciones/dashboard
@@ -7,6 +8,9 @@ import { getDashboardCompleto } from "@/lib/db/reparaciones-dashboard";
  */
 export async function GET() {
   try {
+    const auth = await requireAuth(["admin", "tecnico", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const data = await getDashboardCompleto();
 
     return NextResponse.json({

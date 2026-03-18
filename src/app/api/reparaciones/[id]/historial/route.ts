@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getHistorialEstadosOrden } from "@/lib/db/reparaciones";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * GET /api/reparaciones/[id]/historial
@@ -10,6 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "tecnico", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
 
     // Validar UUID

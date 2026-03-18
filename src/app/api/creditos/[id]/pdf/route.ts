@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAuth } from "@/lib/auth/guard";
 import jsPDF from "jspdf";
 
 const formatCurrency = (value: number) =>
@@ -34,6 +35,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "vendedor", "cobrador", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const supabase = createAdminClient();
 

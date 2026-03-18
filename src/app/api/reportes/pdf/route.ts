@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAuth } from "@/lib/auth/guard";
 import jsPDF from "jspdf";
 
 const formatCurrency = (value: number) =>
@@ -26,13 +27,23 @@ const NOMBRES_METODO: Record<string, string> = {
 
 export async function POST() {
   try {
-    const supabase = createAdminClient();
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
 
-    // Reutilizar misma logica de /api/reportes
+    const supabase = createAdminClient();
+    const distribuidorId = auth.isSuperAdmin ? null : auth.distribuidorId;
+
+    // Reutilizar misma logica de /api/reportes (con filtro de distribuidor)
     const [creditosRes, pagosRes, clientesRes] = await Promise.all([
-      supabase.from("creditos").select("id, monto, estado, created_at, cliente_id, plazo, tasa_interes"),
-      supabase.from("pagos").select("id, monto, fecha_pago, metodo_pago, created_at"),
-      supabase.from("clientes").select("id, nombre, apellido"),
+      distribuidorId
+        ? supabase.from("creditos").select("id, monto, estado, created_at, cliente_id, plazo, tasa_interes").eq("distribuidor_id", distribuidorId)
+        : supabase.from("creditos").select("id, monto, estado, created_at, cliente_id, plazo, tasa_interes"),
+      distribuidorId
+        ? supabase.from("pagos").select("id, monto, fecha_pago, metodo_pago, created_at").eq("distribuidor_id", distribuidorId)
+        : supabase.from("pagos").select("id, monto, fecha_pago, metodo_pago, created_at"),
+      distribuidorId
+        ? supabase.from("clientes").select("id, nombre, apellido").eq("distribuidor_id", distribuidorId)
+        : supabase.from("clientes").select("id, nombre, apellido"),
     ]);
 
     const creditos = creditosRes.data || [];

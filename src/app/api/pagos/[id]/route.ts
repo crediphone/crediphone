@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { getPagoById, updatePago, deletePago } from "@/lib/db/pagos";
+import { requireAuth } from "@/lib/auth/guard";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "vendedor", "cobrador", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const pago = await getPagoById(id);
 
@@ -42,6 +46,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "cobrador", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -70,6 +77,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     await deletePago(id);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCreditosParaRecordatorio } from "@/lib/db/notificaciones";
 import type { RecordatoriosOptions, PrioridadAlerta } from "@/lib/types/notificaciones";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * GET /api/recordatorios
@@ -14,6 +15,9 @@ import type { RecordatoriosOptions, PrioridadAlerta } from "@/lib/types/notifica
  */
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(["admin", "vendedor", "cobrador", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = request.nextUrl;
 
     // Parsear parámetros de búsqueda

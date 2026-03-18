@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getEmpleadosPorRol } from "@/lib/db/empleados";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * GET /api/empleados/vendedores
@@ -7,6 +8,9 @@ import { getEmpleadosPorRol } from "@/lib/db/empleados";
  */
 export async function GET() {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const vendedores = await getEmpleadosPorRol("vendedor");
 
     return NextResponse.json({

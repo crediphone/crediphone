@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrCalculateScoring } from "@/lib/db/scoring";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * GET /api/scoring/:clienteId
@@ -10,6 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "vendedor", "cobrador", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id: clienteId } = await params;
 
     // Obtener o calcular scoring

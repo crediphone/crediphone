@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { getProductoById, updateProducto, deleteProducto } from "@/lib/db/productos";
+import { requireAuth } from "@/lib/auth/guard";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "vendedor", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const producto = await getProductoById(id);
 
@@ -39,6 +43,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -67,6 +74,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
 
     await deleteProducto(id);

@@ -1,24 +1,32 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAuth } from "@/lib/auth/guard";
 
 export async function GET() {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const supabase = createAdminClient();
 
-    // Fecha de hace 6 meses
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split("T")[0];
+    // Filtrar por distribuidor — super_admin ve todo, admin ve solo su tienda
+    const distribuidorId = auth.isSuperAdmin ? null : auth.distribuidorId;
 
-    // Ejecutar consultas en paralelo
+    // Ejecutar consultas en paralelo (con filtro de distribuidor)
     const [
       creditosRes,
       pagosRes,
       clientesRes,
     ] = await Promise.all([
-      supabase.from("creditos").select("id, monto, estado, created_at, cliente_id, plazo, tasa_interes"),
-      supabase.from("pagos").select("id, monto, fecha_pago, metodo_pago, created_at"),
-      supabase.from("clientes").select("id, nombre, apellido"),
+      distribuidorId
+        ? supabase.from("creditos").select("id, monto, estado, created_at, cliente_id, plazo, tasa_interes").eq("distribuidor_id", distribuidorId)
+        : supabase.from("creditos").select("id, monto, estado, created_at, cliente_id, plazo, tasa_interes"),
+      distribuidorId
+        ? supabase.from("pagos").select("id, monto, fecha_pago, metodo_pago, created_at").eq("distribuidor_id", distribuidorId)
+        : supabase.from("pagos").select("id, monto, fecha_pago, metodo_pago, created_at"),
+      distribuidorId
+        ? supabase.from("clientes").select("id, nombre, apellido").eq("distribuidor_id", distribuidorId)
+        : supabase.from("clientes").select("id, nombre, apellido"),
     ]);
 
     const creditos = creditosRes.data || [];

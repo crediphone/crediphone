@@ -4,6 +4,7 @@ import {
   updateEmpleado,
   deleteEmpleado,
 } from "@/lib/db/empleados";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * GET /api/empleados/[id]
@@ -14,6 +15,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
 
     // Validar UUID
@@ -69,6 +73,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -130,6 +137,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
 
     // Validar UUID

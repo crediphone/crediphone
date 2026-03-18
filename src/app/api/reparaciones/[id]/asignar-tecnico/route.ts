@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { reasignarTecnico, getOrdenReparacionById } from "@/lib/db/reparaciones";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * POST /api/reparaciones/[id]/asignar-tecnico
@@ -13,6 +14,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     const body = await request.json();
 

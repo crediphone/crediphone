@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getPagos, createPago } from "@/lib/db/pagos";
-import { getDistribuidorId } from "@/lib/auth/server";
+import { requireAuth } from "@/lib/auth/guard";
 
 export async function GET() {
   try {
-    // super_admin returns null → no filter (sees all); admin returns their distribuidorId
-    const distribuidorId = await getDistribuidorId();
+    const auth = await requireAuth(["admin", "vendedor", "cobrador", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
+    const distribuidorId = auth.isSuperAdmin ? null : auth.distribuidorId;
     const pagos = await getPagos(distribuidorId ?? undefined);
 
     return NextResponse.json({
@@ -29,6 +31,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth(["admin", "cobrador", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
 
     const nuevoPago = await createPago(body);

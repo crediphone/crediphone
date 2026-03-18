@@ -5,6 +5,7 @@ import {
   marcarTodasComoLeidas,
 } from "@/lib/notificaciones-reparaciones";
 import { marcarNotificacionComoLeida } from "@/lib/db/notificaciones";
+import { requireAuth } from "@/lib/auth/guard";
 
 /**
  * GET /api/notificaciones
@@ -13,8 +14,14 @@ import { marcarNotificacionComoLeida } from "@/lib/db/notificaciones";
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
-    const usuarioId = searchParams.get("usuario_id");
+    // super_admin puede consultar cualquier usuario_id; el resto solo el suyo
+    const usuarioId = auth.isSuperAdmin
+      ? (searchParams.get("usuario_id") || auth.userId)
+      : auth.userId;
     const soloNoLeidas = searchParams.get("no_leidas") === "true";
     const limite = parseInt(searchParams.get("limite") || "20", 10);
     const soloConteo = searchParams.get("conteo") === "true";
@@ -65,6 +72,9 @@ export async function GET(request: Request) {
  */
 export async function PUT(request: Request) {
   try {
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
 
     if (body.marcarTodas && body.usuario_id) {

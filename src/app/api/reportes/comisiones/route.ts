@@ -13,38 +13,54 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAuth } from "@/lib/auth/guard";
 
 export async function GET(request: NextRequest) {
+    const auth = await requireAuth(["admin", "super_admin"]);
+    if (!auth.ok) return auth.response;
+
     const supabase = createAdminClient();
     const searchParams = request.nextUrl.searchParams;
     const fecha = searchParams.get("fecha") || new Date().toISOString().split("T")[0];
+
+    // Filtrar por distribuidor — super_admin ve todos, admin ve solo su tienda
+    const distribuidorId = auth.isSuperAdmin ? null : auth.distribuidorId;
 
     try {
         const fechaInicio = `${fecha}T00:00:00.000Z`;
         const fechaFin = `${fecha}T23:59:59.999Z`;
 
-        // 1. Obtener todos los empleados activos con rol vendedor o admin
-        const { data: empleados } = await supabase
+        // 1. Obtener todos los empleados activos con rol vendedor o admin (filtrado por distribuidor)
+        const empleadosQuery = supabase
             .from("users")
             .select("id, name, email, role, comision_porcentaje, activo")
             .in("role", ["vendedor", "admin"])
             .eq("activo", true)
             .order("name", { ascending: true });
+        const { data: empleados } = distribuidorId
+            ? await empleadosQuery.eq("distribuidor_id", distribuidorId)
+            : await empleadosQuery;
 
-        // 2. Obtener ventas POS del día (solo completadas)
-        const { data: ventas } = await supabase
+        // 2. Obtener ventas POS del día (solo completadas, filtradas por distribuidor)
+        const ventasQuery = supabase
             .from("ventas")
             .select("id, vendedor_id, total, fecha_venta")
             .eq("estado", "completada")
             .gte("fecha_venta", fechaInicio)
             .lte("fecha_venta", fechaFin);
+        const { data: ventas } = distribuidorId
+            ? await ventasQuery.eq("distribuidor_id", distribuidorId)
+            : await ventasQuery;
 
-        // 3. Obtener créditos nuevos del día
-        const { data: creditos } = await supabase
+        // 3. Obtener créditos nuevos del día (filtrados por distribuidor)
+        const creditosQuery = supabase
             .from("creditos")
             .select("id, vendedor_id, monto, monto_original, created_at")
             .gte("created_at", fechaInicio)
             .lte("created_at", fechaFin);
+        const { data: creditos } = distribuidorId
+            ? await creditosQuery.eq("distribuidor_id", distribuidorId)
+            : await creditosQuery;
 
         // Crear mapa de empleados
         const empleadosMap = new Map<string, {
