@@ -4,7 +4,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { CajaSesion, CajaMovimiento } from "@/types";
+import type { CajaSesion, CajaMovimiento, ConteoDenominaciones } from "@/types";
 
 // =====================================================
 // MAPPERS
@@ -31,6 +31,8 @@ function mapSesionFromDB(row: any): CajaSesion {
     totalRetiros: parseFloat(row.total_retiros || 0),
     totalDepositos: parseFloat(row.total_depositos || 0),
     numeroVentas: row.numero_ventas || 0,
+    // FASE 40: conteo ciego por denominaciones
+    conteoDenominaciones: row.conteo_denominaciones ?? undefined,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -123,11 +125,13 @@ export async function abrirCaja(
 
 /**
  * Cierra una sesión de caja
+ * FASE 40: acepta conteo ciego por denominaciones y genera alerta si hay descuadre
  */
 export async function cerrarCaja(
   sesionId: string,
   montoFinal: number,
-  notas?: string
+  notas?: string,
+  conteoDenominaciones?: ConteoDenominaciones
 ): Promise<CajaSesion & { payjoyStats?: { totalPagosPayjoy: number; montoTotalPayjoy: number; desglosePagos: Array<{ pagoId: string; transactionId: string; clienteNombre: string; monto: number; payjoyPaymentMethod: string; hora: Date }> } }> {
   const supabase = createAdminClient();
 
@@ -223,9 +227,9 @@ export async function cerrarCaja(
 
   (movimientosData || []).forEach((mov: any) => {
     const monto = parseFloat(mov.monto);
-    if (mov.tipo === "deposito" || mov.tipo === "entrada_anticipo") {
+    if (mov.tipo === "deposito" || mov.tipo === "entrada_anticipo" || mov.tipo === "pay_in") {
       totalDepositos += monto;
-    } else if (mov.tipo === "retiro" || mov.tipo === "devolucion_anticipo") {
+    } else if (mov.tipo === "retiro" || mov.tipo === "devolucion_anticipo" || mov.tipo === "pay_out") {
       totalRetiros += monto;
     }
   });
@@ -252,6 +256,8 @@ export async function cerrarCaja(
       total_retiros: totalRetiros,
       total_depositos: totalDepositos,
       numero_ventas: numeroVentas,
+      // FASE 40: guardar conteo por denominaciones
+      conteo_denominaciones: conteoDenominaciones ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", sesionId)
@@ -263,7 +269,46 @@ export async function cerrarCaja(
     throw new Error(`Error al cerrar caja: ${updateError?.message || "Unknown error"}`);
   }
 
-  // 6. FASE 20: Consultar pagos Payjoy del turno (informativo)
+  // 6. FASE 40: Alerta de descuadre si la diferencia excede la tolerancia configurada
+  try {
+    // Obtener tolerancia del distribuidor
+    let tolerancia = 0;
+    if (sesionData.distribuidor_id) {
+      const { data: configData } = await supabase
+        .from("configuracion")
+        .select("tolerancia_descuadre")
+        .eq("distribuidor_id", sesionData.distribuidor_id)
+        .single();
+      tolerancia = parseFloat(configData?.tolerancia_descuadre ?? 0);
+    }
+
+    if (Math.abs(diferencia) > tolerancia) {
+      // Crear notificación para admin/super_admin del distribuidor
+      await supabase.from("notificaciones").insert({
+        tipo: "descuadre_caja",
+        titulo: "⚠️ Descuadre de caja detectado",
+        mensaje: `Sesión ${sesionData.folio}: diferencia de $${diferencia.toFixed(2)} (esperado $${montoEsperado.toFixed(2)}, declarado $${montoFinal.toFixed(2)})`,
+        severidad: "alta",
+        distribuidor_id: sesionData.distribuidor_id || null,
+        metadata: {
+          sesion_id: sesionId,
+          folio: sesionData.folio,
+          empleado_id: sesionData.usuario_id,
+          monto_esperado: montoEsperado,
+          monto_declarado: montoFinal,
+          diferencia,
+          tolerancia,
+        },
+        leida: false,
+        created_at: new Date().toISOString(),
+      });
+    }
+  } catch (alertError) {
+    // No fallar el cierre de caja si falla la creación de alerta
+    console.warn("[Caja] No se pudo crear alerta de descuadre:", alertError);
+  }
+
+  // 7. FASE 20: Consultar pagos Payjoy del turno (informativo)
   let payjoyStats = undefined;
   try {
     const { data: pagosPayjoy } = await supabase
@@ -333,7 +378,7 @@ export async function getSesionesCaja(limit = 50, distribuidorId?: string): Prom
  */
 export async function agregarMovimientoCaja(
   sesionId: string,
-  tipo: "deposito" | "retiro",
+  tipo: "deposito" | "retiro" | "pay_in" | "pay_out",
   monto: number,
   concepto: string,
   autorizadoPor?: string

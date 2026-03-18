@@ -189,7 +189,8 @@ export async function PUT(
     const { action } = body;
 
     if (action === "cerrar") {
-      const { montoFinal, notas } = body;
+      // FASE 40: acepta conteo_denominaciones para conteo ciego
+      const { montoFinal, notas, conteoDenominaciones } = body;
 
       if (typeof montoFinal !== "number" || montoFinal < 0) {
         return NextResponse.json(
@@ -198,7 +199,7 @@ export async function PUT(
         );
       }
 
-      const sesion = await cerrarCaja(id, montoFinal, notas);
+      const sesion = await cerrarCaja(id, montoFinal, notas, conteoDenominaciones ?? undefined);
 
       return NextResponse.json({
         success: true,
@@ -210,7 +211,8 @@ export async function PUT(
     if (action === "movimiento") {
       const { tipo, monto, concepto } = body;
 
-      if (!["deposito", "retiro"].includes(tipo)) {
+      // FASE 40: pay_in y pay_out son los nuevos tipos explícitos de movimientos manuales
+      if (!["deposito", "retiro", "pay_in", "pay_out"].includes(tipo)) {
         return NextResponse.json(
           { success: false, error: "Tipo de movimiento inválido" },
           { status: 400 }
@@ -242,7 +244,12 @@ export async function PUT(
       return NextResponse.json({
         success: true,
         data: movimiento,
-        message: `${tipo === "deposito" ? "Depósito" : "Retiro"} registrado exitosamente`,
+        message: `${
+          tipo === "deposito" ? "Depósito"
+          : tipo === "retiro" ? "Retiro"
+          : tipo === "pay_in" ? "Pay In"
+          : "Pay Out"
+        } registrado exitosamente`,
       });
     }
 

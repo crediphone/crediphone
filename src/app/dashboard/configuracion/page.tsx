@@ -640,6 +640,44 @@ export default function ConfiguracionPage() {
             <SaveButton saving={saving} onSave={handleSave} />
           </Card>
 
+          {/* FASE 40: Caja — Fondo Fijo y Tolerancia Descuadre */}
+          <Card className="p-6">
+            <SectionHeader
+              icon={<ShoppingCart className="w-5 h-5" style={{ color: "var(--color-success)" }} />}
+              title="Caja Registradora"
+              subtitle="Fondo de caja inicial y tolerancia de descuadre en el corte Z"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label style={labelSt}>Fondo de Caja Fijo ($)</label>
+                <Input
+                  type="number" step="1" min="0"
+                  value={formData.fondoCaja ?? 500}
+                  onChange={(e) =>
+                    handleChange("fondoCaja", parseFloat(e.target.value) || 0)
+                  }
+                />
+                <p style={hintSt}>
+                  Monto sugerido al abrir caja. 0 = sin sugerencia. Ej: 500 = la caja siempre arranca con $500
+                </p>
+              </div>
+              <div>
+                <label style={labelSt}>Tolerancia de Descuadre ($)</label>
+                <Input
+                  type="number" step="1" min="0"
+                  value={formData.toleranciaDescuadre ?? 0}
+                  onChange={(e) =>
+                    handleChange("toleranciaDescuadre", parseFloat(e.target.value) || 0)
+                  }
+                />
+                <p style={hintSt}>
+                  Diferencia máxima permitida sin generar alerta. 0 = cualquier diferencia genera alerta. Ej: 10 = solo alertar si la diferencia supera $10
+                </p>
+              </div>
+            </div>
+            <SaveButton saving={saving} onSave={handleSave} />
+          </Card>
+
           {/* FASE 39: Límites de descuento */}
           <Card className="p-6">
             <SectionHeader

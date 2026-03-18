@@ -1,18 +1,74 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import {
-  ArrowUpCircle, ArrowDownCircle, Clock, XCircle, Plus, Zap, AlertCircle,
-  FileText, Printer,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Clock,
+  XCircle,
+  Plus,
+  Zap,
+  AlertCircle,
+  FileText,
+  Printer,
+  ChevronDown,
+  ChevronUp,
+  Coins,
 } from "lucide-react";
 import { generarReporteX, generarReporteZ, abrirReporte } from "@/lib/utils/reportes";
-import type { CajaSesion, CajaMovimiento } from "@/types";
+import type { CajaSesion, CajaMovimiento, ConteoDenominaciones } from "@/types";
 
+// ─── Denominaciones MXN ───────────────────────────────────────────
+const DENOMINACIONES: { key: keyof Omit<ConteoDenominaciones, "monedas">; label: string; valor: number }[] = [
+  { key: "b1000", label: "$1,000", valor: 1000 },
+  { key: "b500",  label: "$500",   valor: 500  },
+  { key: "b200",  label: "$200",   valor: 200  },
+  { key: "b100",  label: "$100",   valor: 100  },
+  { key: "b50",   label: "$50",    valor: 50   },
+  { key: "b20",   label: "$20",    valor: 20   },
+];
+
+const CONTEO_INICIAL: ConteoDenominaciones = {
+  b1000: 0, b500: 0, b200: 0, b100: 0, b50: 0, b20: 0, monedas: 0,
+};
+
+function calcularTotalConteo(c: ConteoDenominaciones): number {
+  return (
+    c.b1000 * 1000 +
+    c.b500  * 500  +
+    c.b200  * 200  +
+    c.b100  * 100  +
+    c.b50   * 50   +
+    c.b20   * 20   +
+    c.monedas
+  );
+}
+
+// ─── Tipos de movimiento en UI ────────────────────────────────────
+type TipoMovUI = "pay_in" | "pay_out";
+
+function labelMovimiento(tipo: string): string {
+  switch (tipo) {
+    case "pay_in":            return "Pay In";
+    case "pay_out":           return "Pay Out";
+    case "deposito":          return "Depósito";
+    case "retiro":            return "Retiro";
+    case "entrada_anticipo":  return "Anticipo (entrada)";
+    case "devolucion_anticipo": return "Anticipo (devolución)";
+    default: return tipo;
+  }
+}
+
+function esEntrada(tipo: string): boolean {
+  return ["pay_in", "deposito", "entrada_anticipo"].includes(tipo);
+}
+
+// ─────────────────────────────────────────────────────────────────
 export default function CajaPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -22,40 +78,39 @@ export default function CajaPage() {
   const [sesiones, setSesiones] = useState<CajaSesion[]>([]);
   const [movimientos, setMovimientos] = useState<CajaMovimiento[]>([]);
 
+  // Config
+  const [fondoCaja, setFondoCaja] = useState<number>(500);
+
+  // Modal Abrir
   const [showAbrirModal, setShowAbrirModal] = useState(false);
   const [montoInicial, setMontoInicial] = useState("");
   const [notasApertura, setNotasApertura] = useState("");
 
+  // Modal Cerrar — FASE 40: conteo ciego
   const [showCerrarModal, setShowCerrarModal] = useState(false);
-  const [montoFinal, setMontoFinal] = useState("");
+  const [conteoDenom, setConteoDenom] = useState<ConteoDenominaciones>(CONTEO_INICIAL);
   const [notasCierre, setNotasCierre] = useState("");
   const [payjoyStats, setPayjoyStats] = useState<CajaSesion["payjoyStats"]>(undefined);
 
+  // Modal Pay In / Pay Out
   const [showMovimientoModal, setShowMovimientoModal] = useState(false);
-  const [tipoMovimiento, setTipoMovimiento] = useState<"deposito" | "retiro">("deposito");
+  const [tipoMovimiento, setTipoMovimiento] = useState<TipoMovUI>("pay_in");
   const [montoMovimiento, setMontoMovimiento] = useState("");
   const [conceptoMovimiento, setConceptoMovimiento] = useState("");
 
   const [processing, setProcessing] = useState(false);
   const [generandoReporte, setGenerandoReporte] = useState(false);
-  // FASE 28: sesión abierta de otro empleado en este distribuidor
   const [sesionOtroEmpleado, setSesionOtroEmpleado] = useState<{ folio: string; nombre: string } | null>(null);
 
+  // ── Protección de ruta ──────────────────────────────────────────
   useEffect(() => {
     if (user && !["admin", "vendedor", "super_admin"].includes(user.role)) {
       router.push("/dashboard");
     }
   }, [user, router]);
 
-  useEffect(() => {
-    if (user) { fetchSesionActiva(); fetchHistorialSesiones(); }
-  }, [user]);
-
-  useEffect(() => {
-    if (sesionActiva) fetchMovimientos(sesionActiva.id);
-  }, [sesionActiva]);
-
-  const fetchSesionActiva = async () => {
+  // ── Fetch inicial ───────────────────────────────────────────────
+  const fetchSesionActiva = useCallback(async () => {
     try {
       setLoadingSesion(true);
       const response = await fetch(`/api/pos/caja?action=activa&usuarioId=${user?.id}`);
@@ -66,15 +121,14 @@ export default function CajaPage() {
     } finally {
       setLoadingSesion(false);
     }
-  };
+  }, [user?.id]);
 
-  const fetchHistorialSesiones = async () => {
+  const fetchHistorialSesiones = useCallback(async () => {
     try {
       const response = await fetch("/api/pos/caja");
       const data = await response.json();
       if (data.success) {
         setSesiones(data.data);
-        // FASE 28: detectar si otro empleado tiene sesión abierta
         const otraAbierta = (data.data as CajaSesion[]).find(
           (s) => s.estado === "abierta" && s.usuarioId !== user?.id
         );
@@ -87,9 +141,9 @@ export default function CajaPage() {
     } catch (error) {
       console.error("Error fetching sesiones:", error);
     }
-  };
+  }, [user?.id]);
 
-  const fetchMovimientos = async (sesionId: string) => {
+  const fetchMovimientos = useCallback(async (sesionId: string) => {
     try {
       const response = await fetch(`/api/pos/caja/${sesionId}?action=movimientos`);
       const data = await response.json();
@@ -97,20 +151,45 @@ export default function CajaPage() {
     } catch (error) {
       console.error("Error fetching movimientos:", error);
     }
-  };
+  }, []);
 
-  // FASE 31: Generar Reporte X (turno abierto) o Reporte Z (turno cerrado)
+  // FASE 40: cargar fondo de caja configurable
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/configuracion");
+      const data = await res.json();
+      if (data.success && data.data?.fondoCaja != null) {
+        setFondoCaja(data.data.fondoCaja);
+      }
+    } catch {
+      // no crítico
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchSesionActiva();
+      fetchHistorialSesiones();
+      fetchConfig();
+    }
+  }, [user, fetchSesionActiva, fetchHistorialSesiones, fetchConfig]);
+
+  useEffect(() => {
+    if (sesionActiva) fetchMovimientos(sesionActiva.id);
+  }, [sesionActiva, fetchMovimientos]);
+
+  // ── Reporte X / Z ───────────────────────────────────────────────
   const handleGenerarReporte = async (sesionId: string, tipo: "X" | "Z") => {
     setGenerandoReporte(true);
     try {
       const response = await fetch(`/api/pos/caja/${sesionId}?action=reporte`);
       const data = await response.json();
       if (!data.success) throw new Error(data.error);
-
-      const { sesion, movimientos, ventas, distribuidorNombre } = data.data;
-      const html = tipo === "X"
-        ? generarReporteX({ sesion, movimientos, ventas, distribuidorNombre })
-        : generarReporteZ({ sesion, movimientos, ventas, distribuidorNombre });
+      const { sesion, movimientos: movs, ventas, distribuidorNombre } = data.data;
+      const html =
+        tipo === "X"
+          ? generarReporteX({ sesion, movimientos: movs, ventas, distribuidorNombre })
+          : generarReporteZ({ sesion, movimientos: movs, ventas, distribuidorNombre });
       abrirReporte(html, `Reporte ${tipo} — ${sesion.folio}`);
     } catch (error) {
       console.error("Error generando reporte:", error);
@@ -120,6 +199,7 @@ export default function CajaPage() {
     }
   };
 
+  // ── Abrir Caja ──────────────────────────────────────────────────
   const handleAbrirCaja = async () => {
     const monto = parseFloat(montoInicial);
     if (isNaN(monto) || monto < 0) { alert("Ingrese un monto inicial válido"); return; }
@@ -132,37 +212,60 @@ export default function CajaPage() {
       });
       const data = await response.json();
       if (data.success) {
-        setSesionActiva(data.data); setShowAbrirModal(false); setMontoInicial(""); setNotasApertura("");
+        setSesionActiva(data.data);
+        setShowAbrirModal(false);
+        setMontoInicial("");
+        setNotasApertura("");
         fetchHistorialSesiones();
-      } else { alert(data.error || "Error al abrir caja"); }
+      } else {
+        alert(data.error || "Error al abrir caja");
+      }
     } catch (error) {
-      console.error("Error opening caja:", error); alert("Error al abrir caja");
-    } finally { setProcessing(false); }
+      console.error("Error opening caja:", error);
+      alert("Error al abrir caja");
+    } finally {
+      setProcessing(false);
+    }
   };
 
+  // ── Cerrar Caja — FASE 40 ───────────────────────────────────────
   const handleCerrarCaja = async () => {
     if (!sesionActiva) return;
-    const monto = parseFloat(montoFinal);
-    if (isNaN(monto) || monto < 0) { alert("Ingrese un monto final válido"); return; }
-    if (!confirm("¿Cerrar caja y finalizar turno?")) return;
+    const montoFinal = calcularTotalConteo(conteoDenom);
+    if (!confirm("¿Confirmar cierre de caja con el conteo registrado?")) return;
     setProcessing(true);
     try {
       const response = await fetch(`/api/pos/caja/${sesionActiva.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "cerrar", montoFinal: monto, notas: notasCierre || undefined }),
+        body: JSON.stringify({
+          action: "cerrar",
+          montoFinal,
+          notas: notasCierre || undefined,
+          conteoDenominaciones: conteoDenom,
+        }),
       });
       const data = await response.json();
       if (data.success) {
         if (data.data?.payjoyStats) setPayjoyStats(data.data.payjoyStats);
-        setSesionActiva(null); setShowCerrarModal(false); setMontoFinal(""); setNotasCierre("");
-        fetchHistorialSesiones(); alert("Caja cerrada exitosamente");
-      } else { alert(data.error || "Error al cerrar caja"); }
+        setSesionActiva(null);
+        setShowCerrarModal(false);
+        setConteoDenom(CONTEO_INICIAL);
+        setNotasCierre("");
+        fetchHistorialSesiones();
+        alert("Caja cerrada exitosamente");
+      } else {
+        alert(data.error || "Error al cerrar caja");
+      }
     } catch (error) {
-      console.error("Error closing caja:", error); alert("Error al cerrar caja");
-    } finally { setProcessing(false); }
+      console.error("Error closing caja:", error);
+      alert("Error al cerrar caja");
+    } finally {
+      setProcessing(false);
+    }
   };
 
+  // ── Pay In / Pay Out ────────────────────────────────────────────
   const handleAgregarMovimiento = async () => {
     if (!sesionActiva) return;
     const monto = parseFloat(montoMovimiento);
@@ -173,18 +276,32 @@ export default function CajaPage() {
       const response = await fetch(`/api/pos/caja/${sesionActiva.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "movimiento", tipo: tipoMovimiento, monto, concepto: conceptoMovimiento }),
+        body: JSON.stringify({
+          action: "movimiento",
+          tipo: tipoMovimiento,
+          monto,
+          concepto: conceptoMovimiento,
+        }),
       });
       const data = await response.json();
       if (data.success) {
-        setShowMovimientoModal(false); setMontoMovimiento(""); setConceptoMovimiento("");
-        fetchMovimientos(sesionActiva.id); fetchSesionActiva();
-      } else { alert(data.error || "Error al agregar movimiento"); }
+        setShowMovimientoModal(false);
+        setMontoMovimiento("");
+        setConceptoMovimiento("");
+        fetchMovimientos(sesionActiva.id);
+        fetchSesionActiva();
+      } else {
+        alert(data.error || "Error al agregar movimiento");
+      }
     } catch (error) {
-      console.error("Error adding movimiento:", error); alert("Error al agregar movimiento");
-    } finally { setProcessing(false); }
+      console.error("Error adding movimiento:", error);
+      alert("Error al agregar movimiento");
+    } finally {
+      setProcessing(false);
+    }
   };
 
+  // ── Guards ──────────────────────────────────────────────────────
   if (!user || !["admin", "vendedor", "super_admin"].includes(user.role)) return null;
 
   if (loadingSesion) {
@@ -195,8 +312,17 @@ export default function CajaPage() {
     );
   }
 
+  // Helpers para UI
   const labelStyle = { color: "var(--color-text-secondary)" };
+  const totalConteo = calcularTotalConteo(conteoDenom);
+  const montoEsperadoActual = sesionActiva
+    ? sesionActiva.montoInicial +
+      sesionActiva.totalVentasEfectivo +
+      sesionActiva.totalDepositos -
+      sesionActiva.totalRetiros
+    : 0;
 
+  // ── Render ──────────────────────────────────────────────────────
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       {/* Header */}
@@ -205,11 +331,11 @@ export default function CajaPage() {
           Gestión de Caja
         </h1>
         <p className="mt-2" style={{ color: "var(--color-text-secondary)" }}>
-          Administra turnos de caja, movimientos y corte de caja
+          Administra turnos de caja, Pay In/Out y corte de caja
         </p>
       </div>
 
-      {/* FASE 28: Banner sesión de otro empleado */}
+      {/* Banner sesión de otro empleado */}
       {sesionOtroEmpleado && !sesionActiva && (
         <div
           className="mb-6 p-4 rounded-xl flex items-start gap-3"
@@ -221,7 +347,7 @@ export default function CajaPage() {
               {sesionOtroEmpleado.nombre} tiene la caja abierta ({sesionOtroEmpleado.folio})
             </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--color-warning-text)" }}>
-              Solo puede existir una sesión activa por tienda. Para abrir tu propio turno, coordina con {sesionOtroEmpleado.nombre} primero.
+              Solo puede existir una sesión activa por tienda. Coordina con {sesionOtroEmpleado.nombre} antes de abrir tu turno.
             </p>
           </div>
         </div>
@@ -240,7 +366,12 @@ export default function CajaPage() {
               </Button>
             )}
             {!sesionActiva && (
-              <Button onClick={() => setShowAbrirModal(true)}>
+              <Button
+                onClick={() => {
+                  setMontoInicial(fondoCaja > 0 ? String(fondoCaja) : "");
+                  setShowAbrirModal(true);
+                }}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Abrir Caja
               </Button>
@@ -250,6 +381,7 @@ export default function CajaPage() {
 
         {sesionActiva ? (
           <div className="space-y-4">
+            {/* KPIs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-lg" style={{ background: "var(--color-info-bg)" }}>
                 <p className="text-sm" style={labelStyle}>Folio</p>
@@ -271,16 +403,22 @@ export default function CajaPage() {
               </div>
             </div>
 
+            {/* Acciones */}
             <div className="flex flex-wrap gap-3">
-              <Button variant="secondary" onClick={() => { setTipoMovimiento("deposito"); setShowMovimientoModal(true); }}>
+              <Button
+                variant="secondary"
+                onClick={() => { setTipoMovimiento("pay_in"); setShowMovimientoModal(true); }}
+              >
                 <ArrowUpCircle className="w-4 h-4 mr-2" />
-                Depósito
+                Pay In
               </Button>
-              <Button variant="secondary" onClick={() => { setTipoMovimiento("retiro"); setShowMovimientoModal(true); }}>
+              <Button
+                variant="secondary"
+                onClick={() => { setTipoMovimiento("pay_out"); setShowMovimientoModal(true); }}
+              >
                 <ArrowDownCircle className="w-4 h-4 mr-2" />
-                Retiro
+                Pay Out
               </Button>
-              {/* FASE 31: Reporte X */}
               <Button
                 variant="secondary"
                 onClick={() => handleGenerarReporte(sesionActiva.id, "X")}
@@ -289,16 +427,17 @@ export default function CajaPage() {
                 <FileText className="w-4 h-4 mr-2" />
                 {generandoReporte ? "Generando..." : "Reporte X"}
               </Button>
-              <Button variant="danger" onClick={() => setShowCerrarModal(true)}>
+              <Button variant="danger" onClick={() => { setConteoDenom(CONTEO_INICIAL); setShowCerrarModal(true); }}>
                 <XCircle className="w-4 h-4 mr-2" />
                 Cerrar Caja
               </Button>
             </div>
 
+            {/* Movimientos del turno */}
             {movimientos.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-lg font-semibold mb-3" style={{ color: "var(--color-text-primary)" }}>
-                  Movimientos
+                  Movimientos del turno
                 </h3>
                 <div className="space-y-2">
                   {movimientos.map((mov) => (
@@ -308,13 +447,28 @@ export default function CajaPage() {
                       style={{ background: "var(--color-bg-elevated)" }}
                     >
                       <div className="flex items-center gap-3">
-                        {mov.tipo === "deposito" ? (
+                        {esEntrada(mov.tipo) ? (
                           <ArrowUpCircle className="w-5 h-5" style={{ color: "var(--color-success)" }} />
                         ) : (
                           <ArrowDownCircle className="w-5 h-5" style={{ color: "var(--color-danger)" }} />
                         )}
                         <div>
-                          <p className="font-medium" style={{ color: "var(--color-text-primary)" }}>{mov.concepto}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium" style={{ color: "var(--color-text-primary)" }}>{mov.concepto}</p>
+                            <span
+                              className="text-xs px-1.5 py-0.5 rounded"
+                              style={{
+                                background: esEntrada(mov.tipo)
+                                  ? "var(--color-success-bg)"
+                                  : "var(--color-danger-bg)",
+                                color: esEntrada(mov.tipo)
+                                  ? "var(--color-success-text)"
+                                  : "var(--color-danger-text)",
+                              }}
+                            >
+                              {labelMovimiento(mov.tipo)}
+                            </span>
+                          </div>
                           <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
                             {new Date(mov.createdAt).toLocaleString("es-MX")}
                           </p>
@@ -323,11 +477,11 @@ export default function CajaPage() {
                       <p
                         className="text-lg font-bold"
                         style={{
-                          color: mov.tipo === "deposito" ? "var(--color-success)" : "var(--color-danger)",
+                          color: esEntrada(mov.tipo) ? "var(--color-success)" : "var(--color-danger)",
                           fontFamily: "var(--font-data)",
                         }}
                       >
-                        {mov.tipo === "deposito" ? "+" : "-"}${mov.monto.toFixed(2)}
+                        {esEntrada(mov.tipo) ? "+" : "-"}${mov.monto.toFixed(2)}
                       </p>
                     </div>
                   ))}
@@ -355,7 +509,10 @@ export default function CajaPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <p className="font-semibold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}>
+                    <p
+                      className="font-semibold"
+                      style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}
+                    >
                       {sesion.folio}
                     </p>
                     <span
@@ -369,7 +526,6 @@ export default function CajaPage() {
                       {sesion.estado === "abierta" ? "Abierta" : "Cerrada"}
                     </span>
                   </div>
-
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                     <div>
                       <p style={labelStyle}>Apertura</p>
@@ -386,7 +542,7 @@ export default function CajaPage() {
                     {sesion.estado === "cerrada" && sesion.montoFinal && (
                       <>
                         <div>
-                          <p style={labelStyle}>Monto Final</p>
+                          <p style={labelStyle}>Monto Declarado</p>
                           <p className="font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
                             ${sesion.montoFinal.toFixed(2)}
                           </p>
@@ -396,11 +552,12 @@ export default function CajaPage() {
                           <p
                             className="font-bold"
                             style={{
-                              color: (sesion.diferencia || 0) === 0
-                                ? "var(--color-success)"
-                                : (sesion.diferencia || 0) > 0
-                                ? "var(--color-info)"
-                                : "var(--color-danger)",
+                              color:
+                                (sesion.diferencia || 0) === 0
+                                  ? "var(--color-success)"
+                                  : (sesion.diferencia || 0) > 0
+                                  ? "var(--color-info)"
+                                  : "var(--color-danger)",
                               fontFamily: "var(--font-data)",
                             }}
                           >
@@ -413,54 +570,81 @@ export default function CajaPage() {
                     )}
                   </div>
                 </div>
+                <button
+                  onClick={() => handleGenerarReporte(sesion.id, sesion.estado === "cerrada" ? "Z" : "X")}
+                  disabled={generandoReporte}
+                  style={{
+                    background: "none",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "6px",
+                    padding: "4px 10px",
+                    cursor: "pointer",
+                    color: "var(--color-text-muted)",
+                    fontSize: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <Printer className="w-3 h-3" />
+                  {sesion.estado === "cerrada" ? "Rep. Z" : "Rep. X"}
+                </button>
               </div>
-              {/* FASE 31: Reporte Z para sesiones cerradas, Reporte X para abierta de otro */}
-              <button
-                onClick={() => handleGenerarReporte(sesion.id, sesion.estado === "cerrada" ? "Z" : "X")}
-                disabled={generandoReporte}
-                style={{
-                  background: "none",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "6px",
-                  padding: "4px 10px",
-                  cursor: "pointer",
-                  color: "var(--color-text-muted)",
-                  fontSize: "12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  flexShrink: 0,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Printer className="w-3 h-3" />
-                {sesion.estado === "cerrada" ? "Rep. Z" : "Rep. X"}
-              </button>
             </div>
           ))}
         </div>
       </Card>
 
-      {/* Modal Abrir Caja */}
+      {/* ─── Modal Abrir Caja ───────────────────────────────────── */}
       {showAbrirModal && (
         <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
           <Card className="max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-4" style={{ color: "var(--color-text-primary)" }}>Abrir Caja</h2>
+            <h2 className="text-xl font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>Abrir Caja</h2>
+            {fondoCaja > 0 && (
+              <p className="text-sm mb-4" style={{ color: "var(--color-text-muted)" }}>
+                Fondo configurado: <span style={{ fontFamily: "var(--font-data)", color: "var(--color-accent)" }}>${fondoCaja.toFixed(2)}</span>
+              </p>
+            )}
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
                   Monto Inicial *
                 </label>
-                <Input type="number" step="0.01" min="0" value={montoInicial} onChange={(e) => setMontoInicial(e.target.value)} placeholder="0.00" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={montoInicial}
+                  onChange={(e) => setMontoInicial(e.target.value)}
+                  placeholder="0.00"
+                />
+                {fondoCaja > 0 && montoInicial !== String(fondoCaja) && (
+                  <button
+                    type="button"
+                    className="mt-1 text-xs underline"
+                    style={{ color: "var(--color-accent)", background: "none", border: "none", cursor: "pointer" }}
+                    onClick={() => setMontoInicial(String(fondoCaja))}
+                  >
+                    Usar fondo configurado (${fondoCaja.toFixed(2)})
+                  </button>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
                   Notas (opcional)
                 </label>
-                <Input value={notasApertura} onChange={(e) => setNotasApertura(e.target.value)} placeholder="Ej: Turno matutino" />
+                <Input
+                  value={notasApertura}
+                  onChange={(e) => setNotasApertura(e.target.value)}
+                  placeholder="Ej: Turno matutino"
+                />
               </div>
               <div className="flex gap-3">
-                <Button variant="secondary" onClick={() => setShowAbrirModal(false)} className="flex-1">Cancelar</Button>
+                <Button variant="secondary" onClick={() => setShowAbrirModal(false)} className="flex-1">
+                  Cancelar
+                </Button>
                 <Button onClick={handleAbrirCaja} disabled={processing || !montoInicial} className="flex-1">
                   {processing ? "Abriendo..." : "Abrir Caja"}
                 </Button>
@@ -470,149 +654,291 @@ export default function CajaPage() {
         </div>
       )}
 
-      {/* Modal Cerrar Caja */}
+      {/* ─── Modal Cerrar Caja — FASE 40: conteo ciego ─────────── */}
       {showCerrarModal && sesionActiva && (
         <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
           <Card className="max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4" style={{ color: "var(--color-text-primary)" }}>Corte de Caja</h2>
+            <h2 className="text-xl font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>
+              Corte de Caja — Conteo Ciego
+            </h2>
+            <p className="text-sm mb-5" style={{ color: "var(--color-text-muted)" }}>
+              Cuenta el efectivo por denominación. El monto esperado se revelará al confirmar el cierre.
+            </p>
 
-            {/* Resumen */}
-            <div className="rounded-lg p-4 mb-4 space-y-2 text-sm" style={{ background: "var(--color-bg-elevated)" }}>
+            {/* Resumen del turno (sin monto esperado — conteo ciego) */}
+            <div
+              className="rounded-lg p-4 mb-5 space-y-2 text-sm"
+              style={{ background: "var(--color-bg-elevated)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-text-muted)" }}>
+                Resumen del turno
+              </p>
               {[
-                { label: "Monto Inicial:", value: `$${sesionActiva.montoInicial.toFixed(2)}`, color: "var(--color-text-primary)" },
-                { label: "Ventas Efectivo:", value: `+$${sesionActiva.totalVentasEfectivo.toFixed(2)}`, color: "var(--color-success)" },
-                { label: "Depósitos:", value: `+$${sesionActiva.totalDepositos.toFixed(2)}`, color: "var(--color-success)" },
-                { label: "Retiros:", value: `-$${sesionActiva.totalRetiros.toFixed(2)}`, color: "var(--color-danger)" },
+                { label: "Monto Inicial",     value: `$${sesionActiva.montoInicial.toFixed(2)}`,           color: "var(--color-text-primary)" },
+                { label: "Ventas Efectivo",   value: `+$${sesionActiva.totalVentasEfectivo.toFixed(2)}`,   color: "var(--color-success)" },
+                { label: "Pay In",            value: `+$${sesionActiva.totalDepositos.toFixed(2)}`,         color: "var(--color-success)" },
+                { label: "Pay Out",           value: `-$${sesionActiva.totalRetiros.toFixed(2)}`,           color: "var(--color-danger)" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex justify-between">
                   <span style={{ color: "var(--color-text-secondary)" }}>{label}</span>
                   <span className="font-medium" style={{ color, fontFamily: "var(--font-data)" }}>{value}</span>
                 </div>
               ))}
-              <div className="pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
-                <div className="flex justify-between">
-                  <span className="font-semibold" style={{ color: "var(--color-text-primary)" }}>Monto Esperado:</span>
-                  <span className="font-bold" style={{ color: "var(--color-accent)", fontFamily: "var(--font-data)" }}>
-                    ${(sesionActiva.montoInicial + sesionActiva.totalVentasEfectivo + sesionActiva.totalDepositos - sesionActiva.totalRetiros).toFixed(2)}
-                  </span>
-                </div>
-              </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
-                  Monto Final (Efectivo en Caja) *
-                </label>
-                <Input type="number" step="0.01" min="0" value={montoFinal} onChange={(e) => setMontoFinal(e.target.value)} placeholder="0.00" />
+            {/* ── Conteo por denominación ── */}
+            <div
+              className="rounded-lg overflow-hidden mb-5"
+              style={{ border: "1px solid var(--color-border)" }}
+            >
+              <div
+                className="px-4 py-2 flex items-center gap-2"
+                style={{ background: "var(--color-primary-light)" }}
+              >
+                <Coins className="w-4 h-4" style={{ color: "var(--color-primary)" }} />
+                <p className="text-sm font-semibold" style={{ color: "var(--color-primary)" }}>
+                  Conteo por denominación
+                </p>
               </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ background: "var(--color-bg-elevated)" }}>
+                    <th className="px-4 py-2 text-left font-medium" style={{ color: "var(--color-text-secondary)" }}>Denominación</th>
+                    <th className="px-4 py-2 text-center font-medium" style={{ color: "var(--color-text-secondary)" }}>Cantidad</th>
+                    <th className="px-4 py-2 text-right font-medium" style={{ color: "var(--color-text-secondary)" }}>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DENOMINACIONES.map(({ key, label, valor }, idx) => (
+                    <tr
+                      key={key}
+                      style={{
+                        background: idx % 2 === 0 ? "var(--color-bg-surface)" : "var(--color-bg-elevated)",
+                        borderTop: "1px solid var(--color-border-subtle)",
+                      }}
+                    >
+                      <td className="px-4 py-2 font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                        {label}
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setConteoDenom(prev => ({ ...prev, [key]: Math.max(0, prev[key] - 1) }))}
+                            style={{
+                              width: 24, height: 24, borderRadius: 4,
+                              background: "var(--color-bg-elevated)",
+                              border: "1px solid var(--color-border)",
+                              cursor: "pointer", display: "flex",
+                              alignItems: "center", justifyContent: "center",
+                            }}
+                          >
+                            <ChevronDown className="w-3 h-3" style={{ color: "var(--color-text-muted)" }} />
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={conteoDenom[key]}
+                            onChange={(e) => setConteoDenom(prev => ({
+                              ...prev,
+                              [key]: Math.max(0, parseInt(e.target.value) || 0),
+                            }))}
+                            style={{
+                              width: 60, textAlign: "center",
+                              padding: "2px 4px", borderRadius: 4,
+                              border: "1px solid var(--color-border)",
+                              background: "var(--color-bg-sunken)",
+                              color: "var(--color-text-primary)",
+                              fontFamily: "var(--font-data)",
+                              fontSize: 14,
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setConteoDenom(prev => ({ ...prev, [key]: prev[key] + 1 }))}
+                            style={{
+                              width: 24, height: 24, borderRadius: 4,
+                              background: "var(--color-bg-elevated)",
+                              border: "1px solid var(--color-border)",
+                              cursor: "pointer", display: "flex",
+                              alignItems: "center", justifyContent: "center",
+                            }}
+                          >
+                            <ChevronUp className="w-3 h-3" style={{ color: "var(--color-text-muted)" }} />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                        ${(conteoDenom[key] * valor).toLocaleString("es-MX")}
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Monedas */}
+                  <tr
+                    style={{
+                      background: "var(--color-bg-surface)",
+                      borderTop: "1px solid var(--color-border-subtle)",
+                    }}
+                  >
+                    <td className="px-4 py-2 font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                      Monedas
+                    </td>
+                    <td className="px-4 py-2" colSpan={2}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={conteoDenom.monedas || ""}
+                          onChange={(e) => setConteoDenom(prev => ({
+                            ...prev,
+                            monedas: Math.max(0, parseFloat(e.target.value) || 0),
+                          }))}
+                          placeholder="0.00"
+                          style={{
+                            width: 100, padding: "4px 8px", borderRadius: 4,
+                            border: "1px solid var(--color-border)",
+                            background: "var(--color-bg-sunken)",
+                            color: "var(--color-text-primary)",
+                            fontFamily: "var(--font-data)",
+                            fontSize: 14,
+                          }}
+                        />
+                        <span className="ml-auto font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                          ${conteoDenom.monedas.toFixed(2)}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  {/* Total */}
+                  <tr style={{ borderTop: "2px solid var(--color-border-strong)", background: "var(--color-primary-light)" }}>
+                    <td className="px-4 py-3 font-bold" style={{ color: "var(--color-text-primary)" }} colSpan={2}>
+                      Total Contado
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right text-lg font-bold"
+                      style={{ color: "var(--color-primary)", fontFamily: "var(--font-data)" }}
+                    >
+                      ${totalConteo.toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-              {montoFinal && (
-                <div className="p-3 rounded-lg" style={{
-                  background: parseFloat(montoFinal) - (sesionActiva.montoInicial + sesionActiva.totalVentasEfectivo + sesionActiva.totalDepositos - sesionActiva.totalRetiros) === 0
-                    ? "var(--color-success-bg)"
-                    : "var(--color-warning-bg)",
-                }}>
-                  <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
-                    Diferencia:{" "}
-                    <span className="font-bold" style={{ fontFamily: "var(--font-data)" }}>
-                      ${(parseFloat(montoFinal) - (sesionActiva.montoInicial + sesionActiva.totalVentasEfectivo + sesionActiva.totalDepositos - sesionActiva.totalRetiros)).toFixed(2)}
-                    </span>
-                  </p>
-                </div>
-              )}
-
-              {/* Payjoy Stats */}
-              {payjoyStats ? (
-                <div className="p-4 rounded-lg" style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-border)" }}>
-                  <div className="flex items-start gap-2 mb-3">
-                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "var(--color-info)" }} />
-                    <div>
-                      <p className="font-semibold text-sm" style={{ color: "var(--color-info-text)" }}>
-                        Payjoy — Solo informativo
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--color-info)" }}>
-                        Este dinero NO está en caja física · Procesado por Payjoy
-                      </p>
-                    </div>
+            {/* Payjoy Stats (informativo) */}
+            {payjoyStats ? (
+              <div className="p-4 rounded-lg mb-4" style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-border)" }}>
+                <div className="flex items-start gap-2 mb-3">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "var(--color-info)" }} />
+                  <div>
+                    <p className="font-semibold text-sm" style={{ color: "var(--color-info-text)" }}>
+                      Payjoy — Solo informativo
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--color-info)" }}>
+                      Este dinero NO está en caja física · Procesado por Payjoy
+                    </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="rounded p-2 text-center" style={{ background: "var(--color-bg-surface)" }}>
-                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Pagos recibidos</p>
-                      <p className="text-lg font-bold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
-                        {payjoyStats.totalPagosPayjoy}
-                      </p>
-                    </div>
-                    <div className="rounded p-2 text-center" style={{ background: "var(--color-bg-surface)" }}>
-                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Total Payjoy</p>
-                      <p className="text-lg font-bold" style={{ color: "var(--color-info)", fontFamily: "var(--font-data)" }}>
-                        ${payjoyStats.montoTotalPayjoy.toLocaleString("es-MX")}
-                      </p>
-                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded p-2 text-center" style={{ background: "var(--color-bg-surface)" }}>
+                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Pagos recibidos</p>
+                    <p className="text-lg font-bold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                      {payjoyStats.totalPagosPayjoy}
+                    </p>
                   </div>
-                  {payjoyStats.desglosePagos.length > 0 && (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-xs">
-                        <thead>
-                          <tr style={{ background: "var(--color-info-bg)" }}>
-                            {["TX ID", "Cliente", "Monto", "Método", "Hora"].map((h, i) => (
-                              <th key={h} className={`px-2 py-1 font-medium ${i === 2 ? "text-right" : "text-left"}`} style={{ color: "var(--color-info-text)" }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody style={{ borderTop: "1px solid var(--color-border)" }}>
-                          {payjoyStats.desglosePagos.map((pago) => (
-                            <tr key={pago.pagoId} style={{ background: "var(--color-bg-surface)", borderBottom: "1px solid var(--color-border-subtle)" }}>
-                              <td className="px-2 py-1 font-mono" style={{ color: "var(--color-text-muted)" }}>
-                                {pago.transactionId !== "N/A" ? `${pago.transactionId.substring(0, 8)}…` : "N/A"}
-                              </td>
-                              <td className="px-2 py-1" style={{ color: "var(--color-text-primary)" }}>{pago.clienteNombre}</td>
-                              <td className="px-2 py-1 text-right font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
-                                ${pago.monto.toLocaleString("es-MX")}
-                              </td>
-                              <td className="px-2 py-1">
-                                <span className="px-1.5 py-0.5 rounded text-xs" style={
-                                  pago.payjoyPaymentMethod === "cash"
-                                    ? { background: "var(--color-success-bg)", color: "var(--color-success-text)" }
-                                    : pago.payjoyPaymentMethod === "card"
-                                    ? { background: "var(--color-accent-light)", color: "var(--color-accent)" }
-                                    : pago.payjoyPaymentMethod === "transfer"
-                                    ? { background: "var(--color-info-bg)", color: "var(--color-info-text)" }
-                                    : { background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }
-                                }>
-                                  {pago.payjoyPaymentMethod === "cash" ? "Efectivo" : pago.payjoyPaymentMethod === "card" ? "Tarjeta" : pago.payjoyPaymentMethod === "transfer" ? "Transfer." : pago.payjoyPaymentMethod}
-                                </span>
-                              </td>
-                              <td className="px-2 py-1" style={{ color: "var(--color-text-muted)" }}>
-                                {new Date(pago.hora).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  <div className="rounded p-2 text-center" style={{ background: "var(--color-bg-surface)" }}>
+                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Total Payjoy</p>
+                    <p className="text-lg font-bold" style={{ color: "var(--color-info)", fontFamily: "var(--font-data)" }}>
+                      ${payjoyStats.montoTotalPayjoy.toLocaleString("es-MX")}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="p-3 rounded-lg flex items-start gap-3" style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}>
-                  <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "var(--color-warning)" }} />
-                  <p className="text-xs" style={{ color: "var(--color-warning-text)" }}>
-                    <span className="font-medium">Pagos Payjoy</span> — Los pagos recibidos vía Payjoy se registran automáticamente y se mostrarán aquí al cerrar.
-                  </p>
-                </div>
-              )}
+              </div>
+            ) : (
+              <div
+                className="p-3 rounded-lg mb-4 flex items-start gap-3"
+                style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}
+              >
+                <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "var(--color-warning)" }} />
+                <p className="text-xs" style={{ color: "var(--color-warning-text)" }}>
+                  <span className="font-medium">Pagos Payjoy</span> — Los pagos recibidos vía Payjoy se mostrarán aquí al cerrar.
+                </p>
+              </div>
+            )}
 
+            {/* Notas y botones */}
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
                   Notas de Cierre (opcional)
                 </label>
-                <Input value={notasCierre} onChange={(e) => setNotasCierre(e.target.value)} placeholder="Observaciones del turno" />
+                <Input
+                  value={notasCierre}
+                  onChange={(e) => setNotasCierre(e.target.value)}
+                  placeholder="Observaciones del turno"
+                />
               </div>
 
+              {/* Diferencia prevista (solo visible si hay conteo) */}
+              {totalConteo > 0 && (
+                <div
+                  className="p-3 rounded-lg"
+                  style={{
+                    background:
+                      Math.abs(totalConteo - montoEsperadoActual) < 1
+                        ? "var(--color-success-bg)"
+                        : "var(--color-warning-bg)",
+                    border: `1px solid ${
+                      Math.abs(totalConteo - montoEsperadoActual) < 1
+                        ? "var(--color-success)"
+                        : "var(--color-warning)"
+                    }`,
+                  }}
+                >
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: "var(--color-text-secondary)" }}>Monto esperado:</span>
+                    <span style={{ fontFamily: "var(--font-data)", color: "var(--color-text-primary)" }}>
+                      ${montoEsperadoActual.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span style={{ color: "var(--color-text-secondary)" }}>Total contado:</span>
+                    <span style={{ fontFamily: "var(--font-data)", color: "var(--color-text-primary)" }}>
+                      ${totalConteo.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-bold mt-2 pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
+                    <span style={{ color: "var(--color-text-primary)" }}>Diferencia:</span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-data)",
+                        color:
+                          Math.abs(totalConteo - montoEsperadoActual) < 1
+                            ? "var(--color-success)"
+                            : totalConteo > montoEsperadoActual
+                            ? "var(--color-info)"
+                            : "var(--color-danger)",
+                      }}
+                    >
+                      {totalConteo - montoEsperadoActual >= 0 ? "+" : ""}${(totalConteo - montoEsperadoActual).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3">
-                <Button variant="secondary" onClick={() => setShowCerrarModal(false)} className="flex-1">Cancelar</Button>
-                <Button variant="danger" onClick={handleCerrarCaja} disabled={processing || !montoFinal} className="flex-1">
-                  {processing ? "Cerrando..." : "Cerrar Caja"}
+                <Button variant="secondary" onClick={() => setShowCerrarModal(false)} className="flex-1">
+                  Cancelar
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={handleCerrarCaja}
+                  disabled={processing || totalConteo < 0}
+                  className="flex-1"
+                >
+                  {processing ? "Cerrando..." : "Confirmar Cierre"}
                 </Button>
               </div>
             </div>
@@ -620,29 +946,59 @@ export default function CajaPage() {
         </div>
       )}
 
-      {/* Modal Movimiento */}
+      {/* ─── Modal Pay In / Pay Out ─────────────────────────────── */}
       {showMovimientoModal && (
         <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
           <Card className="max-w-md w-full p-6">
             <h2 className="text-xl font-bold mb-4" style={{ color: "var(--color-text-primary)" }}>
-              {tipoMovimiento === "deposito" ? "Agregar Depósito" : "Agregar Retiro"}
+              {tipoMovimiento === "pay_in" ? "Pay In — Entrada de Efectivo" : "Pay Out — Salida de Efectivo"}
             </h2>
+            <p className="text-sm mb-4" style={{ color: "var(--color-text-muted)" }}>
+              {tipoMovimiento === "pay_in"
+                ? "Registra dinero que entra a la caja sin relación a una venta (ej: cambio, fondo adicional)."
+                : "Registra dinero que sale de la caja sin relación a una venta (ej: pago a proveedor, gasto chico)."}
+            </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>Monto *</label>
-                <Input type="number" step="0.01" min="0.01" value={montoMovimiento} onChange={(e) => setMontoMovimiento(e.target.value)} placeholder="0.00" />
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
+                  Monto *
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={montoMovimiento}
+                  onChange={(e) => setMontoMovimiento(e.target.value)}
+                  placeholder="0.00"
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>Concepto *</label>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
+                  Concepto *
+                </label>
                 <Input
                   value={conceptoMovimiento}
                   onChange={(e) => setConceptoMovimiento(e.target.value)}
-                  placeholder={tipoMovimiento === "deposito" ? "Ej: Depósito bancario" : "Ej: Pago a proveedor"}
+                  placeholder={
+                    tipoMovimiento === "pay_in"
+                      ? "Ej: Fondo adicional, cambio de billete"
+                      : "Ej: Pago a proveedor, gasto de limpieza"
+                  }
                 />
               </div>
               <div className="flex gap-3">
-                <Button variant="secondary" onClick={() => setShowMovimientoModal(false)} className="flex-1">Cancelar</Button>
-                <Button onClick={handleAgregarMovimiento} disabled={processing || !montoMovimiento || !conceptoMovimiento.trim()} className="flex-1">
+                <Button
+                  variant="secondary"
+                  onClick={() => { setShowMovimientoModal(false); setMontoMovimiento(""); setConceptoMovimiento(""); }}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleAgregarMovimiento}
+                  disabled={processing || !montoMovimiento || !conceptoMovimiento.trim()}
+                  className="flex-1"
+                >
                   {processing ? "Guardando..." : "Guardar"}
                 </Button>
               </div>

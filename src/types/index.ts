@@ -895,6 +895,9 @@ export interface Configuracion {
   mensajeRecordatorio?: string;
   // FASE 39: Límites de descuento
   limitesDescuento?: LimitesDescuento;
+  // FASE 40: Caja
+  fondoCaja?: number;            // Monto sugerido de fondo al abrir caja (default: 500)
+  toleranciaDescuadre?: number;  // Diferencia máxima permitida sin alerta (default: 0)
   // Auditoria
   updatedAt: Date;
   updatedBy?: string;
@@ -923,7 +926,24 @@ export type EstadoVenta = "completada" | "cancelada" | "reembolsada";
 export type EstadoCajaSesion = "abierta" | "cerrada";
 
 // Tipos de movimientos de caja
-export type TipoMovimientoCaja = "deposito" | "retiro" | "entrada_anticipo" | "devolucion_anticipo";
+export type TipoMovimientoCaja =
+  | "deposito"
+  | "retiro"
+  | "entrada_anticipo"
+  | "devolucion_anticipo"
+  | "pay_in"    // FASE 40: entrada de efectivo sin relación a venta (fondos, reembolso de proveedor, etc.)
+  | "pay_out";  // FASE 40: salida de efectivo sin relación a venta (gastos chicos, pago a proveedor, etc.)
+
+// FASE 40: Conteo de efectivo por denominaciones (para conteo ciego en cierre)
+export interface ConteoDenominaciones {
+  b1000: number;   // Billetes de $1,000
+  b500:  number;   // Billetes de $500
+  b200:  number;   // Billetes de $200
+  b100:  number;   // Billetes de $100
+  b50:   number;   // Billetes de $50
+  b20:   number;   // Billetes de $20
+  monedas: number; // Total en monedas (monto libre)
+}
 
 // Desglose de pago mixto para ventas
 export interface DesglosePagoMixtoVenta {
@@ -1017,6 +1037,9 @@ export interface CajaSesion {
   totalRetiros: number;
   totalDepositos: number;
   numeroVentas: number;
+
+  // FASE 40: Conteo ciego por denominaciones (guardado al cierre)
+  conteoDenominaciones?: ConteoDenominaciones;
 
   // FASE 20: Stats de Payjoy (informativo, solo en respuesta de cierre)
   payjoyStats?: {

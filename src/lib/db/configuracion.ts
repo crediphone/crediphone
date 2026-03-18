@@ -113,6 +113,11 @@ export async function updateConfiguracion(
         }
       : null;
   }
+  // FASE 40: Caja — fondo fijo y tolerancia descuadre
+  if (config.fondoCaja !== undefined)
+    updateData.fondo_caja = config.fondoCaja;
+  if (config.toleranciaDescuadre !== undefined)
+    updateData.tolerancia_descuadre = config.toleranciaDescuadre;
   if (updatedBy) updateData.updated_by = updatedBy;
 
   // 1. Obtener el ID de la fila a actualizar (filtrando por distribuidor_id)
@@ -197,5 +202,8 @@ function mapConfigFromDB(db: any): Configuracion {
           sonidoCustomUrl: db.sonidos_config.sonido_custom_url ?? null,
         }
       : undefined,
+    // FASE 40: Caja — fondo fijo y tolerancia descuadre
+    fondoCaja: db.fondo_caja != null ? parseFloat(db.fondo_caja) : 500,
+    toleranciaDescuadre: db.tolerancia_descuadre != null ? parseFloat(db.tolerancia_descuadre) : 0,
   };
 }
