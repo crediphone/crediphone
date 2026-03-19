@@ -2,14 +2,17 @@
 
 /**
  * FASE 44 — Dashboard especializado para el rol TÉCNICO.
+ * FASE 45 — Agrega tiempo transcurrido por orden + botón WhatsApp de notificación al cliente.
  * Muestra: órdenes asignadas, estados de reparación y KPIs de desempeño personal.
  */
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Wrench, Clock, CheckCircle2, AlertCircle, Star, Package } from "lucide-react";
+import { Wrench, Clock, CheckCircle2, AlertCircle, Star, Package, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/components/AuthProvider";
+import { useConfig } from "@/components/ConfigProvider";
+import { BtnNotificarCliente } from "@/components/notificaciones/BtnNotificarCliente";
 import type { OrdenReparacionDetallada, EstadoOrdenReparacion } from "@/types";
 
 const ESTADO_META: Record<
@@ -29,6 +32,14 @@ const ESTADO_META: Record<
   cancelado:        { label: "Cancelado",          color: "var(--color-danger)",       bg: "var(--color-danger-bg)" },
 };
 
+// Tipo de plantilla WhatsApp a usar según el estado de la orden
+const TIPO_PLANTILLA_POR_ESTADO: Partial<Record<EstadoOrdenReparacion, string>> = {
+  presupuesto:   "presupuesto_listo",
+  en_reparacion: "reparacion_en_proceso",
+  completado:    "reparacion_lista_entrega",
+  listo_entrega: "reparacion_lista_entrega",
+};
+
 function Skeleton({ className = "" }: { className?: string }) {
   return (
     <div
@@ -38,10 +49,40 @@ function Skeleton({ className = "" }: { className?: string }) {
   );
 }
 
+/**
+ * Formatea el tiempo transcurrido desde una fecha ISO.
+ * Ej: "hace 2 días", "hace 3 horas", "hace 45 minutos"
+ */
+function tiempoTranscurrido(fechaISO: string): string {
+  const ahora = Date.now();
+  const fecha = new Date(fechaISO).getTime();
+  const diff = Math.max(0, ahora - fecha);
+
+  const minutos = Math.floor(diff / 60_000);
+  const horas = Math.floor(diff / 3_600_000);
+  const dias = Math.floor(diff / 86_400_000);
+
+  if (dias >= 1) return `hace ${dias} día${dias === 1 ? "" : "s"}`;
+  if (horas >= 1) return `hace ${horas} hora${horas === 1 ? "" : "s"}`;
+  if (minutos >= 1) return `hace ${minutos} minuto${minutos === 1 ? "" : "s"}`;
+  return "justo ahora";
+}
+
+/** Color del tiempo transcurrido según urgencia */
+function colorTiempo(fechaISO: string): string {
+  const dias = Math.floor((Date.now() - new Date(fechaISO).getTime()) / 86_400_000);
+  if (dias >= 7) return "var(--color-danger)";
+  if (dias >= 3) return "var(--color-warning-text)";
+  return "var(--color-text-muted)";
+}
+
 export function TecnicoDashboard() {
   const { user } = useAuth();
+  const { config } = useConfig();
   const [ordenes, setOrdenes] = useState<OrdenReparacionDetallada[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const empresa = config?.nombreEmpresa || "CREDIPHONE";
 
   const fetchOrdenes = useCallback(async () => {
     try {
@@ -208,72 +249,119 @@ export function TecnicoDashboard() {
                 bg: "var(--color-bg-elevated)",
               };
 
-              return (
-                <Link key={orden.id} href={`/dashboard/reparaciones/${orden.id}`}>
-                  <div
-                    className="flex items-center gap-4 p-4 rounded-xl"
-                    style={{
-                      background: "var(--color-bg-base)",
-                      border: "1px solid var(--color-border-subtle)",
-                      transition: "all 180ms var(--ease-smooth)",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)";
-                      (e.currentTarget as HTMLElement).style.borderColor = meta.color;
-                      (e.currentTarget as HTMLElement).style.transform = "translateX(4px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "var(--color-bg-base)";
-                      (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border-subtle)";
-                      (e.currentTarget as HTMLElement).style.transform = "translateX(0)";
-                    }}
-                  >
-                    {/* Estado dot */}
-                    <div
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5"
-                      style={{ background: meta.color }}
-                    />
+              const tipoPlantilla = TIPO_PLANTILLA_POR_ESTADO[estadoKey];
+              const tel = orden.clienteTelefono || "";
+              // createdAt puede ser un Date o un string ISO (depende del mapper)
+              const createdAtRaw = orden.createdAt;
+              const fechaCreacion = createdAtRaw
+                ? createdAtRaw instanceof Date
+                  ? createdAtRaw.toISOString()
+                  : String(createdAtRaw)
+                : "";
 
-                    {/* Info principal */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+              return (
+                <div
+                  key={orden.id}
+                  className="relative flex items-center gap-4 p-4 rounded-xl"
+                  style={{
+                    background: "var(--color-bg-base)",
+                    border: "1px solid var(--color-border-subtle)",
+                    transition: "all 180ms var(--ease-smooth)",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)";
+                    (e.currentTarget as HTMLElement).style.borderColor = meta.color;
+                    (e.currentTarget as HTMLElement).style.transform = "translateX(4px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "var(--color-bg-base)";
+                    (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border-subtle)";
+                    (e.currentTarget as HTMLElement).style.transform = "translateX(0)";
+                  }}
+                >
+                  {/* Estado dot */}
+                  <div
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5"
+                    style={{ background: meta.color }}
+                  />
+
+                  {/* Info principal — enlace a detalle */}
+                  <Link
+                    href={`/dashboard/reparaciones/${orden.id}`}
+                    className="flex-1 min-w-0"
+                    style={{ textDecoration: "none" }}
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="text-xs font-bold"
+                        style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}
+                      >
+                        {orden.folio}
+                      </span>
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: meta.bg, color: meta.color }}
+                      >
+                        {meta.label}
+                      </span>
+                      {orden.prioridad === "urgente" && (
                         <span
-                          className="text-xs font-bold"
-                          style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}
+                          className="text-xs px-2 py-0.5 rounded-full font-bold"
+                          style={{ background: "var(--color-danger)", color: "white" }}
                         >
-                          {orden.folio}
+                          Urgente
                         </span>
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{ background: meta.bg, color: meta.color }}
-                        >
-                          {meta.label}
-                        </span>
-                        {orden.prioridad === "urgente" && (
-                          <span
-                            className="text-xs px-2 py-0.5 rounded-full font-bold"
-                            style={{ background: "var(--color-danger)", color: "white" }}
-                          >
-                            Urgente
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-medium mt-0.5 truncate" style={{ color: "var(--color-text-primary)" }}>
-                        {orden.marcaDispositivo} {orden.modeloDispositivo}
-                      </p>
-                      <p className="text-xs mt-0.5 truncate" style={{ color: "var(--color-text-secondary)" }}>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium mt-0.5 truncate" style={{ color: "var(--color-text-primary)" }}>
+                      {orden.marcaDispositivo} {orden.modeloDispositivo}
+                    </p>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <p className="text-xs truncate" style={{ color: "var(--color-text-secondary)" }}>
                         {orden.clienteNombre} {orden.clienteApellido || ""} · {orden.problemaReportado || "Sin descripción"}
                       </p>
+                      {/* Tiempo transcurrido */}
+                      {fechaCreacion && (
+                        <span
+                          className="text-xs flex-shrink-0 flex items-center gap-1"
+                          style={{ color: colorTiempo(fechaCreacion) }}
+                        >
+                          <Clock className="w-3 h-3" />
+                          {tiempoTranscurrido(fechaCreacion)}
+                        </span>
+                      )}
                     </div>
+                  </Link>
 
-                    {/* Flecha */}
+                  {/* Botón WhatsApp (solo si hay teléfono y hay plantilla para el estado) */}
+                  {tipoPlantilla && tel ? (
+                    <div className="flex-shrink-0 ml-1" onClick={(e) => e.stopPropagation()}>
+                      <BtnNotificarCliente
+                        tipo={tipoPlantilla}
+                        telefono={tel}
+                        vars={{
+                          nombre:     orden.clienteNombre || "",
+                          folio:      orden.folio || "",
+                          dispositivo: `${orden.marcaDispositivo || ""} ${orden.modeloDispositivo || ""}`.trim(),
+                          problema:   orden.problemaReportado || "",
+                          costo_total: orden.costoTotal ? `$${orden.costoTotal.toFixed(2)}` : "",
+                          tecnico:    orden.tecnicoNombre || "",
+                          empresa,
+                        }}
+                        label="WA"
+                        size="sm"
+                        variant="outline"
+                        onEnviado={fetchOrdenes}
+                      />
+                    </div>
+                  ) : (
+                    /* Flecha decorativa cuando no hay botón WA */
                     <AlertCircle
-                      className="w-4 h-4 flex-shrink-0 rotate-180"
-                      style={{ color: "var(--color-text-muted)", transform: "rotate(0deg)" }}
+                      className="w-4 h-4 flex-shrink-0"
+                      style={{ color: "var(--color-text-muted)" }}
                     />
-                  </div>
-                </Link>
+                  )}
+                </div>
               );
             })}
           </div>

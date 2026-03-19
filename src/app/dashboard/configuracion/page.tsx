@@ -26,6 +26,7 @@ import {
 import PayjoyConfigSection from "@/components/payjoy/PayjoyConfigSection";
 import { SonidosNotificacionConfig } from "@/components/configuracion/SonidosNotificacionConfig";
 import { ServiciosManager } from "@/components/configuracion/ServiciosManager";
+import { PlantillasWhatsAppTab } from "@/components/configuracion/PlantillasWhatsAppTab";
 
 // ── Estilos compartidos ──────────────────────────────
 const labelSt: React.CSSProperties = {
@@ -1039,6 +1040,19 @@ export default function ConfiguracionPage() {
       content: (
         <Card className="p-6">
           <ServiciosManager />
+        </Card>
+      ),
+    },
+
+    // ══════════════════════════════════════════════════════
+    // TAB 10: PLANTILLAS WHATSAPP (FASE 45)
+    // ══════════════════════════════════════════════════════
+    {
+      id: "plantillas",
+      label: "WhatsApp 💬",
+      content: (
+        <Card className="p-6">
+          <PlantillasWhatsAppTab />
         </Card>
       ),
     },
