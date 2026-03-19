@@ -411,6 +411,16 @@ export default function TrackingPublicoPage() {
   });
   const [savingPromos, setSavingPromos] = useState(false);
   const [promoSaved, setPromoSaved] = useState(false);
+  // FASE 35: Promociones reales de la base de datos
+  const [promosReales, setPromosReales] = useState<{
+    id: string;
+    titulo: string;
+    descripcion: string | null;
+    imagenUrl: string | null;
+    precioNormal: number | null;
+    precioPromocion: number | null;
+    categoria: string;
+  }[]>([]);
 
   useEffect(() => {
     fetchTracking();
@@ -437,6 +447,8 @@ export default function TrackingPublicoPage() {
       const result = await response.json();
       if (result.success) {
         setData(result.data);
+        // FASE 35: Cargar promociones reales en paralelo
+        void fetchPromos();
       } else {
         setError(result.message || "No se pudo cargar el tracking");
       }
@@ -445,6 +457,18 @@ export default function TrackingPublicoPage() {
       console.error("Error:", err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchPromos() {
+    try {
+      const res = await fetch(`/api/tracking/${token}/promociones`);
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data)) {
+        setPromosReales(result.data);
+      }
+    } catch (err) {
+      console.error("[tracking] Error al cargar promociones:", err);
     }
   }
 
@@ -1339,39 +1363,28 @@ export default function TrackingPublicoPage() {
           </div>
         </div>
 
-        {/* ── Promociones (solo si el cliente aceptó recibirlas) ── */}
-        {data.cliente.aceptaPromociones && (() => {
-          const prefs = data.cliente.preferenciasPromociones;
+        {/* ── Promociones reales (FASE 35) ────────────────────── */}
+        {data.cliente.aceptaPromociones && promosReales.length > 0 && (() => {
           const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "526181245391";
-          const dispositivo = `${orden.marcaDispositivo} ${orden.modeloDispositivo}`;
+          // Filtrar por preferencias del cliente
+          const prefs = data.cliente.preferenciasPromociones as Record<string, boolean | undefined>;
+          const promosFiltradas = promosReales.filter((p) => {
+            const cat = p.categoria;
+            // categorías de preferencia mapeadas
+            if (cat === "accesorios" && prefs.accesorios === false) return false;
+            if (cat === "combos" && prefs.combos === false) return false;
+            if (cat === "celulares" && prefs.celulares === false) return false;
+            return true;
+          });
+          if (promosFiltradas.length === 0) return null;
 
-          type PromoKey = "accesorios" | "combos" | "celulares";
-          const prefsRecord = prefs as Record<PromoKey, boolean | undefined>;
-          const promos = [
-            {
-              key: "accesorios" as const,
-              emoji: "🛡️",
-              titulo: "Protege tu dispositivo",
-              descripcion: `Fundas, cristales templados y accesorios para tu ${dispositivo}. ¡Pregunta por nuestras opciones!`,
-              msgWhatsApp: `Hola CREDIPHONE, acabo de recoger mi ${dispositivo} (folio ${orden.folio}) y me interesa ver opciones de fundas o accesorios. ¿Qué tienen disponible?`,
-            },
-            {
-              key: "combos" as const,
-              emoji: "📦",
-              titulo: "Combos especiales",
-              descripcion: "Funda + cristal templado + cargador a precios accesibles. ¡Protege todo tu equipo de una vez!",
-              msgWhatsApp: `Hola CREDIPHONE, soy cliente con el folio ${orden.folio}. Me interesa ver las opciones de combos de accesorios que tienen. ¿Cuáles están disponibles?`,
-            },
-            {
-              key: "celulares" as const,
-              emoji: "📱",
-              titulo: "Renueva tu equipo",
-              descripcion: "Equipos nuevos y seminuevos con opciones de crédito accesible. ¡Pásate a conocerlos!",
-              msgWhatsApp: `Hola CREDIPHONE, soy cliente con el folio ${orden.folio}. Estoy interesado en conocer sus opciones de equipos disponibles y planes de crédito.`,
-            },
-          ].filter(({ key }) => prefsRecord[key] !== false);
-
-          if (promos.length === 0) return null;
+          const emojiCategoria: Record<string, string> = {
+            accesorios: "🛡️",
+            combos: "📦",
+            celulares: "📱",
+            servicios: "🔧",
+            general: "🎁",
+          };
 
           return (
             <div
@@ -1398,46 +1411,87 @@ export default function TrackingPublicoPage() {
                 </div>
               </div>
 
-              {/* Cards de promociones */}
+              {/* Cards de promociones reales */}
               <div className="p-4 space-y-3">
-                {promos.map(({ key, emoji, titulo, descripcion, msgWhatsApp }) => (
-                  <div
-                    key={key}
-                    className="rounded-xl p-4 flex items-start gap-3"
-                    style={{
-                      background: "var(--color-bg-elevated)",
-                      border: "1px solid var(--color-border-subtle)",
-                    }}
-                  >
-                    <span className="text-2xl shrink-0">{emoji}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--color-text-primary)" }}>
-                        {titulo}
-                      </p>
-                      <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--color-text-muted)" }}>
-                        {descripcion}
-                      </p>
-                      <button
-                        onClick={() =>
-                          window.open(
-                            `https://wa.me/${numero}?text=${encodeURIComponent(msgWhatsApp)}`,
-                            "_blank"
-                          )
-                        }
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 rounded-lg"
-                        style={{
-                          background: "#25D366",
-                          color: "#fff",
-                          border: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        Preguntar por WhatsApp
-                      </button>
+                {promosFiltradas.map((promo) => {
+                  const emoji = emojiCategoria[promo.categoria] ?? "🎁";
+                  const descuento =
+                    promo.precioNormal && promo.precioPromocion
+                      ? Math.round(((promo.precioNormal - promo.precioPromocion) / promo.precioNormal) * 100)
+                      : null;
+                  const msgWA = `Hola CREDIPHONE, vi la promoción "${promo.titulo}" en el tracking de mi reparación (folio ${orden.folio}). ¿Pueden darme más información?`;
+                  return (
+                    <div
+                      key={promo.id}
+                      className="rounded-xl p-4 flex items-start gap-3"
+                      style={{
+                        background: "var(--color-bg-elevated)",
+                        border: "1px solid var(--color-border-subtle)",
+                      }}
+                    >
+                      <span className="text-2xl shrink-0">{emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-0.5">
+                          <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                            {promo.titulo}
+                          </p>
+                          {descuento !== null && (
+                            <span
+                              className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0"
+                              style={{
+                                background: "var(--color-success-bg)",
+                                color: "var(--color-success-text)",
+                              }}
+                            >
+                              -{descuento}%
+                            </span>
+                          )}
+                        </div>
+                        {promo.descripcion && (
+                          <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--color-text-muted)" }}>
+                            {promo.descripcion}
+                          </p>
+                        )}
+                        {promo.precioPromocion !== null && (
+                          <div className="flex items-baseline gap-2 mb-3">
+                            <span
+                              className="text-base font-bold"
+                              style={{ color: "var(--color-accent)", fontFamily: "var(--font-data)" }}
+                            >
+                              ${promo.precioPromocion.toLocaleString("es-MX")}
+                            </span>
+                            {promo.precioNormal !== null && (
+                              <span
+                                className="text-xs line-through"
+                                style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-data)" }}
+                              >
+                                ${promo.precioNormal.toLocaleString("es-MX")}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          onClick={() =>
+                            window.open(
+                              `https://wa.me/${numero}?text=${encodeURIComponent(msgWA)}`,
+                              "_blank"
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold py-1.5 px-3 rounded-lg"
+                          style={{
+                            background: "#25D366",
+                            color: "#fff",
+                            border: "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          Me interesa
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <p className="text-xs text-center pt-1" style={{ color: "var(--color-text-muted)" }}>
                   Recibes estas ofertas porque aceptaste comunicaciones de CREDIPHONE.{" "}
