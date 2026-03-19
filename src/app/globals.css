@@ -104,6 +104,28 @@
   --duration-fast:   100ms;
   --duration-normal: 200ms;
   --duration-slow:   350ms;
+
+  /* ══════════════════════════════
+     LIQUID GLASS — acento quirúrgico
+     Aplicar SOLO en: íconos sidebar, modales header,
+     FAB flotante, badges urgentes, topbar sticky
+  ══════════════════════════════ */
+
+  /* Íconos en sidebar (siempre sobre fondo oscuro) */
+  --glass-icon-bg:           rgba(255, 255, 255, 0.04);
+  --glass-icon-bg-active:    rgba(0, 184, 217, 0.18);
+  --glass-icon-bg-hover:     rgba(255, 255, 255, 0.08);
+  --glass-icon-border:       rgba(255, 255, 255, 0.07);
+  --glass-icon-border-active:rgba(0, 212, 245, 0.35);
+  --glass-icon-shadow-active:0 2px 10px rgba(0, 184, 217, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  /* Superficies flotantes (modales, FAB, topbar) */
+  --glass-bg:                rgba(255, 255, 255, 0.06);
+  --glass-bg-hover:          rgba(255, 255, 255, 0.10);
+  --glass-border:            rgba(255, 255, 255, 0.12);
+  --glass-shine:             linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 55%);
+  --glass-surface-shadow:    0 4px 24px rgba(9, 36, 74, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-blur:              10px;
 }
 
 /* ══════════════════════════════
@@ -162,6 +184,20 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.50);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.60);
   --shadow-xl: 0 16px 56px rgba(0, 0, 0, 0.70);
+
+  /* Liquid Glass — dark mode: opacidad reducida para no iluminar */
+  --glass-icon-bg:           rgba(255, 255, 255, 0.03);
+  --glass-icon-bg-active:    rgba(0, 212, 245, 0.14);
+  --glass-icon-bg-hover:     rgba(255, 255, 255, 0.06);
+  --glass-icon-border:       rgba(255, 255, 255, 0.05);
+  --glass-icon-border-active:rgba(0, 212, 245, 0.28);
+  --glass-icon-shadow-active:0 2px 10px rgba(0, 212, 245, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  --glass-bg:                rgba(255, 255, 255, 0.04);
+  --glass-bg-hover:          rgba(255, 255, 255, 0.07);
+  --glass-border:            rgba(255, 255, 255, 0.08);
+  --glass-shine:             linear-gradient(135deg, rgba(255,255,255,0.07) 0%, transparent 55%);
+  --glass-surface-shadow:    0 4px 24px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 /* ══════════════════════════════

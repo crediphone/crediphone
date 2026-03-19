@@ -75,31 +75,55 @@ function isAccordion(item: NavGroupItem): item is NavAccordion {
 /* ── Árbol de navegación ────────────────────────────────────── */
 
 const navGroups: NavGroup[] = [
+  // 1. INICIO — primer pantalla siempre
   {
     label: "INICIO",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, moduleKey: "dashboard" },
-      { href: "/dashboard/admin/distribuidores", label: "Distribuidores", icon: Building2, roles: ["super_admin"] },
     ],
   },
+
+  // 2. REPARACIONES — core del negocio, va PRIMERO
   {
-    label: "VENTAS",
+    label: "REPARACIONES",
     items: [
-      { href: "/dashboard/pos",          label: "POS — Venta",      icon: Store,    roles: ["admin", "vendedor", "super_admin"], moduleKey: "pos" },
-      { href: "/dashboard/pos/caja",     label: "Caja / Turno",     icon: Vault,    roles: ["admin", "vendedor", "super_admin"], moduleKey: "pos" },
-      { href: "/dashboard/pos/historial",label: "Historial Ventas", icon: History,  roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "pos" },
-      { href: "/dashboard/payjoy",       label: "Payjoy",           icon: Zap,      moduleKey: "payjoy" },
+      { href: "/dashboard/reparaciones",           label: "Órdenes",            icon: Wrench,       roles: ["admin", "tecnico", "vendedor", "cobrador", "super_admin"], moduleKey: "reparaciones" },
+      { href: "/dashboard/dashboard-reparaciones", label: "Panel KPIs",          icon: Cpu,          roles: ["admin", "super_admin"],                                    moduleKey: "dashboard-reparaciones" },
+      { href: "/dashboard/tecnico",                label: "Mi Panel Técnico",    icon: Cpu,          roles: ["tecnico"],                                                  moduleKey: "tecnico" },
     ],
   },
+
+  // 3. POS + CAJA — genera el flujo de caja diario
   {
-    label: "CRÉDITOS Y CLIENTES",
+    label: "POS + CAJA",
     items: [
-      { href: "/dashboard/clientes",      label: "Clientes",      icon: Users,           roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "clientes" },
-      { href: "/dashboard/creditos",      label: "Créditos",      icon: CreditCard,      roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "creditos" },
-      { href: "/dashboard/pagos",         label: "Cobros y Pagos",icon: Wallet,          roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "pagos" },
-      { href: "/dashboard/recordatorios", label: "Recordatorios", icon: BellRing,        roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "recordatorios" },
+      { href: "/dashboard/pos",          label: "Punto de Venta", icon: Store,   roles: ["admin", "vendedor", "super_admin"],                         moduleKey: "pos" },
+      { href: "/dashboard/pos/caja",     label: "Caja / Turno",   icon: Vault,   roles: ["admin", "vendedor", "super_admin"],                         moduleKey: "pos" },
+      { href: "/dashboard/pos/historial",label: "Historial",      icon: History, roles: ["admin", "vendedor", "cobrador", "super_admin"],              moduleKey: "pos" },
+      { href: "/dashboard/payjoy",       label: "Payjoy",         icon: Zap,     moduleKey: "payjoy" },
     ],
   },
+
+  // 4. CRÉDITOS — segunda fuente de ingresos
+  {
+    label: "CRÉDITOS",
+    items: [
+      { href: "/dashboard/creditos",                label: "Créditos",       icon: CreditCard,  roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "creditos" },
+      { href: "/dashboard/pagos",                   label: "Cobros y Pagos", icon: Wallet,      roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "pagos" },
+      { href: "/dashboard/creditos/cartera-vencida",label: "Cartera Vencida",icon: CalendarX2,  roles: ["admin", "cobrador", "vendedor", "super_admin"], moduleKey: "creditos" },
+      { href: "/dashboard/recordatorios",           label: "Recordatorios",  icon: BellRing,    roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "recordatorios" },
+    ],
+  },
+
+  // 5. CLIENTES
+  {
+    label: "CLIENTES",
+    items: [
+      { href: "/dashboard/clientes", label: "Clientes", icon: Users, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "clientes" },
+    ],
+  },
+
+  // 6. INVENTARIO
   {
     label: "INVENTARIO",
     items: [
@@ -110,9 +134,9 @@ const navGroups: NavGroup[] = [
         roles: ["admin", "vendedor", "super_admin"],
         moduleKey: "productos",
         subItems: [
-          { href: "/dashboard/productos",          label: "Productos",   icon: Package, roles: ["admin", "vendedor", "super_admin"], moduleKey: "productos" },
-          { href: "/dashboard/admin/categorias",   label: "Categorías",  icon: Tag,     roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
-          { href: "/dashboard/admin/proveedores",  label: "Proveedores", icon: Truck,   roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/productos",         label: "Productos",   icon: Package, roles: ["admin", "vendedor", "super_admin"], moduleKey: "productos" },
+          { href: "/dashboard/admin/categorias",  label: "Categorías",  icon: Tag,     roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/admin/proveedores", label: "Proveedores", icon: Truck,   roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
         ],
       },
       {
@@ -129,37 +153,31 @@ const navGroups: NavGroup[] = [
         roles: ["admin", "vendedor", "super_admin"],
         moduleKey: "inventario_avanzado",
         subItems: [
-          { href: "/dashboard/inventario/verificar",   label: "Verificar",       icon: ClipboardCheck, roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
-          { href: "/dashboard/inventario/ubicaciones", label: "Ubicaciones",     icon: Warehouse,      roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
-          { href: "/dashboard/inventario/alertas",     label: "Alertas Stock",   icon: PackageX,       roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/verificar",   label: "Verificar",     icon: ClipboardCheck, roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/ubicaciones", label: "Ubicaciones",   icon: Warehouse,      roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/alertas",     label: "Alertas Stock", icon: PackageX,       roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
         ],
       },
     ],
   },
-  {
-    label: "REPARACIONES",
-    items: [
-      { href: "/dashboard/reparaciones", label: "Órdenes", icon: Wrench, roles: ["admin", "tecnico", "vendedor", "cobrador", "super_admin"], moduleKey: "reparaciones" },
-      // Panel para admin/super_admin → KPIs de reparaciones
-      { href: "/dashboard/dashboard-reparaciones", label: "Panel Reparaciones", icon: Cpu, roles: ["admin", "super_admin"], moduleKey: "dashboard-reparaciones" },
-      // Panel para técnico → su vista de órdenes asignadas
-      { href: "/dashboard/tecnico", label: "Mi Panel", icon: Cpu, roles: ["tecnico"], moduleKey: "tecnico" },
-    ],
-  },
+
+  // 7. REPORTES
   {
     label: "REPORTES",
     items: [
-      { href: "/dashboard/reportes",                label: "Reportes",      icon: FileBarChart,     roles: ["admin", "super_admin"], moduleKey: "reportes" },
-      { href: "/dashboard/reportes/comisiones",     label: "Comisiones",    icon: BadgeDollarSign,  roles: ["admin", "super_admin"], moduleKey: "reportes" },
-      { href: "/dashboard/creditos/cartera-vencida",label: "Cartera y Mora",icon: CalendarX2,       roles: ["admin", "cobrador", "vendedor", "super_admin"], moduleKey: "creditos" },
-      { href: "/dashboard/facturacion",             label: "Facturación",   icon: Receipt,          roles: ["admin", "super_admin"], moduleKey: "reportes" },
+      { href: "/dashboard/reportes",            label: "Reportes",    icon: FileBarChart,    roles: ["admin", "super_admin"],  moduleKey: "reportes" },
+      { href: "/dashboard/reportes/comisiones", label: "Comisiones",  icon: BadgeDollarSign, roles: ["admin", "super_admin"],  moduleKey: "reportes" },
+      { href: "/dashboard/facturacion",         label: "Facturación", icon: Receipt,         roles: ["admin", "super_admin"],  moduleKey: "reportes" },
     ],
   },
+
+  // 8. ADMINISTRACIÓN
   {
     label: "ADMINISTRACIÓN",
     items: [
-      { href: "/dashboard/empleados",     label: "Empleados",     icon: UserCheck,        roles: ["admin", "super_admin"], moduleKey: "empleados" },
-      { href: "/dashboard/configuracion", label: "Configuración", icon: SlidersHorizontal, roles: ["admin", "super_admin"] },
+      { href: "/dashboard/empleados",              label: "Empleados",      icon: UserCheck,         roles: ["admin", "super_admin"],  moduleKey: "empleados" },
+      { href: "/dashboard/admin/distribuidores",   label: "Distribuidores", icon: Building2,         roles: ["super_admin"] },
+      { href: "/dashboard/configuracion",          label: "Configuración",  icon: SlidersHorizontal, roles: ["admin", "super_admin"] },
     ],
   },
 ];
@@ -303,6 +321,48 @@ function DistribuidorSelector() {
   );
 }
 
+/* ── Glass Icon capsule ──────────────────────────────────────── */
+interface GlassIconProps {
+  icon: typeof LayoutDashboard;
+  active: boolean;
+  size?: "sm" | "md";
+}
+
+function GlassIcon({ icon: Icon, active, size = "md" }: GlassIconProps) {
+  const dim = size === "sm" ? "w-6 h-6" : "w-7 h-7";
+  const iconDim = size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4";
+  return (
+    <div
+      className={`${dim} rounded-lg flex items-center justify-center shrink-0 relative overflow-hidden`}
+      style={{
+        background:      active ? "var(--glass-icon-bg-active)"     : "var(--glass-icon-bg)",
+        border:          `1px solid ${active ? "var(--glass-icon-border-active)" : "var(--glass-icon-border)"}`,
+        boxShadow:       active ? "var(--glass-icon-shadow-active)"  : "none",
+        backdropFilter:  "blur(var(--glass-blur))",
+        WebkitBackdropFilter: "blur(var(--glass-blur))",
+        transition:      "background 150ms ease, border-color 150ms ease, box-shadow 150ms ease",
+      }}
+    >
+      {/* Shine gradient — solo cuando activo */}
+      {active && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute", top: 0, left: 0, right: 0,
+            height: "45%",
+            background: "var(--glass-shine)",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      <Icon
+        className={`${iconDim} relative`}
+        style={{ color: active ? "var(--color-sidebar-active)" : "var(--color-sidebar-text-dim)" }}
+      />
+    </div>
+  );
+}
+
 /* ── Ítem de acordeón (colapsable) ───────────────────────────── */
 interface AccordionItemProps {
   accordion: NavAccordion;
@@ -354,10 +414,7 @@ function AccordionNavItem({ accordion, visibleSubItems, isAnySubActive, onClose,
           }
         }}
       >
-        <Icon
-          className="w-4 h-4 shrink-0"
-          style={{ color: isAnySubActive ? "var(--color-sidebar-active)" : "var(--color-sidebar-text-dim)" }}
-        />
+        <GlassIcon icon={Icon} active={isAnySubActive} />
         <span className="flex-1 truncate text-left">{accordion.label}</span>
         <ChevronRight
           className="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
@@ -407,10 +464,7 @@ function AccordionNavItem({ accordion, visibleSubItems, isAnySubActive, onClose,
                     }
                   }}
                 >
-                  <SubIcon
-                    className="w-3.5 h-3.5 shrink-0"
-                    style={{ color: active ? "var(--color-sidebar-active)" : "var(--color-sidebar-text-dim)" }}
-                  />
+                  <GlassIcon icon={SubIcon} active={active} size="sm" />
                   <span className="truncate">{sub.label}</span>
                 </Link>
               </li>
@@ -586,12 +640,7 @@ export function Sidebar({ isOpen, onClose, userRole, userName, onLogout }: Sideb
                             }
                           }}
                         >
-                          <Icon
-                            className="w-4 h-4 shrink-0"
-                            style={{
-                              color: active ? "var(--color-sidebar-active)" : "var(--color-sidebar-text-dim)",
-                            }}
-                          />
+                          <GlassIcon icon={Icon} active={active} />
                           <span className="truncate">{item.label}</span>
                         </Link>
                       </li>
