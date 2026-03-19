@@ -12,6 +12,28 @@ import type {
   OrdenReparacionDetallada,
   EstadoOrdenReparacion,
 } from "@/types";
+import { ExportButton } from "@/components/ui/ExportButton";
+import type { ColumnaExport } from "@/hooks/useExportCSV";
+
+const COLUMNAS_REPARACIONES_CSV: ColumnaExport<OrdenReparacionDetallada>[] = [
+  { header: "Folio", accessor: "folio" },
+  { header: "Cliente", accessor: (r) => [r.clienteNombre, r.clienteApellido].filter(Boolean).join(" ") },
+  { header: "Teléfono", accessor: (r) => r.clienteTelefono ?? "" },
+  { header: "Dispositivo", accessor: (r) => `${r.marcaDispositivo} ${r.modeloDispositivo}` },
+  { header: "IMEI", accessor: (r) => r.imei ?? "" },
+  { header: "Problema", accessor: "problemaReportado" },
+  { header: "Estado", accessor: "estado" },
+  { header: "Técnico", accessor: "tecnicoNombre" },
+  { header: "Costo Reparación ($)", accessor: (r) => Number(r.costoReparacion ?? 0).toFixed(2) },
+  { header: "Costo Partes ($)", accessor: (r) => Number(r.costoPartes ?? 0).toFixed(2) },
+  { header: "Costo Total ($)", accessor: (r) => Number(r.costoTotal ?? 0).toFixed(2) },
+  { header: "Prioridad", accessor: "prioridad" },
+  { header: "Garantía", accessor: (r) => r.esGarantia ? "Sí" : "No" },
+  { header: "Aprobado Cliente", accessor: (r) => r.aprobadoPorCliente ? "Sí" : "No" },
+  { header: "Fecha Recepción", accessor: (r) => r.fechaRecepcion ? new Date(r.fechaRecepcion).toLocaleDateString("es-MX") : "" },
+  { header: "Fecha Est. Entrega", accessor: (r) => r.fechaEstimadaEntrega ? new Date(r.fechaEstimadaEntrega).toLocaleDateString("es-MX") : "" },
+  { header: "Fecha Completado", accessor: (r) => r.fechaCompletado ? new Date(r.fechaCompletado).toLocaleDateString("es-MX") : "" },
+];
 
 // Estados que requieren confirmación (abren ModalCambiarEstado)
 const ESTADOS_CRITICOS: EstadoOrdenReparacion[] = ["cancelado", "no_reparable"];
@@ -220,11 +242,19 @@ export default function ReparacionesPage() {
             Sistema de órdenes de servicio
           </p>
         </div>
-        {user && (
-          <Button variant="primary" onClick={() => setModalOrdenOpen(true)}>
-            + Nueva Orden
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <ExportButton<OrdenReparacionDetallada>
+            datos={filteredOrdenes}
+            columnas={COLUMNAS_REPARACIONES_CSV}
+            nombreArchivo="reparaciones"
+            label="Exportar CSV"
+          />
+          {user && (
+            <Button variant="primary" onClick={() => setModalOrdenOpen(true)}>
+              + Nueva Orden
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}

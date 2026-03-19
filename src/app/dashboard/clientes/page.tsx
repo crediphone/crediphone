@@ -10,6 +10,25 @@ import { CapturaDocumento } from "@/components/clientes/CapturaDocumento";
 import { DashboardScoring } from "@/components/scoring/DashboardScoring";
 import ImportPayjoyModal from "@/components/clientes/ImportPayjoyModal";
 import type { Cliente } from "@/types";
+import { ExportButton } from "@/components/ui/ExportButton";
+import type { ColumnaExport } from "@/hooks/useExportCSV";
+
+const COLUMNAS_CLIENTES_CSV: ColumnaExport<Cliente>[] = [
+  { header: "ID", accessor: "id" },
+  { header: "Nombre", accessor: "nombre" },
+  { header: "Apellido", accessor: "apellido" },
+  { header: "Teléfono", accessor: "telefono" },
+  { header: "Email", accessor: (r) => r.email ?? "" },
+  { header: "CURP", accessor: "curp" },
+  { header: "INE", accessor: "ine" },
+  { header: "Dirección", accessor: "direccion" },
+  { header: "Colonia", accessor: (r) => r.colonia ?? "" },
+  { header: "Municipio", accessor: (r) => r.municipio ?? "" },
+  { header: "Estado", accessor: (r) => r.estado ?? "" },
+  { header: "CP", accessor: (r) => r.codigoPostal ?? "" },
+  { header: "Notif WhatsApp", accessor: (r) => r.aceptaNotificacionesWhatsapp ? "Sí" : "No" },
+  { header: "Fecha Registro", accessor: (r) => r.createdAt ? new Date(r.createdAt).toLocaleDateString("es-MX") : "" },
+];
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -152,7 +171,13 @@ export default function ClientesPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            <ExportButton<Cliente>
+              datos={filteredClientes}
+              columnas={COLUMNAS_CLIENTES_CSV}
+              nombreArchivo="clientes"
+              label="Exportar CSV"
+            />
             <Button
               variant="secondary"
               onClick={() => setImportPayjoyModal(true)}

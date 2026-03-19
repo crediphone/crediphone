@@ -11,10 +11,30 @@ import { PayjoyPanel } from "@/components/creditos/PayjoyPanel";
 import { useRouter } from "next/navigation";
 import { Download, Zap, AlertTriangle, RefreshCw, Loader2, Eye } from "lucide-react";
 import type { Credito, Cliente } from "@/types";
+import { ExportButton } from "@/components/ui/ExportButton";
+import type { ColumnaExport } from "@/hooks/useExportCSV";
 
 interface CreditoConDetalles extends Credito {
   clienteNombre?: string;
 }
+
+const COLUMNAS_CREDITOS_CSV: ColumnaExport<CreditoConDetalles>[] = [
+  { header: "Folio", accessor: (r) => r.folio ?? r.id },
+  { header: "Cliente", accessor: (r) => r.clienteNombre ?? "" },
+  { header: "Monto ($)", accessor: (r) => Number(r.monto).toFixed(2) },
+  { header: "Monto Original ($)", accessor: (r) => r.montoOriginal ? Number(r.montoOriginal).toFixed(2) : "" },
+  { header: "Enganche ($)", accessor: (r) => r.enganche ? Number(r.enganche).toFixed(2) : "" },
+  { header: "Plazo (meses)", accessor: "plazo" },
+  { header: "Frecuencia Pago", accessor: (r) => r.frecuenciaPago ?? "" },
+  { header: "Monto por Pago ($)", accessor: (r) => r.montoPago ? Number(r.montoPago).toFixed(2) : "" },
+  { header: "Tasa Interés (%)", accessor: "tasaInteres" },
+  { header: "Estado", accessor: "estado" },
+  { header: "Días Mora", accessor: (r) => r.diasMora ?? 0 },
+  { header: "Monto Mora ($)", accessor: (r) => r.montoMora ? Number(r.montoMora).toFixed(2) : "0.00" },
+  { header: "Fecha Inicio", accessor: (r) => r.fechaInicio ? new Date(r.fechaInicio).toLocaleDateString("es-MX") : "" },
+  { header: "Fecha Fin", accessor: (r) => r.fechaFin ? new Date(r.fechaFin).toLocaleDateString("es-MX") : "" },
+  { header: "Fecha Registro", accessor: (r) => r.createdAt ? new Date(r.createdAt).toLocaleDateString("es-MX") : "" },
+];
 
 export default function CreditosPage() {
   const router = useRouter();
@@ -226,7 +246,15 @@ export default function CreditosPage() {
               </select>
             </div>
           </div>
-          <Button onClick={handleCreate}>+ Nuevo Crédito</Button>
+          <div className="flex items-center gap-2">
+            <ExportButton<CreditoConDetalles>
+              datos={filteredCreditos}
+              columnas={COLUMNAS_CREDITOS_CSV}
+              nombreArchivo="creditos"
+              label="Exportar CSV"
+            />
+            <Button onClick={handleCreate}>+ Nuevo Crédito</Button>
+          </div>
         </div>
       </Card>
 

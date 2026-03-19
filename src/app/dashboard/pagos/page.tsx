@@ -8,6 +8,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import type { Pago, Credito, Cliente, DetallePagoMixto } from "@/types";
 import { Printer } from "lucide-react";
+import { ExportButton } from "@/components/ui/ExportButton";
+import type { ColumnaExport } from "@/hooks/useExportCSV";
 import { generarTicketPagoCredito, abrirReporte } from "@/lib/utils/reportes";
 
 interface PagoConDetalles extends Pago {
@@ -16,6 +18,18 @@ interface PagoConDetalles extends Pago {
   creditoMonto?: number;
   creditoFolio?: string;
 }
+
+const COLUMNAS_PAGOS_CSV: ColumnaExport<PagoConDetalles>[] = [
+  { header: "ID Pago", accessor: (r) => r.id },
+  { header: "Folio Crédito", accessor: (r) => r.creditoFolio ?? r.creditoId },
+  { header: "Cliente", accessor: (r) => [r.clienteNombre, r.clienteApellido].filter(Boolean).join(" ") },
+  { header: "Monto ($)", accessor: (r) => Number(r.monto).toFixed(2) },
+  { header: "Fecha Pago", accessor: (r) => r.fechaPago ? new Date(r.fechaPago).toLocaleDateString("es-MX") : "" },
+  { header: "Método Pago", accessor: "metodoPago" },
+  { header: "Referencia", accessor: (r) => r.referencia ?? "" },
+  { header: "Payjoy TX ID", accessor: (r) => r.payjoyTransactionId ?? "" },
+  { header: "Fecha Registro", accessor: (r) => r.createdAt ? new Date(r.createdAt).toLocaleDateString("es-MX") : "" },
+];
 
 export default function PagosPage() {
   const [pagos, setPagos] = useState<PagoConDetalles[]>([]);
@@ -132,10 +146,16 @@ export default function PagosPage() {
           <div className="w-full sm:w-96">
             <Input type="date" label="Filtrar por fecha" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} />
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {searchDate && (
               <Button variant="secondary" onClick={() => setSearchDate("")}>Limpiar Filtro</Button>
             )}
+            <ExportButton<PagoConDetalles>
+              datos={filteredPagos}
+              columnas={COLUMNAS_PAGOS_CSV}
+              nombreArchivo="pagos"
+              label="Exportar CSV"
+            />
             <Button onClick={handleCreate}>+ Registrar Pago</Button>
           </div>
         </div>
