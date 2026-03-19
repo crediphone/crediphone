@@ -165,9 +165,10 @@ const navGroups: NavGroup[] = [
   {
     label: "REPORTES",
     items: [
-      { href: "/dashboard/reportes",            label: "Reportes",    icon: FileBarChart,    roles: ["admin", "super_admin"],  moduleKey: "reportes" },
-      { href: "/dashboard/reportes/comisiones", label: "Comisiones",  icon: BadgeDollarSign, roles: ["admin", "super_admin"],  moduleKey: "reportes" },
-      { href: "/dashboard/facturacion",         label: "Facturación", icon: Receipt,         roles: ["admin", "super_admin"],  moduleKey: "reportes" },
+      { href: "/dashboard/reportes",            label: "Reportes",      icon: FileBarChart,    roles: ["admin", "super_admin"],  moduleKey: "reportes" },
+      { href: "/dashboard/reportes/comisiones", label: "Comisiones",    icon: BadgeDollarSign, roles: ["admin", "super_admin"],  moduleKey: "reportes" },
+      { href: "/dashboard/facturacion",         label: "Facturación",   icon: Receipt,         roles: ["admin", "super_admin"],  moduleKey: "reportes" },
+      { href: "/dashboard/promociones",         label: "Promociones",   icon: Tag,             roles: ["admin", "super_admin"],  moduleKey: "reportes" },
     ],
   },
 

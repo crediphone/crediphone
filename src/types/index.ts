@@ -1484,3 +1484,24 @@ export type OrdenCompraFormData = Omit<
 > & {
   items: Omit<OrdenCompraItem, "id" | "ordenCompraId" | "subtotal" | "createdAt" | "updatedAt">[];
 };
+
+// =====================================================
+// FASE 35: Centro de Promociones
+// =====================================================
+
+export interface Promocion {
+  id: string;
+  distribuidorId?: string;
+  titulo: string;
+  descripcion?: string;
+  imagenUrl?: string;
+  precioNormal?: number;
+  precioPromocion?: number;
+  categoria: "accesorios" | "combos" | "celulares" | "servicios" | "general";
+  activa: boolean;
+  fechaInicio?: Date;
+  fechaFin?: Date;
+  createdBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
