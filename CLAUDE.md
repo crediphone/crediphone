@@ -473,9 +473,9 @@ await supabase.from("users").insert({ id: userId, ...datos, distribuidor_id });
 - FASE 39: Control de descuentos con autorización — tablas `limites_autorizacion` + `log_autorizaciones`, zonas 0-5%/6-15%/>15%, aprobación remota admin vía push + link WhatsApp, descuentos en % y monto fijo
 - FASE 40: Reporte Z con conteo ciego + Reporte X — conteo por denominaciones, fondo fijo, Pay In/Out, tolerancia de descuadre, alerta admin, historial 1 año
 
-#### Caja avanzada y reparaciones (FASES 41-43 parcial)
-- FASE 41: Bolsa virtual de reparaciones en caja — anticipos en sesión activa desglosados, banner anticipos sin sesión para admin ⚠️ PENDIENTE: tab "Reparaciones" en POS para que vendedor cobre desde ahí
-- FASE 42: Sidebar acordeones colapsables, reorganización 7 grupos ⚠️ PENDIENTE: tabla `lotes_piezas` + recepción/verificación de lotes de piezas de proveedor
+#### Caja avanzada y reparaciones (FASES 41-43)
+- FASE 41: Bolsa virtual de reparaciones en caja + Tab "Reparaciones" en POS — vendedor busca por folio/cliente/teléfono, registra anticipo o cobra saldo final, auto-estado "entregado" cuando saldo=$0
+- FASE 42: Sidebar acordeones colapsables, reorganización 7 grupos + Sistema Lotes de Piezas — tabla `lotes_piezas` + `lotes_piezas_items`, recepción/verificación de lotes de proveedor, distribución de costo de envío entre órdenes
 - FASE 43: Aging report + tasa de mora real en cartera vencida
 
 #### Dashboard, reportes y comunicación (FASES 44-53)
@@ -489,22 +489,6 @@ await supabase.from("users").insert({ id: userId, ...datos, distribuidor_id });
 - FASE 51: Sidebar reordenado por prioridad de negocio en 8 grupos funcionales
 - FASE 52: Liquid Glass en íconos del sidebar (backdrop-filter, glow activo)
 - FASE 53: Dashboard Ejecutivo Persistente — Command Center para admin/super_admin (KPIs, OrdenesWidget, AccionesRápidas, ActivityStream, auto-refresh 3min)
-
----
-
-### ⚠️ Fases PARCIALMENTE implementadas (tienen código pero les falta algo):
-
-#### FASE 41 — Reparaciones en POS (pendiente el tab)
-- ✅ Bolsa virtual en caja (anticipos desglosados por sesión)
-- ✅ Banner anticipos sin sesión para admin
-- ❌ FALTA: Tab "Reparaciones" en POS — buscador por folio/cliente/teléfono, bolsa virtual visual, registrar anticipo o cobrar saldo final desde POS, auto-estado "entregado" cuando saldo=$0
-- **Quién cobra:** el VENDEDOR desde POS
-
-#### FASE 42 — Gestión de lotes de piezas (pendiente la tabla y UI)
-- ✅ Bolsa virtual en caja con anticipos desglosados
-- ✅ Vinculación de piezas a órdenes (parcial)
-- ❌ FALTA: Tabla `lotes_piezas` (no creada en BD) — recepción de pedidos de proveedor, verificación de lote vs pedido, distribución costo de envío entre órdenes
-- **Urgente:** Sí — sin esto no se rastrea origen de piezas
 
 ---
 
@@ -523,6 +507,8 @@ await supabase.from("users").insert({ id: userId, ...datos, distribuidor_id });
 - Centro de Promociones con opt-in WhatsApp presencial
 - Dashboard Ejecutivo con auto-refresh + OrdenDrawer integrado
 - Descuentos con aprobación remota admin (>15% bloquea POS hasta respuesta)
+- Tab Reparaciones en POS: vendedor cobra anticipos/saldo final sin salir del POS, auto-entrega al saldo=$0
+- Lotes de Piezas: rastreo completo de pedidos a proveedor, verificación ítem a ítem, distribución proporcional de costo de envío
 
 ---
 
