@@ -1505,3 +1505,50 @@ export interface Promocion {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// =====================================================
+// FASE 42: Lotes de Piezas — Gestión de compras con distribución de envío
+// =====================================================
+
+export type EstadoLotePiezas = "pedido" | "en_camino" | "recibido" | "verificado" | "cancelado";
+export type EstadoLotePiezasItem = "pendiente" | "recibido_ok" | "recibido_danado" | "faltante";
+
+export interface LotePiezasItem {
+  id: string;
+  loteId: string;
+  reparacionId?: string;
+  descripcion: string;
+  cantidadPedida: number;
+  cantidadRecibida?: number;
+  costoUnitario?: number;
+  estadoItem: EstadoLotePiezasItem;
+  notas?: string;
+  createdAt: Date;
+}
+
+export interface LotePiezas {
+  id: string;
+  distribuidorId: string;
+  proveedor: string;
+  numeroPedido?: string;
+  fechaPedido: Date;
+  fechaEstimadaLlegada?: Date;
+  fechaLlegada?: Date;
+  costoEnvioTotal: number;
+  estado: EstadoLotePiezas;
+  notas?: string;
+  recibidoPor?: string;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Relations
+  items?: LotePiezasItem[];
+  cantidadItems?: number;
+}
+
+export type LotePiezasFormData = Omit<
+  LotePiezas,
+  "id" | "distribuidorId" | "createdBy" | "createdAt" | "updatedAt" | "items" | "cantidadItems" | "recibidoPor"
+> & {
+  items?: Omit<LotePiezasItem, "id" | "loteId" | "createdAt">[];
+};

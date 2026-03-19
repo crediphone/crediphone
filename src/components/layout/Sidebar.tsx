@@ -147,6 +147,13 @@ const navGroups: NavGroup[] = [
         moduleKey: "inventario_avanzado",
       },
       {
+        href: "/dashboard/lotes-piezas",
+        label: "Lotes de Piezas",
+        icon: Package,
+        roles: ["admin", "super_admin"],
+        moduleKey: "inventario_avanzado",
+      },
+      {
         kind: "accordion",
         label: "Stock y Ubicaciones",
         icon: Warehouse,
