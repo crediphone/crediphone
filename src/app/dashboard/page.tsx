@@ -12,6 +12,10 @@ import { OrdenDrawer } from "@/components/reparaciones/drawer/OrdenDrawer";
 import { PanelTraspasosPendientes } from "@/components/reparaciones/traspasos/PanelTraspasosPendientes";
 import { PanelConfirmacionesDeposito } from "@/components/reparaciones/confirmaciones/PanelConfirmacionesDeposito";
 import { PanelAutorizacionesPendientes } from "@/components/autorizaciones/PanelAutorizacionesPendientes";
+// FASE 44: Dashboards especializados por rol
+import { CobradorDashboard } from "@/components/dashboard/CobradorDashboard";
+import { TecnicoDashboard } from "@/components/dashboard/TecnicoDashboard";
+import { VendedorDashboard } from "@/components/dashboard/VendedorDashboard";
 import type { DashboardStats as RepDashboardStats } from "@/lib/db/reparaciones-dashboard";
 import type { OrdenReparacionDetallada } from "@/types";
 
@@ -232,6 +236,32 @@ export default function DashboardPage() {
     { key: "listo",      label: "Listo",        color: "var(--color-success)" },
   ].filter((e) => (repPorEstado[e.key] || 0) > 0);
 
+  // FASE 44: Enrutar a dashboard especializado según el rol
+  if (!user) {
+    // Mientras se carga el usuario, mostrar skeleton mínimo
+    return (
+      <div className="p-6 lg:p-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 w-56 rounded-xl" style={{ background: "var(--color-bg-surface)" }} />
+          <div className="h-4 w-80 rounded" style={{ background: "var(--color-bg-surface)" }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (user.role === "cobrador") {
+    return <CobradorDashboard />;
+  }
+
+  if (user.role === "tecnico") {
+    return <TecnicoDashboard />;
+  }
+
+  if (user.role === "vendedor") {
+    return <VendedorDashboard />;
+  }
+
+  // admin y super_admin → dashboard completo (continúa abajo)
   return (
     <div className="p-6 lg:p-8 pb-24">
       {/* Header */}
@@ -592,8 +622,8 @@ export default function DashboardPage() {
               <ActionLink href="/dashboard/pagos" icon="payment" label="Registrar Pago" iconColor="var(--color-success)" />
             )}
 
-            {/* Recordatorios */}
-            {user && user.role !== "tecnico" && (
+            {/* Recordatorios — visible para admin/super_admin (técnico/cobrador/vendedor tienen su propio dashboard) */}
+            {user && (
               <ActionLink href="/dashboard/recordatorios" icon="bell" label="Recordatorios">
                 {(stats?.creditosConMora || 0) > 0 && (
                   <span
