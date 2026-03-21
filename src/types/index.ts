@@ -1621,3 +1621,36 @@ export interface EstadisticasAsistencia {
     estadoActual: "presente" | "ausente";
   }[];
 }
+
+// ─── FASE 61: Kits y bundles ────────────────────────────────────────────────────
+
+export interface KitItem {
+  id:          string;
+  kitId:       string;
+  productoId:  string;
+  cantidad:    number;
+  // Relación opcional
+  producto?:   Producto;
+}
+
+export interface Kit {
+  id:             string;
+  distribuidorId: string;
+  nombre:         string;
+  descripcion?:   string;
+  precio:         number;
+  activo:         boolean;
+  imagen?:        string;
+  createdAt:      Date;
+  updatedAt:      Date;
+  // Relación
+  items?:         KitItem[];
+}
+
+export interface NuevoKitFormData {
+  nombre:        string;
+  descripcion?:  string;
+  precio:        number;
+  imagen?:       string;
+  items:         { productoId: string; cantidad: number }[];
+}

@@ -5,13 +5,19 @@ import { Button } from "@/components/ui/Button";
 import type { Producto } from "@/types";
 
 export interface CartItem {
-  // ── Producto (cuando esServicio = false/undefined) ─────────────────────────
+  // ── Producto (cuando esServicio = false/undefined y esKit = false/undefined) ─
   producto?: Producto;
 
   // ── Servicio (cuando esServicio = true) ────────────────────────────────────
   esServicio?: boolean;
   servicioId?: string;      // ID real del servicio en DB
   servicioNombre?: string;  // snapshot del nombre
+
+  // ── Kit / Bundle (FASE 61) ─────────────────────────────────────────────────
+  esKit?: boolean;
+  kitId?: string;
+  kitNombre?: string;
+  kitItems?: { productoId: string; nombre: string; marca: string; cantidad: number; stock: number }[];
 
   // ── Común ──────────────────────────────────────────────────────────────────
   cantidad: number;
@@ -23,7 +29,9 @@ export interface CartItem {
 
 /** Devuelve el identificador único del slot en el carrito */
 function getItemKey(item: CartItem): string {
-  return item.esServicio ? `svc_${item.servicioId}` : (item.producto?.id ?? "");
+  if (item.esKit)      return `kit_${item.kitId}`;
+  if (item.esServicio) return `svc_${item.servicioId}`;
+  return item.producto?.id ?? "";
 }
 
 interface ShoppingCartProps {
@@ -101,13 +109,17 @@ export function ShoppingCart({
       <div className="max-h-96 overflow-y-auto">
         {items.map((item) => {
           const key = getItemKey(item);
-          const maxCantidad = item.esServicio ? Infinity : (item.producto?.stock ?? 0);
-          const displayNombre = item.esServicio
-            ? (item.servicioNombre ?? "Servicio")
-            : (item.producto?.nombre ?? "");
-          const displaySub = item.esServicio
+          const maxCantidad = (item.esServicio || item.esKit) ? Infinity : (item.producto?.stock ?? 0);
+          const displayNombre = item.esKit
+            ? (item.kitNombre ?? "Kit")
+            : item.esServicio
+              ? (item.servicioNombre ?? "Servicio")
+              : (item.producto?.nombre ?? "");
+          const displaySub = item.esKit
             ? null
-            : `${item.producto?.marca ?? ""} ${item.producto?.modelo ?? ""}`.trim();
+            : item.esServicio
+              ? null
+              : `${item.producto?.marca ?? ""} ${item.producto?.modelo ?? ""}`.trim();
 
           return (
             <div
@@ -124,6 +136,11 @@ export function ShoppingCart({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
+                    {item.esKit && (
+                      <span style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", background: "var(--color-accent-light)", color: "var(--color-accent)", borderRadius: "9999px", fontWeight: 700, flexShrink: 0 }}>
+                        KIT
+                      </span>
+                    )}
                     {item.esServicio && (
                       <Wrench className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
                     )}
@@ -135,6 +152,15 @@ export function ShoppingCart({
                     <p className="text-sm truncate" style={{ color: "var(--color-text-secondary)" }}>
                       {displaySub}
                     </p>
+                  )}
+                  {item.esKit && item.kitItems && item.kitItems.length > 0 && (
+                    <div style={{ marginTop: "0.25rem" }}>
+                      {item.kitItems.map((ki, idx) => (
+                        <p key={idx} className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                          · {ki.nombre} ×{ki.cantidad}
+                        </p>
+                      ))}
+                    </div>
                   )}
                   {item.esServicio && (
                     <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>

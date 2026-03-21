@@ -8,13 +8,14 @@ import { ProductCategoryGrid } from "@/components/pos/ProductCategoryGrid";
 import { ShoppingCart, CartItem } from "@/components/pos/ShoppingCart";
 import { ServiciosPOSPanel, ServicioPOSItem } from "@/components/pos/ServiciosPOSPanel";
 import { ReparacionesPOSPanel } from "@/components/pos/ReparacionesPOSPanel";
+import { KitsPOSPanel } from "@/components/pos/KitsPOSPanel";
 import { PaymentMethodSelector } from "@/components/pos/PaymentMethodSelector";
 import { ReciboModal } from "@/components/pos/ReciboModal";
 import { DescuentoPOS } from "@/components/pos/DescuentoPOS";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Wrench } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Wrench, Package2 } from "lucide-react";
 import { generarReporteX, abrirReporte } from "@/lib/utils/reportes";
 import type {
   Producto,
@@ -80,8 +81,8 @@ export default function POSPage() {
   // Estadísticas
   const [stats, setStats] = useState<EstadisticasPOS | null>(null);
 
-  // FASE 36/41: Sección activa del panel izquierdo (Productos / Servicios / Reparaciones)
-  const [posSection, setPosSection] = useState<"productos" | "servicios" | "reparaciones">("productos");
+  // FASE 36/41/61: Sección activa del panel izquierdo
+  const [posSection, setPosSection] = useState<"productos" | "servicios" | "reparaciones" | "kits">("productos");
 
   // FASE 29: modo dual Standard / Visual
   const [posMode, setPosMode] = useState<"standard" | "visual">(() => {
@@ -306,6 +307,22 @@ export default function POSPage() {
     setCartItems([...cartItems, newItem]);
   };
 
+  // FASE 61: Agregar un kit al carrito
+  const handleAgregarKit = (kitItem: CartItem) => {
+    if (!kitItem.esKit || !kitItem.kitId) return;
+    // Si ya está en el carrito, incrementar cantidad
+    const existingIdx = cartItems.findIndex((i) => i.esKit && i.kitId === kitItem.kitId);
+    if (existingIdx >= 0) {
+      const newItems = [...cartItems];
+      newItems[existingIdx].cantidad += 1;
+      newItems[existingIdx].subtotal =
+        newItems[existingIdx].cantidad * newItems[existingIdx].precioUnitario;
+      setCartItems(newItems);
+      return;
+    }
+    setCartItems([...cartItems, kitItem]);
+  };
+
   const handleClearCart = () => {
     if (confirm("¿Limpiar carrito?")) {
       setCartItems([]);
@@ -345,12 +362,27 @@ export default function POSPage() {
     setProcessingVenta(true);
 
     try {
-      const ventaFormData: NuevaVentaFormData = {
-        clienteId: clienteSeleccionado?.id,
-        items: cartItems.map((item) => ({
+      // FASE 61: Expandir kits en sus items componentes para ventas_items
+      const itemsExpandidos = cartItems.flatMap((item) => {
+        if (item.esKit && item.kitItems && item.kitItems.length > 0) {
+          // Distribuir el precio del kit proporcionalmente entre sus items
+          // Precio unitario por kit × cantidad de kits, distribuido proporcionalmente
+          // Por simplicidad: cada item lleva precio = 0 excepto el primero que lleva el total
+          return item.kitItems.map((ki, idx) => ({
+            productoId:    ki.productoId,
+            servicioId:    undefined,
+            servicioNombre: undefined,
+            esServicio:    false,
+            cantidad:      ki.cantidad * item.cantidad,
+            precioUnitario: idx === 0 ? item.precioUnitario : 0, // precio completo en el primer item
+            imei:          undefined,
+            notas:         `Kit: ${item.kitNombre}`,
+          }));
+        }
+        return [{
           productoId: item.esServicio ? undefined : item.producto?.id,
           servicioId: item.esServicio
-            ? item.servicioId?.replace(/^svc_/, "").replace(/_\d+$/, "") // strip cart prefix/suffix
+            ? item.servicioId?.replace(/^svc_/, "").replace(/_\d+$/, "")
             : undefined,
           servicioNombre: item.esServicio ? item.servicioNombre : undefined,
           esServicio: item.esServicio,
@@ -358,7 +390,12 @@ export default function POSPage() {
           precioUnitario: item.precioUnitario,
           imei: item.imei,
           notas: item.notas,
-        })),
+        }];
+      });
+
+      const ventaFormData: NuevaVentaFormData = {
+        clienteId: clienteSeleccionado?.id,
+        items: itemsExpandidos,
         descuento,
         metodoPago: paymentData.metodoPago,
         desgloseMixto: paymentData.desgloseMixto,
@@ -1096,9 +1133,10 @@ export default function POSPage() {
             }}
           >
             {[
-              { id: "productos" as const, icon: <LayoutGrid className="w-3.5 h-3.5" />, label: "Productos" },
-              { id: "servicios" as const, icon: <Wrench className="w-3.5 h-3.5" />, label: "Servicios" },
-              { id: "reparaciones" as const, icon: <FileText className="w-3.5 h-3.5" />, label: "Cobrar Rep." },
+              { id: "productos"    as const, icon: <LayoutGrid className="w-3.5 h-3.5" />, label: "Productos"   },
+              { id: "servicios"    as const, icon: <Wrench     className="w-3.5 h-3.5" />, label: "Servicios"   },
+              { id: "kits"         as const, icon: <Package2   className="w-3.5 h-3.5" />, label: "Kits"        },
+              { id: "reparaciones" as const, icon: <FileText   className="w-3.5 h-3.5" />, label: "Cobrar Rep." },
             ].map(({ id, icon, label }) => (
               <button
                 key={id}
@@ -1141,6 +1179,9 @@ export default function POSPage() {
           ) : posSection === "servicios" ? (
             /* FASE 36: Panel de Servicios */
             <ServiciosPOSPanel onAgregarServicio={handleAgregarServicio} />
+          ) : posSection === "kits" ? (
+            /* FASE 61: Panel de Kits y bundles */
+            <KitsPOSPanel onAgregarKit={handleAgregarKit} />
           ) : (
             /* FASE 41: Panel de cobro de Reparaciones desde POS */
             <ReparacionesPOSPanel />
