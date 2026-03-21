@@ -1,13 +1,7 @@
 "use client";
 
-import { useState as useStateLocal, Suspense } from "react";
-import dynamic from "next/dynamic";
-
-// Carga dinámica del widget para no bloquear el render del sidebar
-const WidgetChecador = dynamic(
-  () => import("@/components/asistencia/WidgetChecador").then((m) => ({ default: m.WidgetChecador })),
-  { ssr: false, loading: () => null }
-);
+import { useState as useStateLocal } from "react";
+import { WidgetChecador } from "@/components/asistencia/WidgetChecador";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -727,9 +721,7 @@ export function Sidebar({ isOpen, onClose, userRole, userName, onLogout }: Sideb
 
             {/* FASE 55: Widget Reloj Checador — visible para todos los empleados */}
             <div className="px-3 pb-3">
-              <Suspense fallback={null}>
-                <WidgetChecador />
-              </Suspense>
+              <WidgetChecador />
             </div>
           </div>
         )}
