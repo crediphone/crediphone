@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -10,10 +10,12 @@ import type { Producto } from "@/types";
 import ImportRemisionModal from "@/components/productos/ImportRemisionModal";
 import { BarcodeScanner } from "@/components/inventario/BarcodeScanner";
 import { useDistribuidor } from "@/components/DistribuidorProvider";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Package, PackageCheck, AlertTriangle, TrendingUp,
   Pencil, Trash2, Search, Plus, Upload, Smartphone, Tag, RefreshCw, QrCode,
   History, ShoppingCart, Wrench, Warehouse, ChevronRight,
+  Printer, Minus as MinusIcon, Plus as PlusIcon,
 } from "lucide-react";
 import type { CSSProperties } from "react";
 
@@ -52,6 +54,7 @@ export default function ProductosPage() {
   const [productoToDelete, setProductoToDelete] = useState<Producto | null>(null);
   const [importRemisionOpen, setImportRemisionOpen]   = useState(false);
   const [imeiModalOpen, setImeiModalOpen]             = useState(false); // FASE 58
+  const [etiquetaProducto, setEtiquetaProducto]       = useState<Producto | null>(null); // FASE 60
 
   useEffect(() => { fetchProductos(); }, []);
 
@@ -269,6 +272,7 @@ export default function ProductosPage() {
                       fmt={fmt}
                       onEdit={() => handleEdit(producto)}
                       onDelete={() => handleDeleteClick(producto)}
+                      onPrint={() => setEtiquetaProducto(producto)}
                     />
                   ))}
                 </tbody>
@@ -330,6 +334,9 @@ export default function ProductosPage() {
 
       {/* FASE 58: Modal de Historial IMEI */}
       <HistorialImeiModal isOpen={imeiModalOpen} onClose={() => setImeiModalOpen(false)} />
+
+      {/* FASE 60: Modal de Etiqueta Imprimible */}
+      <EtiquetaModal producto={etiquetaProducto} onClose={() => setEtiquetaProducto(null)} />
     </div>
   );
 }
@@ -400,8 +407,8 @@ function StatCard({
 
 // ─── Producto Row ─────────────────────────────────────────────────────────────
 
-function ProductoRow({ producto, fmt, onEdit, onDelete }: {
-  producto: Producto; fmt: (n: number) => string; onEdit: () => void; onDelete: () => void;
+function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint }: {
+  producto: Producto; fmt: (n: number) => string; onEdit: () => void; onDelete: () => void; onPrint: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const bajo = producto.stockMinimo !== undefined && producto.stock <= producto.stockMinimo && producto.stock > 0;
@@ -525,6 +532,16 @@ function ProductoRow({ producto, fmt, onEdit, onDelete }: {
       {/* Acciones */}
       <td className="px-4 py-3 whitespace-nowrap text-right">
         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={onPrint}
+            className="p-1.5 rounded-lg transition-colors"
+            title="Imprimir etiqueta"
+            style={{ color: "var(--color-text-muted)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <Printer className="w-4 h-4" />
+          </button>
           <button
             onClick={onEdit}
             className="p-1.5 rounded-lg transition-colors"
@@ -1061,6 +1078,297 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
         </Button>
       </div>
     </form>
+  );
+}
+
+// ─── Etiqueta Imprimible (FASE 60) ─────────────────────────────────────────────
+
+type TamanoEtiqueta = "50x30" | "70x40" | "100x50";
+
+const TAMANOS: { id: TamanoEtiqueta; label: string; width: number; height: number }[] = [
+  { id: "50x30",  label: "50 × 30 mm",  width: 188, height: 113 },
+  { id: "70x40",  label: "70 × 40 mm",  width: 264, height: 151 },
+  { id: "100x50", label: "100 × 50 mm", width: 378, height: 189 },
+];
+
+function EtiquetaModal({
+  producto,
+  onClose,
+}: {
+  producto: Producto | null;
+  onClose: () => void;
+}) {
+  const [tamano, setTamano]     = useState<TamanoEtiqueta>("70x40");
+  const [cantidad, setCantidad] = useState(1);
+  const [mostrarPrecio, setMostrarPrecio]  = useState(true);
+  const [mostrarIMEI, setMostrarIMEI]      = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const cfg = TAMANOS.find((t) => t.id === tamano) ?? TAMANOS[1];
+
+  function imprimir() {
+    const contenido = printRef.current?.innerHTML ?? "";
+    const ventana = window.open("", "_blank", "width=800,height=600");
+    if (!ventana) return;
+    ventana.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Etiqueta — ${producto?.nombre ?? ""}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; background: white; }
+            @media print {
+              @page { margin: 4mm; size: ${cfg.id === "50x30" ? "50mm 30mm" : cfg.id === "70x40" ? "70mm 40mm" : "100mm 50mm"}; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+            .etiqueta-grid { display: flex; flex-wrap: wrap; gap: 3mm; }
+            .etiqueta {
+              width: ${cfg.id === "50x30" ? "50mm" : cfg.id === "70x40" ? "70mm" : "100mm"};
+              height: ${cfg.id === "50x30" ? "30mm" : cfg.id === "70x40" ? "40mm" : "50mm"};
+              border: 0.5pt solid #ddd;
+              border-radius: 2mm;
+              padding: 2mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              overflow: hidden;
+              page-break-inside: avoid;
+            }
+            .etiqueta-top { flex: 1; }
+            .nombre { font-size: ${cfg.id === "50x30" ? "5pt" : cfg.id === "70x40" ? "6pt" : "8pt"}; font-weight: 700; line-height: 1.3; }
+            .marca-modelo { font-size: ${cfg.id === "50x30" ? "4pt" : cfg.id === "70x40" ? "4.5pt" : "6pt"}; color: #666; margin-top: 0.5mm; }
+            .etiqueta-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 2mm; }
+            .precio { font-size: ${cfg.id === "50x30" ? "9pt" : cfg.id === "70x40" ? "11pt" : "15pt"}; font-weight: 900; letter-spacing: -0.5pt; }
+            .qr-wrap svg { display: block; }
+            .codigo-text { font-size: 4pt; font-family: 'Courier New', monospace; letter-spacing: 0.5pt; color: #555; margin-top: 0.5mm; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="etiqueta-grid">${contenido}</div>
+          <script>window.onload = () => { window.print(); }<\/script>
+        </body>
+      </html>
+    `);
+    ventana.document.close();
+  }
+
+  if (!producto) return null;
+
+  const nombre       = producto.nombre ?? "";
+  const marcaModelo  = [producto.marca, producto.modelo].filter(Boolean).join(" · ");
+  const precio       = Number(producto.precio ?? 0);
+  const codigo       = producto.codigoBarras ?? producto.id.slice(-8).toUpperCase();
+  const imei         = producto.imei;
+
+  // Etiqueta individual (se repite cantidad veces)
+  const etiquetaStyle: CSSProperties = {
+    width: cfg.width,
+    height: cfg.height,
+    border: "1px solid var(--color-border)",
+    borderRadius: 6,
+    padding: "8px 10px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    background: "#fff",
+    fontFamily: "'Helvetica Neue', Arial, sans-serif",
+    overflow: "hidden",
+    flexShrink: 0,
+  };
+
+  const nombreSize   = cfg.id === "50x30" ? "0.5rem" : cfg.id === "70x40" ? "0.625rem" : "0.8125rem";
+  const marcaSize    = cfg.id === "50x30" ? "0.4rem"  : cfg.id === "70x40" ? "0.5rem"  : "0.625rem";
+  const precioSize   = cfg.id === "50x30" ? "1.1rem"  : cfg.id === "70x40" ? "1.35rem" : "1.75rem";
+  const qrSize       = cfg.id === "50x30" ? 36        : cfg.id === "70x40" ? 48        : 64;
+
+  const EtiquetaEl = () => (
+    <div style={etiquetaStyle}>
+      <div>
+        <div style={{ fontSize: nombreSize, fontWeight: 700, lineHeight: 1.3, color: "#111", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+          {nombre}
+        </div>
+        {marcaModelo && (
+          <div style={{ fontSize: marcaSize, color: "#666", marginTop: 2 }}>
+            {marcaModelo}
+          </div>
+        )}
+        {mostrarIMEI && imei && (
+          <div style={{ fontSize: marcaSize, color: "#888", fontFamily: "monospace", marginTop: 1 }}>
+            IMEI: {imei}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
+        {mostrarPrecio && (
+          <div style={{ fontSize: precioSize, fontWeight: 900, color: "#0d1e35", lineHeight: 1, letterSpacing: "-0.5px" }}>
+            ${precio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+          </div>
+        )}
+        <div style={{ textAlign: "center", flexShrink: 0 }}>
+          <QRCodeSVG value={codigo} size={qrSize} level="M" />
+          <div style={{ fontSize: "0.375rem", fontFamily: "monospace", letterSpacing: "0.3px", color: "#666", marginTop: 2 }}>
+            {codigo}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal isOpen={!!producto} onClose={onClose} title="Imprimir Etiqueta" size="lg">
+      <div className="space-y-5">
+
+        {/* Opciones */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          {/* Tamaño */}
+          <div>
+            <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+              Tamaño de etiqueta
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+              {TAMANOS.map((t) => (
+                <label key={t.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="tamano"
+                    checked={tamano === t.id}
+                    onChange={() => setTamano(t.id)}
+                    style={{ accentColor: "var(--color-accent)" }}
+                  />
+                  <span style={{ fontSize: "0.875rem", color: "var(--color-text-primary)" }}>{t.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Opciones de contenido */}
+          <div>
+            <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+              Contenido
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={mostrarPrecio} onChange={(e) => setMostrarPrecio(e.target.checked)} style={{ accentColor: "var(--color-accent)" }} />
+                <span style={{ fontSize: "0.875rem", color: "var(--color-text-primary)" }}>Mostrar precio</span>
+              </label>
+              {imei && (
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input type="checkbox" checked={mostrarIMEI} onChange={(e) => setMostrarIMEI(e.target.checked)} style={{ accentColor: "var(--color-accent)" }} />
+                  <span style={{ fontSize: "0.875rem", color: "var(--color-text-primary)" }}>Mostrar IMEI</span>
+                </label>
+              )}
+            </div>
+
+            {/* Cantidad */}
+            <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-text-secondary)", marginTop: "1rem", marginBottom: "0.5rem" }}>
+              Copias
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <button
+                onClick={() => setCantidad((c) => Math.max(1, c - 1))}
+                style={{
+                  width: 32, height: 32, borderRadius: "var(--radius-md)",
+                  background: "var(--color-bg-elevated)",
+                  border: "1px solid var(--color-border)",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                <MinusIcon className="w-3.5 h-3.5" />
+              </button>
+              <span style={{ fontFamily: "var(--font-data)", fontWeight: 700, fontSize: "1.125rem", minWidth: 32, textAlign: "center", color: "var(--color-text-primary)" }}>
+                {cantidad}
+              </span>
+              <button
+                onClick={() => setCantidad((c) => Math.min(50, c + 1))}
+                style={{
+                  width: 32, height: 32, borderRadius: "var(--radius-md)",
+                  background: "var(--color-bg-elevated)",
+                  border: "1px solid var(--color-border)",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--color-text-primary)",
+                }}
+              >
+                <PlusIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Preview */}
+        <div>
+          <p style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Vista previa
+          </p>
+          <div style={{
+            background: "var(--color-bg-elevated)",
+            borderRadius: "var(--radius-lg)",
+            padding: "1.25rem",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: 120,
+          }}>
+            <EtiquetaEl />
+          </div>
+        </div>
+
+        {/* Contenido oculto para imprimir (se pasa como HTML string) */}
+        <div ref={printRef} style={{ display: "none" }}>
+          {Array.from({ length: cantidad }).map((_, i) => (
+            <div key={i} className="etiqueta" style={{
+              width: cfg.id === "50x30" ? "50mm" : cfg.id === "70x40" ? "70mm" : "100mm",
+              height: cfg.id === "50x30" ? "30mm" : cfg.id === "70x40" ? "40mm" : "50mm",
+              border: "0.5pt solid #ddd",
+              borderRadius: "2mm",
+              padding: "2mm",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              overflow: "hidden",
+              pageBreakInside: "avoid",
+              background: "#fff",
+              fontFamily: "'Helvetica Neue', Arial, sans-serif",
+            }}>
+              <div>
+                <div style={{ fontSize: cfg.id === "50x30" ? "5pt" : cfg.id === "70x40" ? "6pt" : "8pt", fontWeight: 700, lineHeight: 1.3 }}>
+                  {nombre}
+                </div>
+                {marcaModelo && <div style={{ fontSize: "4pt", color: "#666", marginTop: "0.5mm" }}>{marcaModelo}</div>}
+                {mostrarIMEI && imei && <div style={{ fontSize: "4pt", color: "#888", fontFamily: "monospace", marginTop: "0.5mm" }}>IMEI: {imei}</div>}
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "2mm" }}>
+                {mostrarPrecio && (
+                  <div style={{ fontSize: cfg.id === "50x30" ? "9pt" : cfg.id === "70x40" ? "11pt" : "15pt", fontWeight: 900 }}>
+                    ${precio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                  </div>
+                )}
+                <div style={{ textAlign: "center" }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=${cfg.id === "50x30" ? "60x60" : cfg.id === "70x40" ? "80x80" : "100x100"}&data=${encodeURIComponent(codigo)}&margin=0`}
+                    alt="QR"
+                    style={{ display: "block", width: cfg.id === "50x30" ? "8mm" : cfg.id === "70x40" ? "10mm" : "14mm" }}
+                  />
+                  <div style={{ fontSize: "4pt", fontFamily: "monospace", letterSpacing: "0.3pt", color: "#666", marginTop: "0.5mm" }}>
+                    {codigo}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Acciones */}
+        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", paddingTop: "0.5rem", borderTop: "1px solid var(--color-border-subtle)" }}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={imprimir}>
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimir {cantidad > 1 ? `${cantidad} copias` : ""}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
