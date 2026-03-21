@@ -1,6 +1,6 @@
 "use client";
 
-import { useState as useStateLocal } from "react";
+import { useState as useStateLocal, Suspense } from "react";
 import { WidgetChecador } from "@/components/asistencia/WidgetChecador";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -162,9 +162,10 @@ const navGroups: NavGroup[] = [
         roles: ["admin", "vendedor", "super_admin"],
         moduleKey: "inventario_avanzado",
         subItems: [
-          { href: "/dashboard/inventario/verificar",   label: "Verificar",     icon: ClipboardCheck, roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
-          { href: "/dashboard/inventario/ubicaciones", label: "Ubicaciones",   icon: Warehouse,      roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
-          { href: "/dashboard/inventario/alertas",     label: "Alertas Stock", icon: PackageX,       roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/verificar",      label: "Verificar",       icon: ClipboardCheck, roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/ubicaciones",  label: "Ubicaciones",     icon: Warehouse,      roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/alertas",      label: "Alertas Stock",   icon: PackageX,       roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/discrepancias",label: "Discrepancias",   icon: FileBarChart,   roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
         ],
       },
     ],
@@ -719,9 +720,11 @@ export function Sidebar({ isOpen, onClose, userRole, userName, onLogout }: Sideb
               </button>
             </div>
 
-            {/* FASE 55: Widget Reloj Checador — visible para todos los empleados */}
+            {/* FASE 55: Widget Reloj Checador — Suspense como boundary defensivo */}
             <div className="px-3 pb-3">
-              <WidgetChecador />
+              <Suspense fallback={null}>
+                <WidgetChecador />
+              </Suspense>
             </div>
           </div>
         )}
