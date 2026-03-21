@@ -860,32 +860,86 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
         </div>
       )}
 
+      {/* FASE 55: Código de barras con generación automática + escaneo por cámara */}
       <div className="space-y-3">
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <Input label="Código de Barras" name="codigoBarras" value={formData.codigoBarras} onChange={handleChange} placeholder="Escanea o ingresa el código" />
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
+            Código de Barras
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              name="codigoBarras"
+              value={formData.codigoBarras}
+              onChange={handleChange}
+              placeholder="Escanea, ingresa o genera el código"
+              className="flex-1 h-10 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+              style={{
+                background: "var(--color-bg-sunken)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-text-primary)",
+                fontFamily: "var(--font-mono)",
+                letterSpacing: "0.04em",
+              }}
+            />
+            {/* Botón Generar — visible solo si el campo está vacío */}
+            {!formData.codigoBarras && (
+              <button
+                type="button"
+                title="Generar código de barras interno"
+                onClick={() => {
+                  const now = new Date();
+                  const fecha = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+                  const aleatorio = Math.random().toString(36).slice(2, 7).toUpperCase();
+                  setFormData((prev) => ({ ...prev, codigoBarras: `CP-${fecha}-${aleatorio}` }));
+                }}
+                className="shrink-0 px-3 h-10 rounded-md text-xs font-semibold transition-colors"
+                style={{
+                  background: "var(--color-accent-light)",
+                  color: "var(--color-accent)",
+                  border: "1px solid var(--color-accent)44",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-accent)"; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-accent-light)"; (e.currentTarget as HTMLElement).style.color = "var(--color-accent)"; }}
+              >
+                Generar
+              </button>
+            )}
+            {/* Botón Limpiar — visible solo si el campo tiene valor */}
+            {formData.codigoBarras && (
+              <button
+                type="button"
+                title="Borrar código"
+                onClick={() => setFormData((prev) => ({ ...prev, codigoBarras: "" }))}
+                className="shrink-0 px-2 h-10 rounded-md text-xs transition-colors"
+                style={{ color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--color-danger)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--color-danger)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--color-text-muted)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"; }}
+              >
+                ✕
+              </button>
+            )}
+            {/* Botón abrir escáner de cámara */}
+            <button
+              type="button"
+              onClick={() => setShowScanner((v) => !v)}
+              title="Escanear código de barras con cámara"
+              className="shrink-0 p-2 h-10 rounded-md transition-colors"
+              style={{ border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-primary)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-secondary)"; }}
+            >
+              <QrCode className="w-5 h-5" />
+            </button>
           </div>
-          <div className="flex-1">
-            <Input label="SKU / Referencia" name="sku" value={formData.sku} onChange={handleChange} placeholder="SKU-001" />
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowScanner((v) => !v)}
-            title="Escanear código de barras con cámara"
-            className="mb-0.5 p-2 rounded-xl transition-colors"
-            style={{ border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)";
-              (e.currentTarget as HTMLElement).style.color = "var(--color-text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "var(--color-text-secondary)";
-            }}
-          >
-            <QrCode className="w-5 h-5" />
-          </button>
+          {/* Ayuda: indica si el código fue generado automáticamente */}
+          {formData.codigoBarras?.startsWith("CP-") && (
+            <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+              ✦ Código interno generado — compatible con escáneres Code 128 / QR
+            </p>
+          )}
         </div>
+
+        <Input label="SKU / Referencia" name="sku" value={formData.sku} onChange={handleChange} placeholder="SKU-001" />
 
         {showScanner && (
           <div className="p-4 rounded-xl" style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-border)" }}>
