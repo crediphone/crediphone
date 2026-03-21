@@ -620,6 +620,9 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
   const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
   const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
   const [showScanner, setShowScanner] = useState(false);
+  // FASE 54: sugerencias de marca y modelo para autocompletado
+  const [sugerenciasMarcas, setSugerenciasMarcas]   = useState<string[]>([]);
+  const [sugerenciasModelos, setSugerenciasModelos] = useState<string[]>([]);
 
   // FASE 53b: incluir X-Distribuidor-Id para que super_admin reciba las categorías del distribuidor activo
   useEffect(() => {
@@ -629,7 +632,25 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
     }
     fetch("/api/categorias", { headers }).then((r) => r.json()).then((d) => { if (d.success) setCategorias(d.data); }).catch(() => {});
     fetch("/api/proveedores", { headers }).then((r) => r.json()).then((d) => { if (d.success) setProveedores(d.data); }).catch(() => {});
+    // FASE 54: cargar marcas existentes al abrir el formulario
+    fetch("/api/productos/sugerencias?campo=marcas", { headers })
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setSugerenciasMarcas(d.data); })
+      .catch(() => {});
   }, [distribuidorActivo?.id]);
+
+  // FASE 54: cargar modelos cuando cambia la marca seleccionada
+  useEffect(() => {
+    if (!formData.marca.trim()) { setSugerenciasModelos([]); return; }
+    const headers: HeadersInit = {};
+    if (distribuidorActivo?.id) headers["X-Distribuidor-Id"] = distribuidorActivo.id;
+    const marca = encodeURIComponent(formData.marca.trim());
+    fetch(`/api/productos/sugerencias?campo=modelos&marca=${marca}`, { headers })
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setSugerenciasModelos(d.data); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.marca]);
 
   // FASE 53d: auto-marcar esSerializado cuando el tipo es equipo celular
   useEffect(() => {
@@ -709,9 +730,17 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
 
       <Input label="Nombre del Producto *" name="nombre" value={formData.nombre} onChange={handleChange} error={errors.nombre} placeholder="Samsung Galaxy A17" required />
 
+      {/* FASE 54: Autocompletado de marca y modelo desde productos existentes */}
+      <datalist id="dl-marcas">
+        {sugerenciasMarcas.map((m) => <option key={m} value={m} />)}
+      </datalist>
+      <datalist id="dl-modelos">
+        {sugerenciasModelos.map((m) => <option key={m} value={m} />)}
+      </datalist>
+
       <div className="grid grid-cols-2 gap-3">
-        <Input label="Marca *" name="marca" value={formData.marca} onChange={handleChange} error={errors.marca} placeholder="Samsung" required />
-        <Input label="Modelo *" name="modelo" value={formData.modelo} onChange={handleChange} error={errors.modelo} placeholder="A17 128GB" required />
+        <Input label="Marca *" name="marca" value={formData.marca} onChange={handleChange} error={errors.marca} placeholder="Samsung" required list="dl-marcas" autoComplete="off" />
+        <Input label="Modelo *" name="modelo" value={formData.modelo} onChange={handleChange} error={errors.modelo} placeholder="A17 128GB" required list="dl-modelos" autoComplete="off" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
