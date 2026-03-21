@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DollarSign,
@@ -29,6 +29,8 @@ interface Anticipo {
 interface ComponentePresupuestoProps {
   presupuestoTotal: number;
   anticipos: Anticipo[];
+  /** Precio sugerido del catálogo de servicios — pre-llena mano de obra */
+  defaultManoDeObra?: number;
   onChange: (data: {
     presupuestoTotal: number;
     anticipos: Anticipo[];
@@ -39,6 +41,7 @@ interface ComponentePresupuestoProps {
 export function ComponentePresupuesto({
   presupuestoTotal,
   anticipos,
+  defaultManoDeObra,
   onChange,
 }: ComponentePresupuestoProps) {
   const [mostrandoNuevoAnticipo, setMostrandoNuevoAnticipo] = useState(false);
@@ -47,7 +50,22 @@ export function ComponentePresupuesto({
     monto: 0,
   });
   const [piezas, setPiezas] = useState<PiezaCotizacion[]>([]);
-  const [manoDeObra, setManoDeObra] = useState<number>(0);
+  const [manoDeObra, setManoDeObra] = useState<number>(defaultManoDeObra ?? 0);
+
+  // Cuando cambia el precio sugerido del catálogo, pre-llenar si el usuario no ha tocado manualmente
+  const [manoDeObraManual, setManoDeObraManual] = useState(false);
+
+  useEffect(() => {
+    if (!manoDeObraManual && defaultManoDeObra !== undefined) {
+      setManoDeObra(defaultManoDeObra);
+      const nuevoTotal =
+        piezas.reduce((s: number, p: PiezaCotizacion) => s + p.precioTotal, 0) +
+        defaultManoDeObra;
+      onChange({ presupuestoTotal: nuevoTotal, anticipos, piezasCotizacion: piezas });
+    }
+    // Solo reaccionar cuando cambia defaultManoDeObra
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultManoDeObra]);
   const [modoManual, setModoManual] = useState(false); // true = usuario edita total manualmente
 
   // Total calculado desde piezas + mano de obra
@@ -71,6 +89,7 @@ export function ComponentePresupuesto({
 
   const handleManoDeObraChange = (valor: number) => {
     setManoDeObra(valor);
+    setManoDeObraManual(true); // El usuario tocó el campo → no sobrescribir con catálogo
     const nuevoTotal = totalPiezas + valor;
     if (!modoManual) {
       onChange({ presupuestoTotal: nuevoTotal, anticipos, piezasCotizacion: piezas });

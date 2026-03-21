@@ -4,6 +4,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSesionActiva } from "@/lib/db/caja";
 import type {
   OrdenReparacion,
   OrdenReparacionDetallada,
@@ -477,6 +478,11 @@ export async function createOrdenReparacion(
       insertData.precio_piezas = 0;
     }
 
+    // FASE 54-B: Referencia al catálogo de servicios (opcional)
+    if ((ordenData as any).catalogoServicioId) {
+      insertData.catalogo_servicio_id = (ordenData as any).catalogoServicioId;
+    }
+
     const { data, error } = await supabase
       .from("ordenes_reparacion")
       .insert(insertData)
@@ -496,28 +502,37 @@ export async function createOrdenReparacion(
         .eq("folio", folioPreReservado);
     }
 
-    // 4. Crear anticipos si existen
+    // 4. Crear anticipos si existen (FASE 54-C: vincular a caja activa)
     if (ordenData.anticiposData && Array.isArray(ordenData.anticiposData) && ordenData.anticiposData.length > 0) {
-      const anticiposInsert = ordenData.anticiposData.map((anticipo: any) => ({
-        orden_id: data.id,
-        monto: anticipo.monto,
-        tipo_pago: anticipo.tipoPago,
-        desglose_mixto: anticipo.desgloseMixto || null,
-        referencia_pago: anticipo.referenciaPago || null,
-        notas: anticipo.notas || null,
-        created_by: creadoPor,
-        recibido_por: creadoPor,
-        estado: "pendiente",
-        fecha_anticipo: new Date(),
-      }));
+      // Obtener caja activa del usuario que crea la orden para vincular anticipos
+      let sesionCajaActiva: string | undefined;
+      try {
+        const sesion = await getSesionActiva(creadoPor);
+        sesionCajaActiva = sesion?.id;
+      } catch {
+        // Si falla obtener la caja, continuar sin vincular — no crítico
+      }
 
-      const { error: anticiposError } = await supabase
-        .from("anticipos_reparacion")
-        .insert(anticiposInsert);
-
-      if (anticiposError) {
-        console.error("Error al crear anticipos:", anticiposError);
-        // No lanzar error, solo registrar - la orden ya se creó
+      for (const anticipo of ordenData.anticiposData as any[]) {
+        if (!anticipo.monto || anticipo.monto <= 0) continue;
+        try {
+          await addAnticipoReparacion(
+            data.id,
+            {
+              monto: anticipo.monto,
+              tipoPago: anticipo.tipoPago || "efectivo",
+              desgloseMixto: anticipo.desgloseMixto,
+              referenciaPago: anticipo.referenciaPago,
+              notas: anticipo.notas,
+            },
+            creadoPor,
+            sesionCajaActiva,
+            data.folio
+          );
+        } catch (anticipoErr) {
+          console.error("Error al crear anticipo:", anticipoErr);
+          // No fallar la orden si falla un anticipo
+        }
       }
     }
 

@@ -281,15 +281,18 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
 
   useEffect(() => { cargarAnticipos(); }, [cargarAnticipos]);
 
-  const totalAnticiposPendientes = anticipos.filter((a) => a.estado === "pendiente").reduce((s, a) => s + a.monto, 0);
-  const totalAnticiposAplicados  = anticipos.filter((a) => a.estado === "aplicado").reduce((s, a) => s + a.monto, 0);
-  const totalAnticiposDevueltos  = anticipos.filter((a) => a.estado === "devuelto").reduce((s, a) => s + a.monto, 0);
+  const totalAnticiposPendientes  = anticipos.filter((a) => a.estado === "pendiente").reduce((s, a) => s + a.monto, 0);
+  const totalAnticiposAplicados   = anticipos.filter((a) => a.estado === "aplicado").reduce((s, a) => s + a.monto, 0);
+  const totalAnticiposDevueltos   = anticipos.filter((a) => a.estado === "devuelto").reduce((s, a) => s + a.monto, 0);
+  // Total a devolver = anticipos pendientes + aplicados (el backend marca ambos como 'devuelto')
+  const totalAnticiposDevolvibles = totalAnticiposPendientes + totalAnticiposAplicados;
   const costoTotal = orden.costoTotal || orden.presupuestoTotal || 0 || 0;
   const saldoPendiente = Math.max(0, costoTotal - totalAnticiposPendientes);
 
   const puedeCobrarEntregar = !["entregado", "cancelado"].includes(orden.estado) && costoTotal > 0;
   const puedeAgregarAnticipo = !["entregado", "cancelado"].includes(orden.estado);
-  const puedeDevolver = totalAnticiposPendientes > 0 && ["cancelado"].includes(orden.estado);
+  // Devolver: disponible siempre que haya anticipos pendientes o aplicados y la orden no esté ya entregada
+  const puedeDevolver = totalAnticiposDevolvibles > 0 && orden.estado !== "entregado";
 
   return (
     <div className="space-y-4">
@@ -363,7 +366,7 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
             style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)", border: "1px solid var(--color-warning)", cursor: "pointer", transition: "all 200ms ease" }}
           >
             <RotateCcw className="w-4 h-4" />
-            Devolver Anticipo ({MXN(totalAnticiposPendientes)})
+            Devolver Anticipo ({MXN(totalAnticiposDevolvibles)})
           </button>
         )}
       </div>
@@ -470,7 +473,7 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
         isOpen={modalDevolverOpen}
         onClose={() => setModalDevolverOpen(false)}
         orden={orden}
-        totalPendiente={totalAnticiposPendientes}
+        totalPendiente={totalAnticiposDevolvibles}
         onSuccess={() => { cargarAnticipos(); onOrdenUpdated(); }}
       />
     </div>

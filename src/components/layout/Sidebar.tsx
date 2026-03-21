@@ -183,9 +183,10 @@ const navGroups: NavGroup[] = [
   {
     label: "ADMINISTRACIÓN",
     items: [
-      { href: "/dashboard/empleados",              label: "Empleados",      icon: UserCheck,         roles: ["admin", "super_admin"],  moduleKey: "empleados" },
-      { href: "/dashboard/admin/distribuidores",   label: "Distribuidores", icon: Building2,         roles: ["super_admin"] },
-      { href: "/dashboard/configuracion",          label: "Configuración",  icon: SlidersHorizontal, roles: ["admin", "super_admin"] },
+      { href: "/dashboard/empleados",                        label: "Empleados",             icon: UserCheck,         roles: ["admin", "super_admin"],  moduleKey: "empleados" },
+      { href: "/dashboard/admin/catalogo-reparaciones",      label: "Catálogo Reparaciones", icon: Wrench,            roles: ["admin", "super_admin"],  moduleKey: "reparaciones" },
+      { href: "/dashboard/admin/distribuidores",             label: "Distribuidores",        icon: Building2,         roles: ["super_admin"] },
+      { href: "/dashboard/configuracion",                    label: "Configuración",         icon: SlidersHorizontal, roles: ["admin", "super_admin"] },
     ],
   },
 ];

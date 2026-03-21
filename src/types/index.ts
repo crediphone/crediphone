@@ -1552,3 +1552,40 @@ export type LotePiezasFormData = Omit<
 > & {
   items?: Omit<LotePiezasItem, "id" | "loteId" | "createdAt">[];
 };
+
+// =====================================================
+// FASE 54-A: CATÁLOGO DE SERVICIOS DE REPARACIÓN
+// =====================================================
+
+export interface CatalogoServicioReparacion {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  marca?: string;       // NULL = aplica a cualquier marca
+  modelo?: string;      // NULL = aplica a cualquier modelo
+  precioBase: number;
+  tiempoEstimadoMinutos?: number;
+  activo: boolean;
+  distribuidorId?: string; // NULL = servicio global
+  createdBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Campo calculado: precio efectivo para un distribuidor específico
+  // (precio_base si no hay sobrescritura, precio personalizado si la hay)
+  precioEfectivo?: number;
+}
+
+export interface CatalogoServicioPrecioDistribuidor {
+  id: string;
+  servicioId: string;
+  distribuidorId: string;
+  precio: number;
+  activo: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CatalogoServicioFormData = Omit<
+  CatalogoServicioReparacion,
+  "id" | "createdBy" | "createdAt" | "updatedAt" | "precioEfectivo"
+>;

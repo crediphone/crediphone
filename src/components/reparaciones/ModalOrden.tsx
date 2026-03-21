@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,6 +14,8 @@ import {
   DollarSign,
   Plus,
   UserPlus,
+  Wrench,
+  ChevronDown,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -32,6 +34,7 @@ import {
   ImagenReparacion,
   TipoFirma,
   AnticipoReparacion,
+  CatalogoServicioReparacion,
 } from "@/types";
 
 interface Cliente {
@@ -126,6 +129,25 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
   const [presupuestoTotal, setPresupuestoTotal] = useState<number>(0);
   const [anticipos, setAnticipos] = useState<any[]>([]);
   const [piezasCotizacion, setPiezasCotizacion] = useState<any[]>([]);
+
+  // FASE 54-B: Catálogo de servicios
+  const [catalogo, setCatalogo] = useState<CatalogoServicioReparacion[]>([]);
+  const [catalogoServicioId, setCatalogoServicioId] = useState<string>("");
+  const [catalogoPrecioSugerido, setCatalogoPrecioSugerido] = useState<number | undefined>(undefined);
+  const [loadingCatalogo, setLoadingCatalogo] = useState(false);
+
+  const cargarCatalogo = useCallback(async () => {
+    try {
+      setLoadingCatalogo(true);
+      const res = await fetch("/api/catalogo-servicios");
+      const data = await res.json();
+      if (data.success) setCatalogo(data.data);
+    } catch {
+      // No crítico - seguir sin catálogo
+    } finally {
+      setLoadingCatalogo(false);
+    }
+  }, []);
   // Archivos de foto pendientes de subir vía subida directa (modo creación)
   const [archivosPendientes, setArchivosPendientes] = useState<File[]>([]);
   // Token de sesión QR generado antes de guardar (para ligar esas fotos a la orden)
@@ -144,6 +166,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
     if (isOpen) {
       fetchClientes();
       reservarFolio();
+      cargarCatalogo();
       if (isSuperAdmin) fetchDistribuidores();
     } else {
       // Si el modal se cierra sin haber guardado, cancelar el folio reservado
@@ -151,7 +174,11 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
         cancelarFolioReservado(folioReservado);
         setFolioReservado(null);
       }
+      // Limpiar selección de catálogo
+      setCatalogoServicioId("");
+      setCatalogoPrecioSugerido(undefined);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Auto-poblar "Problema Reportado" con las fallas del checklist
@@ -371,6 +398,9 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
         presupuestoTotal,
         anticiposData: anticipos,
         piezasCotizacion: piezasCotizacion,
+
+        // FASE 54-B: Referencia al servicio del catálogo seleccionado
+        catalogoServicioId: catalogoServicioId || null,
 
         // Super admin: asignar a distribuidor específico
         ...(isSuperAdmin && distribuidorSeleccionado ? { distribuidorId: distribuidorSeleccionado } : {}),
@@ -955,9 +985,62 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
                 </div>
               </div>
 
+              {/* FASE 54-B: Selector de servicio del catálogo */}
+              {catalogo.length > 0 && (
+                <div style={{ marginBottom: "1.25rem" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text-secondary)" }}>
+                    <Wrench className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
+                    Servicio del catálogo (opcional)
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <select
+                      value={catalogoServicioId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setCatalogoServicioId(id);
+                        if (id) {
+                          const svc = catalogo.find((s) => s.id === id);
+                          if (svc) setCatalogoPrecioSugerido(svc.precioEfectivo ?? svc.precioBase);
+                        } else {
+                          setCatalogoPrecioSugerido(undefined);
+                        }
+                      }}
+                      disabled={loadingCatalogo}
+                      style={{
+                        width: "100%",
+                        appearance: "none",
+                        borderRadius: "0.5rem",
+                        border: "2px solid var(--color-border)",
+                        background: "var(--color-bg-surface)",
+                        color: "var(--color-text-primary)",
+                        padding: "0.75rem 2.5rem 0.75rem 1rem",
+                        fontSize: "0.875rem",
+                        fontWeight: 500,
+                      }}
+                    >
+                      <option value="">— Seleccionar servicio del catálogo —</option>
+                      {catalogo.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nombre}{s.marca ? ` · ${s.marca}` : ""}{s.modelo ? ` ${s.modelo}` : ""}
+                          {" — "}$
+                          {Number(s.precioEfectivo ?? s.precioBase).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="h-4 w-4" style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--color-text-muted)" }} />
+                  </div>
+                  {catalogoPrecioSugerido !== undefined && (
+                    <p style={{ marginTop: "0.35rem", fontSize: "0.75rem", color: "var(--color-success-text)", backgroundColor: "var(--color-success-bg)", borderRadius: "0.375rem", padding: "0.25rem 0.5rem" }}>
+                      Precio sugerido ${Number(catalogoPrecioSugerido).toLocaleString("es-MX", { minimumFractionDigits: 2 })} aplicado como mano de obra
+                    </p>
+                  )}
+                </div>
+              )}
+
               <ComponentePresupuesto
                 presupuestoTotal={presupuestoTotal}
                 anticipos={anticipos}
+                defaultManoDeObra={catalogoPrecioSugerido}
                 onChange={(data) => {
                   setPresupuestoTotal(data.presupuestoTotal);
                   setAnticipos(data.anticipos);
