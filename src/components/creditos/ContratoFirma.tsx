@@ -47,39 +47,43 @@ export function ContratoFirma({
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   };
 
-  // Funciones para dibujar
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    setIsDrawing(true);
+  const getCtxReady = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
+    if (!canvas) return null;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const rawX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const rawY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const { x, y } = toCanvasCoords(canvas, rawX, rawY);
-
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setFirmaValida(true);
+    if (!ctx) return null;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    return { canvas, ctx };
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  /** POINTER EVENTS — mouse + dedo + stylus, sin desfase en móvil */
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const pair = getCtxReady();
+    if (!pair) return;
+    const { canvas, ctx } = pair;
+    canvas.setPointerCapture(e.pointerId);
+    setIsDrawing(true);
+    setFirmaValida(true);
+    const { x, y } = toCanvasCoords(canvas, e.clientX, e.clientY);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const rawX = "touches" in e ? e.touches[0].clientX : e.clientX;
-    const rawY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const { x, y } = toCanvasCoords(canvas, rawX, rawY);
-
+    e.preventDefault();
+    const pair = getCtxReady();
+    if (!pair) return;
+    const { canvas, ctx } = pair;
+    const { x, y } = toCanvasCoords(canvas, e.clientX, e.clientY);
     ctx.lineTo(x, y);
     ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
   };
 
   const stopDrawing = () => {
@@ -244,14 +248,13 @@ export function ContratoFirma({
                 ref={canvasRef}
                 width={600}
                 height={200}
-                className="w-full cursor-crosshair touch-none"
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
+                className="w-full cursor-crosshair block"
+                style={{ touchAction: "none", userSelect: "none" }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={stopDrawing}
+                onPointerLeave={stopDrawing}
+                onPointerCancel={stopDrawing}
               />
             </div>
             <Button

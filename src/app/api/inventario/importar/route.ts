@@ -375,11 +375,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Solo se aceptan archivos .xlsx o .xls" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const arrayBuffer = await file.arrayBuffer();
 
     // Leer con ExcelJS (reemplaza xlsx vulnerable)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buffer);
+    // ExcelJS acepta ArrayBuffer directamente en runtime aunque los tipos digan Buffer
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (wb.xlsx as any).load(arrayBuffer);
 
     const supabase = createAdminClient();
     const allResults: RowResult[] = [];

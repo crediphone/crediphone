@@ -1205,6 +1205,103 @@ const TAMANOS: { id: TamanoEtiqueta; label: string; width: number; height: numbe
   { id: "100x50", label: "100 × 50 mm", width: 378, height: 189 },
 ];
 
+/**
+ * Genera un SVG de código de barras CODE128B sin dependencias externas.
+ * Devuelve el elemento SVG como string (para usar en impresión) y como JSX.
+ */
+function Code128SVG({ value, width = 180, height = 32, showText = true }: { value: string; width?: number; height?: number; showText?: boolean }) {
+  // Tabla CODE128B: caracteres ASCII 32-127
+  const TABLE: Record<string, number> = {
+    " ":64,"!":65,"\"":66,"#":67,"$":68,"%":69,"&":70,"'":71,"(":72,")":73,
+    "*":74,"+":75,",":76,"-":77,".":78,"/":79,"0":80,"1":81,"2":82,"3":83,
+    "4":84,"5":85,"6":86,"7":87,"8":88,"9":89,":":90,";":91,"<":92,"=":93,
+    ">":94,"?":95,"@":96,"A":97,"B":98,"C":99,"D":100,"E":101,"F":102,"G":103,
+    "H":104,"I":105,"J":106,"K":107,"L":108,"M":109,"N":110,"O":111,"P":112,
+    "Q":113,"R":114,"S":115,"T":116,"U":117,"V":118,"W":119,"X":120,"Y":121,
+    "Z":122,"[":123,"\\":124,"]":125,"^":126,"_":127,"`":64,"a":65,"b":66,
+    "c":67,"d":68,"e":69,"f":70,"g":71,"h":72,"i":73,"j":74,"k":75,"l":76,
+    "m":77,"n":78,"o":79,"p":80,"q":81,"r":82,"s":83,"t":84,"u":85,"v":86,
+    "w":87,"x":88,"y":89,"z":90,"{":91,"|":92,"}":93,"~":94,
+  };
+  // Patrones de barras para valores 0-105 (11 bits por carácter)
+  const PATTERNS = [
+    "11011001100","11001101100","11001100110","10010011000","10010001100",
+    "10001001100","10011001000","10011000100","10001100100","11001001000",
+    "11001000100","11000100100","10110011100","10011011100","10011001110",
+    "10111001100","10011101100","10011100110","11001110010","11001011100",
+    "11001001110","11011100100","11001110100","11101101110","11101001100",
+    "11100101100","11100100110","11101100100","11100110100","11100110010",
+    "11011011000","11011000110","11000110110","10100011000","10001011000",
+    "10001000110","10110001000","10001101000","10001100010","11010001000",
+    "11000101000","11000100010","10110111000","10110001110","10001101110",
+    "10111011000","10111000110","10001110110","11101110110","11010001110",
+    "11000101110","11011101000","11011100010","11011101110","11101011000",
+    "11101000110","11100010110","11101101000","11101100010","11100011010",
+    "11101111010","11001000010","11110001010","10100110000","10100001100",
+    "10010110000","10010000110","10000101100","10000100110","10110010000",
+    "10110000100","10011010000","10011000010","10000110100","10000110010",
+    "11000010010","11001010000","11110111010","11000010100","10001111010",
+    "10100111100","10010111100","10010011110","10111100100","10011110100",
+    "10011110010","11110100100","11110010100","11110010010","11011011110",
+    "11011110110","11110110110","10101111000","10100011110","10001011110",
+    "10111101000","10111100010","11110101000","11110100010","10111011110",
+    "10111101110","11101011110","11110101110","11010000100","11010010000",
+    "11010011100","1100011101011",
+  ];
+  const START_B = 104;
+  const STOP = 106;
+  const QUIET = "0000000000"; // 10 quiet bars
+
+  // Limpiar: solo caracteres CODE128B soportados (32-126)
+  const safe = value.replace(/[^\x20-\x7E]/g, "").slice(0, 40);
+
+  // Calcular checksum
+  let checksum = START_B;
+  for (let i = 0; i < safe.length; i++) {
+    const code = TABLE[safe[i]];
+    if (code !== undefined) checksum += code * (i + 1);
+  }
+  checksum = checksum % 103;
+
+  // Construir patrón de barras
+  let bits = QUIET + PATTERNS[START_B];
+  for (const ch of safe) {
+    const code = TABLE[ch];
+    if (code !== undefined && PATTERNS[code]) {
+      bits += PATTERNS[code];
+    }
+  }
+  if (PATTERNS[checksum]) bits += PATTERNS[checksum];
+  bits += PATTERNS[STOP] + QUIET;
+
+  // Renderizar barras como rectángulos SVG
+  const moduleWidth = width / bits.length;
+  const rects: React.ReactNode[] = [];
+  let x = 0;
+  let i = 0;
+  while (i < bits.length) {
+    const bit = bits[i];
+    let count = 1;
+    while (i + count < bits.length && bits[i + count] === bit) count++;
+    if (bit === "1") {
+      rects.push(<rect key={`${i}`} x={x * moduleWidth} y={0} width={count * moduleWidth} height={showText ? height - 10 : height} fill="#000" />);
+    }
+    x += count;
+    i += count;
+  }
+
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
+      {rects}
+      {showText && (
+        <text x={width / 2} y={height} textAnchor="middle" fontSize={7} fontFamily="'Courier New', monospace" fill="#333" letterSpacing="0.5">
+          {safe}
+        </text>
+      )}
+    </svg>
+  );
+}
+
 function EtiquetaModal({
   producto,
   onClose,
@@ -1216,6 +1313,7 @@ function EtiquetaModal({
   const [cantidad, setCantidad] = useState(1);
   const [mostrarPrecio, setMostrarPrecio]  = useState(true);
   const [mostrarIMEI, setMostrarIMEI]      = useState(false);
+  const [mostrarBarras, setMostrarBarras]  = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
 
   const cfg = TAMANOS.find((t) => t.id === tamano) ?? TAMANOS[1];
@@ -1313,16 +1411,26 @@ function EtiquetaModal({
           </div>
         )}
       </div>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
-        {mostrarPrecio && (
-          <div style={{ fontSize: precioSize, fontWeight: 900, color: "#0d1e35", lineHeight: 1, letterSpacing: "-0.5px" }}>
-            ${precio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+      {/* Fila inferior: precio + código */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {/* Código de barras CODE128 — lector físico lo puede escanear */}
+        {mostrarBarras && cfg.id !== "50x30" && (
+          <div style={{ textAlign: "center" }}>
+            <Code128SVG value={codigo} width={cfg.id === "70x40" ? 160 : 220} height={cfg.id === "70x40" ? 28 : 36} showText={false} />
           </div>
         )}
-        <div style={{ textAlign: "center", flexShrink: 0 }}>
-          <QRCodeSVG value={codigo} size={qrSize} level="M" />
-          <div style={{ fontSize: "0.375rem", fontFamily: "monospace", letterSpacing: "0.3px", color: "#666", marginTop: 2 }}>
-            {codigo}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
+          {mostrarPrecio && (
+            <div style={{ fontSize: precioSize, fontWeight: 900, color: "#0d1e35", lineHeight: 1, letterSpacing: "-0.5px" }}>
+              ${precio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+            </div>
+          )}
+          <div style={{ textAlign: "center", flexShrink: 0 }}>
+            {/* QR — escaneable desde celular */}
+            <QRCodeSVG value={codigo} size={cfg.id === "50x30" ? qrSize : Math.floor(qrSize * 0.75)} level="M" />
+            <div style={{ fontSize: "0.35rem", fontFamily: "monospace", letterSpacing: "0.3px", color: "#666", marginTop: 1 }}>
+              {codigo.length > 14 ? codigo.slice(0, 14) + "…" : codigo}
+            </div>
           </div>
         </div>
       </div>
@@ -1365,6 +1473,13 @@ function EtiquetaModal({
               <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
                 <input type="checkbox" checked={mostrarPrecio} onChange={(e) => setMostrarPrecio(e.target.checked)} style={{ accentColor: "var(--color-accent)" }} />
                 <span style={{ fontSize: "0.875rem", color: "var(--color-text-primary)" }}>Mostrar precio</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                <input type="checkbox" checked={mostrarBarras} onChange={(e) => setMostrarBarras(e.target.checked)} style={{ accentColor: "var(--color-accent)" }} disabled={cfg.id === "50x30"} />
+                <span style={{ fontSize: "0.875rem", color: cfg.id === "50x30" ? "var(--color-text-muted)" : "var(--color-text-primary)" }}>
+                  Código de barras CODE128
+                  {cfg.id === "50x30" && <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginLeft: 4 }}>(sólo 70×40 y 100×50)</span>}
+                </span>
               </label>
               {imei && (
                 <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>

@@ -43,24 +43,20 @@ export function SelectorTipoFirma({
       const ctx = canvas.getContext("2d");
 
       if (ctx && firmaData && tipoFirma === "manuscrita") {
-        // Cargar firma existente en el canvas
         const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0);
-        };
+        img.onload = () => { ctx.drawImage(img, 0, 0); };
         img.src = firmaData;
       } else if (ctx && !firmaCapturaManuscrita) {
-        // Limpiar canvas si es nueva firma
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoSeleccionado]);
 
   const handleTipoChange = (tipo: TipoFirma) => {
     setTipoSeleccionado(tipo);
-    // Limpiar firma al cambiar de tipo
     if (canvasRef.current && tipo === "manuscrita") {
       const ctx = canvasRef.current.getContext("2d");
       if (ctx) {
@@ -78,17 +74,18 @@ export function SelectorTipoFirma({
   const limpiarCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     setFirmaCapturaManuscrita(false);
   };
 
-  /** Convierte coordenadas CSS → coordenadas internas del canvas (corrige desfase) */
+  /**
+   * Convierte coordenadas del viewport → coordenadas internas del canvas.
+   * Corrige correctamente: DPR, scroll, padding del contenedor, scale CSS.
+   */
   const toCanvasCoords = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
@@ -99,12 +96,30 @@ export function SelectorTipoFirma({
     };
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getCtx = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
+    if (!canvas) return null;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return null;
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    return { canvas, ctx };
+  };
+
+  /**
+   * POINTER EVENTS — maneja mouse, dedo y stylus con un solo set de eventos.
+   * Más confiable en móvil que touch events separados.
+   */
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const pair = getCtx();
+    if (!pair) return;
+    const { canvas, ctx } = pair;
+
+    // Capturar el pointer para recibir eventos aunque salga del canvas
+    canvas.setPointerCapture(e.pointerId);
 
     setDibujando(true);
     setFirmaCapturaManuscrita(true);
@@ -114,69 +129,22 @@ export function SelectorTipoFirma({
     ctx.moveTo(x, y);
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!dibujando) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+    e.preventDefault();
+    const pair = getCtx();
+    if (!pair) return;
+    const { canvas, ctx } = pair;
 
     const { x, y } = toCanvasCoords(canvas, e.clientX, e.clientY);
     ctx.lineTo(x, y);
     ctx.stroke();
-  };
-
-  const handleMouseUp = () => {
-    setDibujando(false);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const touch = e.touches[0];
-    setDibujando(true);
-    setFirmaCapturaManuscrita(true);
-
-    const { x, y } = toCanvasCoords(canvas, touch.clientX, touch.clientY);
+    // Continuar el trazo desde la posición actual
     ctx.beginPath();
     ctx.moveTo(x, y);
   };
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    if (!dibujando) return;
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const touch = e.touches[0];
-
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    const { x, y } = toCanvasCoords(canvas, touch.clientX, touch.clientY);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     setDibujando(false);
   };
@@ -186,19 +154,16 @@ export function SelectorTipoFirma({
       alert("Por favor ingresa un nombre para la firma");
       return;
     }
-
     onFirmaCapturada("digital", nombreDigital.trim());
   };
 
   const guardarFirmaManuscrita = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     if (!firmaCapturaManuscrita) {
       alert("Por favor dibuja tu firma en el área designada");
       return;
     }
-
     const firmaBase64 = canvas.toDataURL("image/png");
     onFirmaCapturada("manuscrita", firmaBase64);
   };
@@ -244,7 +209,7 @@ export function SelectorTipoFirma({
             Firma Manuscrita
           </div>
           <div className="text-xs mt-1" style={{ color: "var(--color-text-secondary)" }}>
-            Dibuja con el mouse
+            Mouse o dedo
           </div>
         </button>
       </div>
@@ -296,12 +261,11 @@ export function SelectorTipoFirma({
       {tipoSeleccionado === "manuscrita" && (
         <div className="space-y-3">
           <div className="rounded p-2 text-xs" style={{ background: "var(--color-accent-light)", border: "1px solid var(--color-accent)", color: "var(--color-accent)" }}>
-            ℹ️ Dibuja tu firma en el área blanca usando el mouse o tu dedo (en
-            dispositivos táctiles)
+            ℹ️ Dibuja tu firma con el dedo, stylus o mouse — funciona en cualquier dispositivo
           </div>
 
           <div
-            className="rounded-lg overflow-hidden p-2"
+            className="rounded-lg overflow-hidden"
             style={{ border: "2px solid var(--color-border)", background: "var(--color-bg-elevated)" }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => e.preventDefault()}
@@ -310,18 +274,18 @@ export function SelectorTipoFirma({
               ref={canvasRef}
               width={CANVAS_WIDTH}
               height={CANVAS_HEIGHT}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+              onPointerCancel={handlePointerUp}
               onDragStart={(e) => e.preventDefault()}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); setDibujando(false); }}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              className="w-full cursor-crosshair"
-              style={{ touchAction: "none", userSelect: "none", background: "#ffffff" }}
+              className="w-full cursor-crosshair block"
+              style={{
+                touchAction: "none",   /* evita scroll al dibujar en móvil */
+                userSelect: "none",
+                background: "#ffffff",
+              }}
             />
           </div>
 
