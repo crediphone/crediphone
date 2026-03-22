@@ -716,6 +716,7 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
   const [categorias, setCategorias]       = useState<{ id: string; nombre: string }[]>([]);
   const [subcategorias, setSubcategorias] = useState<{ id: string; nombre: string }[]>([]); // FASE 57
   const [proveedores, setProveedores]     = useState<{ id: string; nombre: string }[]>([]);
+  const [ubicaciones, setUbicaciones]     = useState<{ id: string; nombre: string; codigo: string }[]>([]);
   const [showScanner, setShowScanner] = useState(false);
   // FASE 54: sugerencias de marca y modelo para autocompletado
   const [sugerenciasMarcas, setSugerenciasMarcas]   = useState<string[]>([]);
@@ -732,6 +733,8 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
     }
     fetch("/api/categorias", { headers }).then((r) => r.json()).then((d) => { if (d.success) setCategorias(d.data); }).catch(() => {});
     fetch("/api/proveedores", { headers }).then((r) => r.json()).then((d) => { if (d.success) setProveedores(d.data); }).catch(() => {});
+    // Cargar ubicaciones físicas de almacén
+    fetch("/api/inventario/ubicaciones").then((r) => r.json()).then((d) => { if (d.success) setUbicaciones(d.data ?? []); }).catch(() => {});
     // FASE 54: cargar marcas existentes al abrir el formulario
     fetch("/api/productos/sugerencias?campo=marcas", { headers })
       .then((r) => r.json())
@@ -1100,7 +1103,49 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
         )}
       </div>
 
-      <Input label="Ubicación Física" name="ubicacionFisica" value={formData.ubicacionFisica} onChange={handleChange} placeholder="Estante A1 · Cajón 2" />
+      {/* Selector de ubicación física: jala de inventario_ubicaciones */}
+      <div>
+        <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
+          Ubicación Física
+        </label>
+        {ubicaciones.length > 0 ? (
+          <select
+            name="ubicacionFisica"
+            value={formData.ubicacionFisica}
+            onChange={handleChange}
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{
+              background: "var(--color-bg-sunken)",
+              border: "1px solid var(--color-border)",
+              color: formData.ubicacionFisica ? "var(--color-text-primary)" : "var(--color-text-muted)",
+              outline: "none",
+            }}
+          >
+            <option value="">— Sin ubicación —</option>
+            {ubicaciones.map((u) => (
+              <option key={u.id} value={u.nombre}>
+                {u.codigo} · {u.nombre}
+              </option>
+            ))}
+          </select>
+        ) : (
+          // Fallback: no hay ubicaciones configuradas → input de texto libre
+          <input
+            type="text"
+            name="ubicacionFisica"
+            value={formData.ubicacionFisica}
+            onChange={handleChange}
+            placeholder="Ej: Estante A1 · Cajón 2 (configura ubicaciones en Inventario)"
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{
+              background: "var(--color-bg-sunken)",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text-primary)",
+              outline: "none",
+            }}
+          />
+        )}
+      </div>
       <Input label="Descripción" name="descripcion" value={formData.descripcion} onChange={handleChange} placeholder="Detalles adicionales del producto" />
 
       {/* FASE 53d: los servicios no requieren serialización */}
