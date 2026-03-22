@@ -23,36 +23,53 @@ export async function getDistribuidorId(): Promise<string | null> {
 }
 
 /**
- * Obtiene el contexto de autenticación completo: userId, role y distribuidorId.
- * Útil para API routes que necesitan distinguir super_admin vs admin.
+ * Obtiene el contexto de autenticación completo: userId, role, distribuidorId
+ * y los permisos explícitos del empleado (FASE 56).
  *
  * - super_admin → distribuidorId = null, isSuperAdmin = true (ve todo)
  * - admin/vendedor/etc. → distribuidorId = su tienda, isSuperAdmin = false
  * - no autenticado → userId = null
+ *
+ * permisosExplicitos: overrides por empleado { [permiso]: activo }
+ * La evaluación final se hace con tienePermiso() de @/lib/permisos
  */
 export async function getAuthContext(): Promise<{
     userId: string | null;
     role: string | null;
     distribuidorId: string | null;
     isSuperAdmin: boolean;
+    permisosExplicitos: Record<string, boolean>;
 }> {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-        return { userId: null, role: null, distribuidorId: null, isSuperAdmin: false };
+        return { userId: null, role: null, distribuidorId: null, isSuperAdmin: false, permisosExplicitos: {} };
     }
 
     const adminClient = createAdminClient();
-    const { data: userData } = await adminClient
-        .from("users")
-        .select("role, distribuidor_id")
-        .eq("id", user.id)
-        .single();
+
+    // Fetch role + distribuidor en paralelo con los permisos explícitos
+    const [{ data: userData }, { data: permisosRows }] = await Promise.all([
+        adminClient
+            .from("users")
+            .select("role, distribuidor_id")
+            .eq("id", user.id)
+            .single(),
+        adminClient
+            .from("permisos_empleado")
+            .select("permiso, activo")
+            .eq("usuario_id", user.id),
+    ]);
 
     const role = userData?.role || null;
     const distribuidorId = userData?.distribuidor_id || null;
     const isSuperAdmin = role === "super_admin";
 
-    return { userId: user.id, role, distribuidorId, isSuperAdmin };
+    const permisosExplicitos: Record<string, boolean> = {};
+    for (const row of permisosRows ?? []) {
+        permisosExplicitos[row.permiso as string] = row.activo as boolean;
+    }
+
+    return { userId: user.id, role, distribuidorId, isSuperAdmin, permisosExplicitos };
 }

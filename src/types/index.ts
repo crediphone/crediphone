@@ -1712,6 +1712,23 @@ export interface NuevoLoteSerieFormData {
 }
 
 // =====================================================
+// FASE 56: Permisos Granulares por Empleado
+// =====================================================
+
+/** Un registro en la tabla permisos_empleado */
+export interface PermisosEmpleado {
+  usuarioId:      string;
+  permiso:        string;   // clave del tipo Permiso (src/lib/permisos.ts)
+  activo:         boolean;  // true = concedido, false = revocado
+  otorgadoPor?:   string;   // userId del admin que lo configuró
+  createdAt:      Date;
+  updatedAt:      Date;
+}
+
+/** Mapa plano de permisos para un empleado: { [key: Permiso]: boolean } */
+export type MapaPermisos = Record<string, boolean>;
+
+// =====================================================
 // FASE 55: WhatsApp Business API
 // =====================================================
 

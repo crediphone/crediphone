@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/Badge";
 import type { Empleado, UserRole } from "@/types";
 import type { CSSProperties } from "react";
 import { RolIcon } from "@/components/icons";
-import { Users, AlertTriangle, CheckCircle } from "lucide-react";
+import { Users, AlertTriangle, CheckCircle, Shield } from "lucide-react";
+import PermisosEmpleadoPanel from "@/components/empleados/PermisosEmpleadoPanel";
 
 interface Distribuidor {
   id: string;
@@ -53,6 +54,10 @@ export default function EmpleadosPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [credencialesModal, setCredencialesModal] = useState(false);
   const [credenciales, setCredenciales] = useState({ email: "", password: "", name: "" });
+
+  // FASE 56 — Modal de permisos
+  const [permisosModal, setPermisosModal]       = useState(false);
+  const [empleadoPermisos, setEmpleadoPermisos] = useState<Empleado | null>(null);
 
   const [formData, setFormData] = useState({
     email: "", name: "", role: "vendedor" as UserRole,
@@ -365,6 +370,9 @@ export default function EmpleadosPage() {
                     getRoleBadgeVariant={getRoleBadgeVariant}
                     onEdit={() => handleEdit(empleado)}
                     onDelete={() => handleDeleteClick(empleado)}
+                    onPermisos={["vendedor","cobrador","tecnico"].includes(empleado.role)
+                      ? () => { setEmpleadoPermisos(empleado); setPermisosModal(true); }
+                      : undefined}
                   />
                 ))}
               </tbody>
@@ -596,6 +604,23 @@ export default function EmpleadosPage() {
         </div>
       </Modal>
 
+      {/* Modal Permisos — FASE 56 */}
+      <Modal
+        isOpen={permisosModal}
+        onClose={() => { setPermisosModal(false); setEmpleadoPermisos(null); }}
+        title={`Permisos de ${empleadoPermisos?.name ?? ""}`}
+        size="lg"
+      >
+        {empleadoPermisos && (
+          <PermisosEmpleadoPanel
+            empleadoId={empleadoPermisos.id}
+            empleadoRol={empleadoPermisos.role}
+            empleadoNombre={empleadoPermisos.name}
+            canEdit={["admin","super_admin"].includes(user?.role ?? "")}
+          />
+        )}
+      </Modal>
+
       {/* Modal Confirmación */}
       <Modal isOpen={deleteConfirmModal} onClose={() => setDeleteConfirmModal(false)} title="Confirmar Desactivación">
         <div className="space-y-4">
@@ -616,13 +641,14 @@ export default function EmpleadosPage() {
   );
 }
 
-function EmpleadoRow({ empleado, getInitials, getRoleLabel, getRoleBadgeVariant, onEdit, onDelete }: {
+function EmpleadoRow({ empleado, getInitials, getRoleLabel, getRoleBadgeVariant, onEdit, onDelete, onPermisos }: {
   empleado: Empleado;
   getInitials: (n: string) => string;
   getRoleLabel: (r: UserRole) => string;
   getRoleBadgeVariant: (r: UserRole) => "success" | "warning" | "info" | "danger";
   onEdit: () => void;
   onDelete: () => void;
+  onPermisos?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const fmt = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
@@ -684,6 +710,11 @@ function EmpleadoRow({ empleado, getInitials, getRoleLabel, getRoleBadgeVariant,
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
         <div className="flex items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onEdit}>Editar</Button>
+          {onPermisos && empleado.role !== "admin" && empleado.role !== "super_admin" && (
+            <Button variant="ghost" size="sm" onClick={onPermisos}>
+              <Shield size={14} className="mr-1" />Permisos
+            </Button>
+          )}
           {empleado.activo && (
             <Button variant="danger" size="sm" onClick={onDelete}>Desactivar</Button>
           )}
