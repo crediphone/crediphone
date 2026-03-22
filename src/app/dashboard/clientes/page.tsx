@@ -12,6 +12,7 @@ import ImportPayjoyModal from "@/components/clientes/ImportPayjoyModal";
 import type { Cliente } from "@/types";
 import { ExportButton } from "@/components/ui/ExportButton";
 import type { ColumnaExport } from "@/hooks/useExportCSV";
+import { Zap, BarChart2, Camera } from "lucide-react";
 
 const COLUMNAS_CLIENTES_CSV: ColumnaExport<Cliente>[] = [
   { header: "ID", accessor: "id" },
@@ -182,7 +183,7 @@ export default function ClientesPage() {
               variant="secondary"
               onClick={() => setImportPayjoyModal(true)}
             >
-              ⚡ Importar Payjoy
+              <Zap size={14} className="mr-1.5 inline-block" />Importar Payjoy
             </Button>
             <Button onClick={handleCreate}>
               + Nuevo Cliente
@@ -272,7 +273,7 @@ export default function ClientesPage() {
                         className="mr-4 transition-colors"
                         style={{ color: "var(--color-accent)" }}
                       >
-                        📊 Scoring
+                        <BarChart2 size={13} className="inline-block mr-1 align-middle" />Scoring
                       </button>
                       <button
                         onClick={() => handleEdit(cliente)}
@@ -522,7 +523,7 @@ function ClienteForm({ mode, cliente, onSuccess, onCancel }: ClienteFormProps) {
       {/* Sección de Documentos */}
       <div className="pt-4 mt-4" style={{ borderTop: "1px solid var(--color-border)" }}>
         <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--color-text-primary)" }}>
-          📸 Documentos (Opcional)
+          <Camera size={18} className="inline-block mr-2 align-middle" style={{ color: "var(--color-accent)" }} />Documentos (Opcional)
         </h3>
         <p className="text-sm mb-4" style={{ color: "var(--color-text-secondary)" }}>
           Si el cliente trae documentos, toma fotos. Se comprimen automáticamente.

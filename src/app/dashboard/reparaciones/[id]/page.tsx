@@ -18,7 +18,10 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import type { OrdenReparacionDetallada } from "@/types";
-import { Loader2, Package, Wrench, DollarSign, Clock, FileText, Edit } from "lucide-react";
+import {
+  Loader2, Package, Wrench, DollarSign, Clock, FileText, Edit,
+  ClipboardList, Camera, MessageCircle, Timer, CalendarDays,
+} from "lucide-react";
 
 export default function OrdenDetailPage() {
   const params = useParams();
@@ -124,7 +127,7 @@ export default function OrdenDetailPage() {
   const tabs = [
     {
       id: "resumen",
-      label: "📋 Resumen",
+      label: <span className="flex items-center gap-1.5"><ClipboardList size={14} />Resumen</span>,
       content: (
         <div className="space-y-6">
           {/* Información Básica */}
@@ -357,7 +360,7 @@ export default function OrdenDetailPage() {
     },
     {
       id: "diagnostico",
-      label: "🔧 Diagnóstico",
+      label: <span className="flex items-center gap-1.5"><Wrench size={14} />Diagnóstico</span>,
       content: (
         <div className="space-y-6">
           <Card title="Diagnóstico del Técnico">
@@ -426,7 +429,7 @@ export default function OrdenDetailPage() {
     },
     {
       id: "presupuesto",
-      label: "💰 Presupuesto",
+      label: <span className="flex items-center gap-1.5"><DollarSign size={14} />Presupuesto</span>,
       content: (
         <div className="space-y-6">
           {orden.estado !== "entregado" && orden.estado !== "cancelado" && (
@@ -448,7 +451,7 @@ export default function OrdenDetailPage() {
     },
     {
       id: "historial",
-      label: "📅 Historial",
+      label: <span className="flex items-center gap-1.5"><CalendarDays size={14} />Historial</span>,
       content: (
         <div className="space-y-6">
           <TimelineOrden ordenId={orden.id} estadoActual={orden.estado} />
@@ -463,7 +466,7 @@ export default function OrdenDetailPage() {
     },
     {
       id: "fotos",
-      label: "📸 Fotos",
+      label: <span className="flex items-center gap-1.5"><Camera size={14} />Fotos</span>,
       content: (
         <GaleriaFotosOrden
           orden={orden}
@@ -481,7 +484,7 @@ export default function OrdenDetailPage() {
     },
     {
       id: "piezas",
-      label: "📦 Piezas",
+      label: <span className="flex items-center gap-1.5"><Package size={14} />Piezas</span>,
       content: (
         <PiezasInventarioPanel
           ordenId={orden.id}
@@ -498,12 +501,12 @@ export default function OrdenDetailPage() {
     },
     {
       id: "mensajeria",
-      label: "💬 Mensajería",
+      label: <span className="flex items-center gap-1.5"><MessageCircle size={14} />Mensajería</span>,
       content: <CentroMensajesPanel orden={orden} onUpdate={recargarOrden} />,
     },
     {
       id: "tiempo",
-      label: "⏱ Tiempo",
+      label: <span className="flex items-center gap-1.5"><Timer size={14} />Tiempo</span>,
       content: <BitacoraTiempoPanel ordenId={orden.id} />,
     },
   ];

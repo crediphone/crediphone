@@ -14,6 +14,7 @@ import type {
 } from "@/types";
 import { ExportButton } from "@/components/ui/ExportButton";
 import type { ColumnaExport } from "@/hooks/useExportCSV";
+import { Wrench, Trash2 } from "lucide-react";
 
 const COLUMNAS_REPARACIONES_CSV: ColumnaExport<OrdenReparacionDetallada>[] = [
   { header: "Folio", accessor: "folio" },
@@ -320,7 +321,7 @@ export default function ReparacionesPage() {
         </div>
       ) : filteredOrdenes.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-4xl mb-3">🔧</p>
+          <Wrench size={40} className="mx-auto mb-3" style={{ color: "var(--color-border-strong)" }} />
           <p className="text-base font-medium" style={{ color: "var(--color-text-primary)" }}>
             {searchQuery || filterEstado !== "todas" ? "Sin resultados para este filtro" : "No hay órdenes de reparación"}
           </p>
@@ -398,8 +399,8 @@ export default function ReparacionesPage() {
         <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}>
           <div className="rounded-xl p-8 max-w-sm w-full mx-4" style={{ background: "var(--color-bg-surface)", boxShadow: "var(--shadow-xl)", border: "1px solid var(--color-border)" }}>
             <div className="text-center mb-6">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mx-auto mb-4" style={{ background: "var(--color-danger-bg)" }}>
-                🗑️
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "var(--color-danger-bg)" }}>
+                <Trash2 size={24} style={{ color: "var(--color-danger)" }} />
               </div>
               <h3 className="text-lg font-bold mb-2" style={{ color: "var(--color-text-primary)" }}>
                 Eliminar orden de servicio

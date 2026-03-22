@@ -24,6 +24,7 @@ import {
   Percent,
   UserCog,
   Receipt,
+  MessageCircle,
 } from "lucide-react";
 import Link from "next/link";
 import PayjoyConfigSection from "@/components/payjoy/PayjoyConfigSection";
@@ -1052,7 +1053,7 @@ export default function ConfiguracionPage() {
     // ══════════════════════════════════════════════════════
     {
       id: "plantillas",
-      label: "WhatsApp 💬",
+      label: <span className="flex items-center gap-1.5"><MessageCircle size={14} />WhatsApp</span>,
       content: (
         <Card className="p-6">
           <PlantillasWhatsAppTab />

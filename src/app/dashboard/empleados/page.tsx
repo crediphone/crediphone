@@ -10,6 +10,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
 import type { Empleado, UserRole } from "@/types";
 import type { CSSProperties } from "react";
+import { RolIcon } from "@/components/icons";
+import { Users, AlertTriangle, CheckCircle } from "lucide-react";
 
 interface Distribuidor {
   id: string;
@@ -201,12 +203,7 @@ export default function EmpleadosPage() {
     return labels[role];
   };
 
-  const getRoleIcon = (role: UserRole) => {
-    const icons: Record<UserRole, string> = {
-      super_admin: "🌐", admin: "👑", vendedor: "💼", cobrador: "💰", tecnico: "🔧",
-    };
-    return icons[role];
-  };
+  // getRoleIcon eliminado — se usa <RolIcon rol={...} /> directamente
 
   const getInitials = (name: string) => {
     const parts = name.split(" ");
@@ -247,16 +244,20 @@ export default function EmpleadosPage() {
       {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
         {[
-          { emoji: "👥", label: "Total", value: stats?.total || 0, sub: `${stats?.activos || 0} activos`, color: "var(--color-info)", bg: "var(--color-info-bg)" },
-          { emoji: "👑", label: "Admin", value: stats?.porRol.admin || 0, color: "var(--color-danger)", bg: "var(--color-danger-bg)" },
-          { emoji: "💼", label: "Vendedores", value: stats?.porRol.vendedor || 0, color: "var(--color-success)", bg: "var(--color-success-bg)" },
-          { emoji: "💰", label: "Cobradores", value: stats?.porRol.cobrador || 0, color: "var(--color-warning)", bg: "var(--color-warning-bg)" },
-          { emoji: "🔧", label: "Técnicos", value: stats?.porRol.tecnico || 0, color: "var(--color-accent)", bg: "var(--color-accent-light)" },
+          { rol: null,          Icon: Users,  label: "Total",      value: stats?.total || 0,            sub: `${stats?.activos || 0} activos`, color: "var(--color-info)",    bg: "var(--color-info-bg)" },
+          { rol: "admin",       Icon: null,   label: "Admin",      value: stats?.porRol.admin || 0,     sub: undefined,                        color: "var(--color-danger)",  bg: "var(--color-danger-bg)" },
+          { rol: "vendedor",    Icon: null,   label: "Vendedores", value: stats?.porRol.vendedor || 0,  sub: undefined,                        color: "var(--color-success)", bg: "var(--color-success-bg)" },
+          { rol: "cobrador",    Icon: null,   label: "Cobradores", value: stats?.porRol.cobrador || 0,  sub: undefined,                        color: "var(--color-warning)", bg: "var(--color-warning-bg)" },
+          { rol: "tecnico",     Icon: null,   label: "Técnicos",   value: stats?.porRol.tecnico || 0,   sub: undefined,                        color: "var(--color-accent)",  bg: "var(--color-accent-light)" },
         ].map((s) => (
           <Card key={s.label} style={{ background: s.bg }}>
             <div className="text-center">
-              <p className="text-sm font-medium mb-1" style={{ color: s.color }}>
-                {s.emoji} {s.label}
+              <p className="text-sm font-medium mb-1 flex items-center justify-center gap-1.5" style={{ color: s.color }}>
+                {s.rol
+                  ? <RolIcon rol={s.rol} size={14} />
+                  : s.Icon && <s.Icon size={14} />
+                }
+                {s.label}
               </p>
               <p className="text-4xl font-bold" style={{ color: s.color, fontFamily: "var(--font-data)" }}>
                 {s.value}
@@ -360,7 +361,6 @@ export default function EmpleadosPage() {
                     key={empleado.id}
                     empleado={empleado}
                     getInitials={getInitials}
-                    getRoleIcon={getRoleIcon}
                     getRoleLabel={getRoleLabel}
                     getRoleBadgeVariant={getRoleBadgeVariant}
                     onEdit={() => handleEdit(empleado)}
@@ -529,7 +529,7 @@ export default function EmpleadosPage() {
       </Modal>
 
       {/* Modal Credenciales — se muestra tras crear empleado */}
-      <Modal isOpen={credencialesModal} onClose={() => setCredencialesModal(false)} title="✅ Empleado creado exitosamente">
+      <Modal isOpen={credencialesModal} onClose={() => setCredencialesModal(false)} title="Empleado creado exitosamente">
         <div className="space-y-5">
           <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
             Comparte estas credenciales con <strong style={{ color: "var(--color-text-primary)" }}>{credenciales.name}</strong> para que pueda iniciar sesión.
@@ -571,9 +571,10 @@ export default function EmpleadosPage() {
             </div>
           </div>
 
-          <div className="rounded-xl p-3" style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}>
+          <div className="rounded-xl p-3 flex items-start gap-2" style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}>
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "var(--color-warning)" }} />
             <p className="text-xs" style={{ color: "var(--color-warning-text)" }}>
-              ⚠️ Guarda esta contraseña ahora — no podrás verla de nuevo después de cerrar este mensaje.
+              Guarda esta contraseña ahora — no podrás verla de nuevo después de cerrar este mensaje.
             </p>
           </div>
 
@@ -615,10 +616,9 @@ export default function EmpleadosPage() {
   );
 }
 
-function EmpleadoRow({ empleado, getInitials, getRoleIcon, getRoleLabel, getRoleBadgeVariant, onEdit, onDelete }: {
+function EmpleadoRow({ empleado, getInitials, getRoleLabel, getRoleBadgeVariant, onEdit, onDelete }: {
   empleado: Empleado;
   getInitials: (n: string) => string;
-  getRoleIcon: (r: UserRole) => string;
   getRoleLabel: (r: UserRole) => string;
   getRoleBadgeVariant: (r: UserRole) => "success" | "warning" | "info" | "danger";
   onEdit: () => void;
@@ -662,7 +662,7 @@ function EmpleadoRow({ empleado, getInitials, getRoleIcon, getRoleLabel, getRole
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex items-center gap-2">
-          <span className="text-lg">{getRoleIcon(empleado.role)}</span>
+          <RolIcon rol={empleado.role} size={16} badge />
           <Badge variant={getRoleBadgeVariant(empleado.role)}>{getRoleLabel(empleado.role)}</Badge>
         </div>
       </td>

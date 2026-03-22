@@ -9,7 +9,7 @@ import { TablaOrdenesRecientes } from "@/components/reparaciones/dashboard/Tabla
 import { SeccionAlertas } from "@/components/reparaciones/dashboard/SeccionAlertas";
 import { CargaTecnicos } from "@/components/reparaciones/dashboard/CargaTecnicos";
 import type { DashboardStats } from "@/lib/db/reparaciones-dashboard";
-import { Loader2 } from "lucide-react";
+import { Loader2, Smartphone, BarChart2 } from "lucide-react";
 
 export default function DashboardReparacionesPage() {
   const [data, setData] = useState<DashboardStats | null>(null);
@@ -72,8 +72,9 @@ export default function DashboardReparacionesPage() {
     <div className="p-6 lg:p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          📱 Dashboard de Reparaciones
+        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+          <Smartphone size={28} style={{ color: "var(--color-accent)" }} />
+          Dashboard de Reparaciones
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
           Monitoreo en tiempo real de órdenes, ingresos y carga de trabajo
@@ -102,8 +103,9 @@ export default function DashboardReparacionesPage() {
       {/* Tasa de Aprobación */}
       <div className="mt-8">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            📊 Tasa de Aprobación de Presupuestos
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+            <BarChart2 size={18} style={{ color: "var(--color-accent)" }} />
+            Tasa de Aprobación de Presupuestos
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">

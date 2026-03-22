@@ -20,6 +20,7 @@ import { VendedorDashboard } from "@/components/dashboard/VendedorDashboard";
 import { DashboardEjecutivo } from "@/components/dashboard/DashboardEjecutivo";
 import type { DashboardStats as RepDashboardStats } from "@/lib/db/reparaciones-dashboard";
 import type { OrdenReparacionDetallada } from "@/types";
+import { AlertTriangle, Wrench } from "lucide-react";
 
 interface DashboardStats {
   totalClientes: number;
@@ -347,7 +348,7 @@ export default function DashboardPage() {
             border: "1px solid var(--color-warning)",
           }}
         >
-          <span style={{ fontSize: 20 }}>⚠️</span>
+          <AlertTriangle size={20} style={{ color: "var(--color-warning)", flexShrink: 0 }} />
           <div className="flex-1">
             <p className="text-sm font-medium" style={{ color: "var(--color-warning-text)" }}>
               {cajaStatus.abiertaPor} tiene la caja abierta ({cajaStatus.folio}).
@@ -815,8 +816,9 @@ export default function DashboardPage() {
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                🔧 Órdenes que requieren acción
+              <h3 className="text-base font-semibold flex items-center gap-1.5" style={{ color: "var(--color-text-primary)" }}>
+                <Wrench size={15} style={{ color: "var(--color-accent)" }} />
+                Órdenes que requieren acción
               </h3>
               <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
                 Recibidas, en diagnóstico, presupuesto pendiente o listas para entregar

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 interface Tab {
   id: string;
-  label: string;
+  label: React.ReactNode;
   content: React.ReactNode;
 }
 
