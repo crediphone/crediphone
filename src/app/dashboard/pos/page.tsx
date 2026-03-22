@@ -15,7 +15,7 @@ import { DescuentoPOS } from "@/components/pos/DescuentoPOS";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Wrench, Package2 } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Tag, Wrench, Package2 } from "lucide-react";
 import { generarReporteX, abrirReporte } from "@/lib/utils/reportes";
 import type {
   Producto,
@@ -83,6 +83,11 @@ export default function POSPage() {
 
   // FASE 36/41/61: Sección activa del panel izquierdo
   const [posSection, setPosSection] = useState<"productos" | "servicios" | "reparaciones" | "kits">("productos");
+
+  // Panel extras compacto: qué sección está expandida (null = todas cerradas)
+  const [extrasPanel, setExtrasPanel] = useState<"descuento" | "cliente" | "notas" | null>(null);
+  const toggleExtras = (panel: "descuento" | "cliente" | "notas") =>
+    setExtrasPanel((prev) => (prev === panel ? null : panel));
 
   // FASE 29: modo dual Standard / Visual
   const [posMode, setPosMode] = useState<"standard" | "visual">(() => {
@@ -1189,8 +1194,10 @@ export default function POSPage() {
 
         </div>
 
-        {/* Right Column - Cart & Payment */}
-        <div className="space-y-4">
+        {/* Right Column - Cart & Payment (compact redesign) */}
+        <div className="flex flex-col gap-3">
+
+          {/* Carrito */}
           <ShoppingCart
             items={cartItems}
             descuento={descuento}
@@ -1199,66 +1206,189 @@ export default function POSPage() {
             onClear={handleClearCart}
           />
 
-          {/* Descuento, Cliente y Notas — en columna derecha para evitar superposición */}
-          <div className="space-y-3">
-            {/* FASE 39: Control de descuento inteligente con zonas y autorización */}
-            <DescuentoPOS
-              subtotal={subtotal}
-              empleadoNombre={user?.name ?? user?.email ?? ""}
-              contextoItems={cartItems.map((item) => ({
-                nombre: item.esServicio
-                  ? (item.servicioNombre ?? "Servicio")
-                  : (item.producto?.nombre ?? "Producto"),
-                cantidad: item.cantidad,
-                precio: item.precioUnitario,
-              }))}
-              onChange={(d) => setDescuento(d)}
-            />
-
-            {/* FASE 30: Selector de cliente */}
-            <div className="relative">
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                Cliente <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
-              </label>
-              {clienteSeleccionado ? (
-                <div
-                  className="flex items-center justify-between px-3 py-2 rounded-lg"
+          {/* ── Fila de extras: Descuento | Cliente | Notas ── */}
+          {cartItems.length > 0 && (
+            <div
+              className="rounded-xl overflow-hidden"
+              style={{
+                border: "1px solid var(--color-border-subtle)",
+                background: "var(--color-bg-surface)",
+              }}
+            >
+              {/* Botones de toggle — siempre visibles */}
+              <div className="flex divide-x" style={{ borderBottom: extrasPanel ? "1px solid var(--color-border-subtle)" : "none" }}>
+                {/* Descuento */}
+                <button
+                  onClick={() => toggleExtras("descuento")}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors"
                   style={{
-                    background: "var(--color-accent-light)",
-                    border: "1px solid var(--color-accent)",
+                    background: extrasPanel === "descuento" ? "var(--color-accent-light)" : "transparent",
+                    color: extrasPanel === "descuento"
+                      ? "var(--color-accent)"
+                      : descuento > 0
+                      ? "var(--color-warning)"
+                      : "var(--color-text-secondary)",
+                    borderRight: "1px solid var(--color-border-subtle)",
                   }}
                 >
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
-                    <span className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
-                      {clienteSeleccionado.nombre} {clienteSeleccionado.apellido ?? ""}
-                    </span>
-                    <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                      {clienteSeleccionado.telefono}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
-                    className="p-0.5 rounded"
-                    style={{ color: "var(--color-text-muted)" }}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <Tag className="w-3.5 h-3.5" />
+                  {descuento > 0 ? `-$${descuento.toFixed(0)}` : "Descuento"}
+                </button>
+
+                {/* Cliente */}
+                <button
+                  onClick={() => toggleExtras("cliente")}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors"
+                  style={{
+                    background: extrasPanel === "cliente" ? "var(--color-accent-light)" : "transparent",
+                    color: extrasPanel === "cliente"
+                      ? "var(--color-accent)"
+                      : clienteSeleccionado
+                      ? "var(--color-success)"
+                      : "var(--color-text-secondary)",
+                    borderRight: "1px solid var(--color-border-subtle)",
+                  }}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  {clienteSeleccionado
+                    ? clienteSeleccionado.nombre.split(" ")[0]
+                    : "Cliente"}
+                </button>
+
+                {/* Notas */}
+                <button
+                  onClick={() => toggleExtras("notas")}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors"
+                  style={{
+                    background: extrasPanel === "notas" ? "var(--color-accent-light)" : "transparent",
+                    color: extrasPanel === "notas"
+                      ? "var(--color-accent)"
+                      : notasVenta
+                      ? "var(--color-info)"
+                      : "var(--color-text-secondary)",
+                  }}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {notasVenta ? "Con nota" : "Notas"}
+                </button>
+              </div>
+
+              {/* Panel expandible — Descuento */}
+              {extrasPanel === "descuento" && (
+                <div className="p-3">
+                  <DescuentoPOS
+                    subtotal={subtotal}
+                    empleadoNombre={user?.name ?? user?.email ?? ""}
+                    contextoItems={cartItems.map((item) => ({
+                      nombre: item.esServicio
+                        ? (item.servicioNombre ?? "Servicio")
+                        : (item.producto?.nombre ?? "Producto"),
+                      cantidad: item.cantidad,
+                      precio: item.precioUnitario,
+                    }))}
+                    onChange={(d) => setDescuento(d)}
+                  />
                 </div>
-              ) : (
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Buscar cliente por nombre o teléfono..."
-                    value={busquedaCliente}
-                    onChange={(e) => {
-                      setBusquedaCliente(e.target.value);
-                      setShowClienteDropdown(true);
-                      buscarClientes(e.target.value);
-                    }}
-                    onFocus={() => { if (busquedaCliente.length >= 2) setShowClienteDropdown(true); }}
-                    onBlur={() => setTimeout(() => setShowClienteDropdown(false), 150)}
-                    className="w-full px-3 py-2 rounded-lg text-sm pl-9"
+              )}
+
+              {/* Panel expandible — Cliente */}
+              {extrasPanel === "cliente" && (
+                <div className="p-3">
+                  {clienteSeleccionado ? (
+                    <div
+                      className="flex items-center justify-between px-3 py-2 rounded-lg"
+                      style={{ background: "var(--color-accent-light)", border: "1px solid var(--color-accent)" }}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <User className="w-4 h-4 shrink-0" style={{ color: "var(--color-accent)" }} />
+                        <span className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>
+                          {clienteSeleccionado.nombre} {clienteSeleccionado.apellido ?? ""}
+                        </span>
+                        <span className="text-xs shrink-0" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
+                          {clienteSeleccionado.telefono}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); }}
+                        className="p-0.5 rounded ml-2 shrink-0"
+                        style={{ color: "var(--color-text-muted)" }}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Nombre o teléfono del cliente..."
+                        value={busquedaCliente}
+                        autoFocus
+                        onChange={(e) => {
+                          setBusquedaCliente(e.target.value);
+                          setShowClienteDropdown(true);
+                          buscarClientes(e.target.value);
+                        }}
+                        onFocus={() => { if (busquedaCliente.length >= 2) setShowClienteDropdown(true); }}
+                        onBlur={() => setTimeout(() => setShowClienteDropdown(false), 150)}
+                        className="w-full px-3 py-2 rounded-lg text-sm pl-9"
+                        style={{
+                          background: "var(--color-bg-sunken)",
+                          border: "1px solid var(--color-border)",
+                          color: "var(--color-text-primary)",
+                          outline: "none",
+                        }}
+                      />
+                      <User className="w-4 h-4 absolute left-2.5 top-2.5" style={{ color: "var(--color-text-muted)" }} />
+                      {showClienteDropdown && (buscandoCliente || resultadosCliente.length > 0) && (
+                        <div
+                          className="absolute z-20 w-full mt-1 rounded-xl overflow-hidden"
+                          style={{
+                            background: "var(--color-bg-surface)",
+                            border: "1px solid var(--color-border)",
+                            boxShadow: "var(--shadow-md)",
+                          }}
+                        >
+                          {buscandoCliente && (
+                            <div className="px-3 py-2 text-xs" style={{ color: "var(--color-text-muted)" }}>Buscando...</div>
+                          )}
+                          {resultadosCliente.map((c) => (
+                            <button
+                              key={c.id}
+                              onMouseDown={() => {
+                                setClienteSeleccionado(c);
+                                setBusquedaCliente("");
+                                setShowClienteDropdown(false);
+                                setExtrasPanel(null);
+                              }}
+                              className="w-full px-3 py-2.5 text-left text-sm hover:opacity-80 flex items-center gap-2"
+                              style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                            >
+                              <User className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+                              <span style={{ color: "var(--color-text-primary)" }}>
+                                {c.nombre} {c.apellido ?? ""}
+                              </span>
+                              <span className="ml-auto text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
+                                {c.telefono}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Panel expandible — Notas */}
+              {extrasPanel === "notas" && (
+                <div className="p-3">
+                  <textarea
+                    rows={2}
+                    value={notasVenta}
+                    autoFocus
+                    onChange={(e) => setNotasVenta(e.target.value)}
+                    placeholder="Observaciones, acuerdos, instrucciones especiales..."
+                    className="w-full px-3 py-2 rounded-lg text-sm resize-none"
                     style={{
                       background: "var(--color-bg-sunken)",
                       border: "1px solid var(--color-border)",
@@ -1266,66 +1396,12 @@ export default function POSPage() {
                       outline: "none",
                     }}
                   />
-                  <User className="w-4 h-4 absolute left-2.5 top-2.5" style={{ color: "var(--color-text-muted)" }} />
-                  {showClienteDropdown && (buscandoCliente || resultadosCliente.length > 0) && (
-                    <div
-                      className="absolute z-20 w-full mt-1 rounded-xl overflow-hidden"
-                      style={{
-                        background: "var(--color-bg-surface)",
-                        border: "1px solid var(--color-border)",
-                        boxShadow: "var(--shadow-md)",
-                      }}
-                    >
-                      {buscandoCliente && (
-                        <div className="px-3 py-2 text-xs" style={{ color: "var(--color-text-muted)" }}>Buscando...</div>
-                      )}
-                      {resultadosCliente.map((c) => (
-                        <button
-                          key={c.id}
-                          onMouseDown={() => {
-                            setClienteSeleccionado(c);
-                            setBusquedaCliente("");
-                            setShowClienteDropdown(false);
-                          }}
-                          className="w-full px-3 py-2.5 text-left text-sm hover:opacity-80 flex items-center gap-2"
-                          style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
-                        >
-                          <User className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
-                          <span style={{ color: "var(--color-text-primary)" }}>
-                            {c.nombre} {c.apellido ?? ""}
-                          </span>
-                          <span className="ml-auto text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
-                            {c.telefono}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
+          )}
 
-            {/* FASE 30: Notas de la venta */}
-            <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
-                Notas de la venta <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(opcional)</span>
-              </label>
-              <textarea
-                rows={2}
-                value={notasVenta}
-                onChange={(e) => setNotasVenta(e.target.value)}
-                placeholder="Observaciones, acuerdos, instrucciones..."
-                className="w-full px-3 py-2 rounded-lg text-sm resize-none"
-                style={{
-                  background: "var(--color-bg-sunken)",
-                  border: "1px solid var(--color-border)",
-                  color: "var(--color-text-primary)",
-                  outline: "none",
-                }}
-              />
-            </div>
-          </div>
-
+          {/* Método de pago + botón completar */}
           {cartItems.length > 0 && (
             <div className="space-y-3">
               <PaymentMethodSelector total={total} onChange={setPaymentData} />

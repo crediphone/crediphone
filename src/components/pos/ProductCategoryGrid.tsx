@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Smartphone, Package, Search } from "lucide-react";
+import { Smartphone, Package, Search, QrCode, X } from "lucide-react";
+import { BarcodeScanner } from "@/components/inventario/BarcodeScanner";
 import type { Producto, Categoria } from "@/types";
 
 interface ProductCategoryGridProps {
@@ -15,6 +16,8 @@ export function ProductCategoryGrid({ onSelectProduct }: ProductCategoryGridProp
   const [categoriaActiva, setCategoriaActiva] = useState<string>("todos");
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanMsg, setScanMsg] = useState("");
 
   useEffect(() => {
     async function cargar() {
@@ -46,6 +49,37 @@ export function ProductCategoryGrid({ onSelectProduct }: ProductCategoryGridProp
     return matchCategoria && matchBusqueda;
   });
 
+  // Escaneo de código de barras en modo visual
+  const handleBarcodeScan = (codigo: string) => {
+    setScanMsg("");
+    const term = codigo.toLowerCase();
+    const matches = productos.filter(
+      (p) =>
+        (p as any).codigo_barras?.toLowerCase() === term ||
+        p.codigoBarras?.toLowerCase() === term ||
+        (p as any).sku?.toLowerCase() === term
+    );
+    if (matches.length === 1) {
+      setShowScanner(false);
+      onSelectProduct(matches[0]);
+    } else if (matches.length > 1) {
+      setBusqueda(codigo);
+      setShowScanner(false);
+    } else {
+      const fuzzy = productos.filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(term) ||
+          (p.marca ?? "").toLowerCase().includes(term)
+      );
+      if (fuzzy.length === 0) {
+        setScanMsg(`Sin producto con código: ${codigo}`);
+      } else {
+        setBusqueda(codigo);
+      }
+      setShowScanner(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -75,26 +109,72 @@ export function ProductCategoryGrid({ onSelectProduct }: ProductCategoryGridProp
 
   return (
     <div className="space-y-3">
-      {/* Búsqueda rápida */}
-      <div className="relative">
-        <Search
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
-          style={{ color: "var(--color-text-muted)" }}
-        />
-        <input
-          type="text"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Filtrar productos..."
-          className="w-full pl-9 pr-3 py-2 rounded-lg text-sm"
-          style={{
-            background: "var(--color-bg-sunken)",
-            border: "1px solid var(--color-border)",
-            color: "var(--color-text-primary)",
-            outline: "none",
-          }}
-        />
+      {/* Búsqueda rápida + escáner QR */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+            style={{ color: "var(--color-text-muted)" }}
+          />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => { setBusqueda(e.target.value); setScanMsg(""); }}
+            placeholder="Filtrar por nombre, marca, código..."
+            className="w-full pl-9 pr-3 py-2 rounded-lg text-sm"
+            style={{
+              background: "var(--color-bg-sunken)",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text-primary)",
+              outline: "none",
+            }}
+          />
+        </div>
+        {/* Botón escaneo QR */}
+        <button
+          type="button"
+          onClick={() => { setShowScanner((v) => !v); setScanMsg(""); }}
+          title="Escanear código de barras"
+          className="px-3 rounded-xl border transition-colors shrink-0"
+          style={
+            showScanner
+              ? { background: "var(--color-accent)", borderColor: "var(--color-accent)", color: "#fff" }
+              : { borderColor: "var(--color-border)", color: "var(--color-text-secondary)", background: "transparent" }
+          }
+        >
+          {showScanner ? <X className="w-5 h-5" /> : <QrCode className="w-5 h-5" />}
+        </button>
       </div>
+
+      {/* Panel escáner */}
+      {showScanner && (
+        <div
+          className="p-3 rounded-xl"
+          style={{
+            background: "var(--color-info-bg)",
+            border: "1px solid var(--color-border-subtle)",
+          }}
+        >
+          <p className="text-xs font-semibold mb-2" style={{ color: "var(--color-info-text)" }}>
+            Escanear código de barras — agrega al carrito automáticamente
+          </p>
+          <BarcodeScanner onScan={handleBarcodeScan} lastScannedCode={busqueda || undefined} />
+        </div>
+      )}
+
+      {/* Mensaje sin coincidencia por escaneo */}
+      {scanMsg && (
+        <div
+          className="p-2 rounded-lg text-xs"
+          style={{
+            background: "var(--color-warning-bg)",
+            border: "1px solid var(--color-warning)",
+            color: "var(--color-warning-text)",
+          }}
+        >
+          {scanMsg}
+        </div>
+      )}
 
       {/* Tabs de categorías */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -195,8 +275,9 @@ function ProductCard({
   onSelect: (p: Producto) => void;
 }) {
   const [hover, setHover] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const sinStock = producto.stock <= 0;
-  const tieneImagen = Boolean(producto.imagen);
+  const tieneImagen = Boolean(producto.imagen) && !imgError;
 
   const formatPrice = (n: number) =>
     new Intl.NumberFormat("es-MX", {
@@ -231,6 +312,7 @@ function ProductCard({
             fill
             sizes="(max-width: 640px) 50vw, 33vw"
             className="object-cover"
+            onError={() => setImgError(true)}
             style={{
               filter: sinStock ? "grayscale(0.6)" : "none",
               transition: "transform 200ms ease",
