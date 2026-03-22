@@ -15,7 +15,7 @@ import {
   Package, PackageCheck, AlertTriangle, TrendingUp,
   Pencil, Trash2, Search, Plus, Upload, Smartphone, Tag, RefreshCw, QrCode,
   History, ShoppingCart, Wrench, Warehouse, ChevronRight,
-  Printer, Minus as MinusIcon, Plus as PlusIcon, CheckSquare, Square,
+  Printer, Minus as MinusIcon, Plus as PlusIcon, CheckSquare, Square, CheckCircle,
 } from "lucide-react";
 import type { CSSProperties } from "react";
 
@@ -537,6 +537,20 @@ function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, o
             style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)", border: "1px solid var(--color-border)" }}
           >
             IMEI/Serie
+          </span>
+        )}
+        {/* Indicador de código asignado o sin código */}
+        {(producto.codigoBarras || producto.sku) ? (
+          <div className="text-[10px] mt-0.5 font-mono" style={{ color: "var(--color-text-muted)" }}>
+            {producto.codigoBarras || producto.sku}
+          </div>
+        ) : (
+          <span
+            className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+            style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)" }}
+            title="Sin código de barras — se generará automáticamente al imprimir etiqueta"
+          >
+            sin código
           </span>
         )}
       </td>
@@ -1303,7 +1317,7 @@ function Code128SVG({ value, width = 180, height = 32, showText = true }: { valu
 }
 
 function EtiquetaModal({
-  producto,
+  producto: productoInicial,
   onClose,
 }: {
   producto: Producto | null;
@@ -1315,6 +1329,34 @@ function EtiquetaModal({
   const [mostrarIMEI, setMostrarIMEI]      = useState(false);
   const [mostrarBarras, setMostrarBarras]  = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Estado local para el código — se actualiza si se auto-genera
+  const [codigoGenerado, setCodigoGenerado] = useState<string | null>(null);
+  const [generandoCodigo, setGenerandoCodigo] = useState(false);
+
+  // Al abrir el modal: si el producto no tiene código, generar uno automáticamente
+  useEffect(() => {
+    setCodigoGenerado(null);
+    if (!productoInicial) return;
+    const tieneCodigo = productoInicial.codigoBarras?.trim() || productoInicial.sku?.trim();
+    if (tieneCodigo) return; // ya tiene código, nada que hacer
+
+    setGenerandoCodigo(true);
+    fetch(`/api/productos/${productoInicial.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "generar_codigo" }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.codigo) {
+          setCodigoGenerado(data.codigo);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setGenerandoCodigo(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoInicial?.id]);
 
   const cfg = TAMANOS.find((t) => t.id === tamano) ?? TAMANOS[1];
 
@@ -1365,12 +1407,15 @@ function EtiquetaModal({
     ventana.document.close();
   }
 
+  // Usar productoInicial con el código generado superpuesto si aplica
+  const producto = productoInicial;
   if (!producto) return null;
 
   const nombre       = producto.nombre ?? "";
   const marcaModelo  = [producto.marca, producto.modelo].filter(Boolean).join(" · ");
   const precio       = Number(producto.precio ?? 0);
-  const codigo       = producto.codigoBarras ?? producto.id.slice(-8).toUpperCase();
+  // Orden de prioridad: código guardado → código recién generado → SKU → (nunca el ID)
+  const codigo       = producto.codigoBarras?.trim() || codigoGenerado || producto.sku?.trim() || "";
   const imei         = producto.imei;
 
   // Etiqueta individual (se repite cantidad veces)
@@ -1440,6 +1485,36 @@ function EtiquetaModal({
   return (
     <Modal isOpen={!!producto} onClose={onClose} title="Imprimir Etiqueta" size="lg">
       <div className="space-y-5">
+
+        {/* Banner: generando / código generado */}
+        {generandoCodigo && (
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+            style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)" }}
+          >
+            <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+            Generando código único para este producto…
+          </div>
+        )}
+        {!generandoCodigo && codigoGenerado && (
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+            style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}
+          >
+            <CheckCircle className="w-4 h-4 shrink-0" />
+            Código generado y guardado: <strong style={{ fontFamily: "var(--font-mono)" }}>{codigoGenerado}</strong>
+            <span className="ml-1 opacity-70">— ya escaneable en POS e inventario</span>
+          </div>
+        )}
+        {!generandoCodigo && !codigoGenerado && !producto.codigoBarras && !producto.sku && (
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+            style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)" }}
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            Este producto no tiene código de barras. Edítalo para agregarlo manualmente.
+          </div>
+        )}
 
         {/* Opciones */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
