@@ -39,6 +39,14 @@ export function ContratoFirma({
     }
   }, [tipoFirma]);
 
+  /** Convierte coordenadas CSS → coordenadas internas del canvas (corrige desfase en pantallas distintas al 100%) */
+  const toCanvasCoords = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  };
+
   // Funciones para dibujar
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
@@ -48,9 +56,9 @@ export function ContratoFirma({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = "touches" in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const rawX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const rawY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const { x, y } = toCanvasCoords(canvas, rawX, rawY);
 
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -66,9 +74,9 @@ export function ContratoFirma({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = "touches" in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = "touches" in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const rawX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const rawY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    const { x, y } = toCanvasCoords(canvas, rawX, rawY);
 
     ctx.lineTo(x, y);
     ctx.stroke();

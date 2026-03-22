@@ -88,19 +88,30 @@ export function SelectorTipoFirma({
     setFirmaCapturaManuscrita(false);
   };
 
+  /** Convierte coordenadas CSS → coordenadas internas del canvas (corrige desfase) */
+  const toCanvasCoords = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     setDibujando(true);
     setFirmaCapturaManuscrita(true);
 
+    const { x, y } = toCanvasCoords(canvas, e.clientX, e.clientY);
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo(x, y);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -109,7 +120,6 @@ export function SelectorTipoFirma({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -118,7 +128,8 @@ export function SelectorTipoFirma({
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    const { x, y } = toCanvasCoords(canvas, e.clientX, e.clientY);
+    ctx.lineTo(x, y);
     ctx.stroke();
   };
 
@@ -131,7 +142,6 @@ export function SelectorTipoFirma({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -139,8 +149,9 @@ export function SelectorTipoFirma({
     setDibujando(true);
     setFirmaCapturaManuscrita(true);
 
+    const { x, y } = toCanvasCoords(canvas, touch.clientX, touch.clientY);
     ctx.beginPath();
-    ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    ctx.moveTo(x, y);
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
@@ -150,7 +161,6 @@ export function SelectorTipoFirma({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -161,7 +171,8 @@ export function SelectorTipoFirma({
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
-    ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    const { x, y } = toCanvasCoords(canvas, touch.clientX, touch.clientY);
+    ctx.lineTo(x, y);
     ctx.stroke();
   };
 
