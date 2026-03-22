@@ -1729,7 +1729,42 @@ export interface PermisosEmpleado {
 export type MapaPermisos = Record<string, boolean>;
 
 // =====================================================
-// FASE 55: WhatsApp Business API
+// FASE 55: Control de Asistencia / Reloj Checador
+// =====================================================
+
+export interface AsistenciaSesion {
+  id: string;
+  distribuidorId?: string;
+  usuarioId: string;
+  usuarioNombre?: string;
+  fechaEntrada: Date;
+  fechaSalida?: Date;
+  duracionMinutos?: number;   // GENERATED ALWAYS — calculado en DB
+  notasEntrada?: string;
+  notasSalida?: string;
+  estado: 'activo' | 'cerrado';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ResumenEmpleadoAsistencia {
+  usuarioId: string;
+  nombre: string;
+  horasMes: number;
+  diasTrabajados: number;
+  estadoActual: 'presente' | 'ausente';
+}
+
+export interface EstadisticasAsistencia {
+  presentes: number;             // empleados con turno activo ahora
+  totalHorasHoy: number;
+  totalHorasMes: number;
+  promedioHorasDia: number;
+  resumenEmpleados: ResumenEmpleadoAsistencia[];
+}
+
+// =====================================================
+// FASE 55-WA: WhatsApp Business API
 // =====================================================
 
 export type CanalEnvioWA = "api" | "link" | "manual";
