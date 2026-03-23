@@ -1392,8 +1392,8 @@ function EtiquetaModal({
             .etiqueta-top { flex: 1; }
             .nombre { font-size: ${cfg.id === "50x30" ? "5pt" : cfg.id === "70x40" ? "6pt" : "8pt"}; font-weight: 700; line-height: 1.3; }
             .marca-modelo { font-size: ${cfg.id === "50x30" ? "4pt" : cfg.id === "70x40" ? "4.5pt" : "6pt"}; color: #666; margin-top: 0.5mm; }
-            .etiqueta-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 2mm; }
-            .precio { font-size: ${cfg.id === "50x30" ? "9pt" : cfg.id === "70x40" ? "11pt" : "15pt"}; font-weight: 900; letter-spacing: -0.5pt; }
+            .etiqueta-bottom { display: flex; align-items: center; justify-content: space-between; gap: 2mm; }
+            .precio { font-size: ${cfg.id === "50x30" ? "9pt" : cfg.id === "70x40" ? "14pt" : "17pt"}; font-weight: 900; letter-spacing: -0.5pt; }
             .qr-wrap svg { display: block; }
             .codigo-text { font-size: 4pt; font-family: 'Courier New', monospace; letter-spacing: 0.5pt; color: #555; margin-top: 0.5mm; text-align: center; }
           </style>
@@ -1436,7 +1436,7 @@ function EtiquetaModal({
 
   const nombreSize   = cfg.id === "50x30" ? "0.5rem" : cfg.id === "70x40" ? "0.625rem" : "0.8125rem";
   const marcaSize    = cfg.id === "50x30" ? "0.4rem"  : cfg.id === "70x40" ? "0.5rem"  : "0.625rem";
-  const precioSize   = cfg.id === "50x30" ? "1.1rem"  : cfg.id === "70x40" ? "1.35rem" : "1.75rem";
+  const precioSize   = cfg.id === "50x30" ? "1.1rem"  : cfg.id === "70x40" ? "1.65rem" : "2rem";
   const qrSize       = cfg.id === "50x30" ? 52        : cfg.id === "70x40" ? 64        : 84;
 
   const EtiquetaEl = () => (
@@ -1461,10 +1461,10 @@ function EtiquetaModal({
         {/* Código de barras CODE128 — lector físico lo puede escanear */}
         {mostrarBarras && cfg.id !== "50x30" && (
           <div style={{ textAlign: "center" }}>
-            <Code128SVG value={codigo} width={cfg.id === "70x40" ? 160 : 220} height={cfg.id === "70x40" ? 28 : 36} showText={false} />
+            <Code128SVG value={codigo} width={cfg.id === "70x40" ? 162 : 222} height={cfg.id === "70x40" ? 34 : 44} showText={false} />
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
           {mostrarPrecio && (
             <div style={{ fontSize: precioSize, fontWeight: 900, color: "#0d1e35", lineHeight: 1, letterSpacing: "-0.5px" }}>
               ${precio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
@@ -1624,7 +1624,7 @@ function EtiquetaModal({
             <div key={i} className="etiqueta" style={{
               width: cfg.id === "50x30" ? "50mm" : cfg.id === "70x40" ? "70mm" : "100mm",
               height: cfg.id === "50x30" ? "30mm" : cfg.id === "70x40" ? "40mm" : "50mm",
-              border: "0.5pt solid #ddd",
+              border: "1.5pt solid #333",
               borderRadius: "2mm",
               padding: "2mm",
               display: "flex",
@@ -1642,20 +1642,22 @@ function EtiquetaModal({
                 {marcaModelo && <div style={{ fontSize: "4pt", color: "#666", marginTop: "0.5mm" }}>{marcaModelo}</div>}
                 {mostrarIMEI && imei && <div style={{ fontSize: "4pt", color: "#888", fontFamily: "monospace", marginTop: "0.5mm" }}>IMEI: {imei}</div>}
               </div>
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "2mm" }}>
+              {/* CODE128 para lector físico */}
+              {mostrarBarras && cfg.id !== "50x30" && (
+                <div style={{ textAlign: "center", marginBottom: "0.5mm" }}>
+                  <Code128SVG value={codigo} width={cfg.id === "70x40" ? 162 : 222} height={cfg.id === "70x40" ? 34 : 44} showText={false} />
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "2mm" }}>
                 {mostrarPrecio && (
-                  <div style={{ fontSize: cfg.id === "50x30" ? "9pt" : cfg.id === "70x40" ? "11pt" : "15pt", fontWeight: 900 }}>
+                  <div style={{ fontSize: cfg.id === "50x30" ? "9pt" : cfg.id === "70x40" ? "14pt" : "17pt", fontWeight: 900, color: "#0d1e35", letterSpacing: "-0.5pt", lineHeight: 1 }}>
                     ${precio.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                   </div>
                 )}
-                <div style={{ textAlign: "center" }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=${cfg.id === "50x30" ? "60x60" : cfg.id === "70x40" ? "80x80" : "100x100"}&data=${encodeURIComponent(codigo)}&margin=0`}
-                    alt="QR"
-                    style={{ display: "block", width: cfg.id === "50x30" ? "8mm" : cfg.id === "70x40" ? "10mm" : "14mm" }}
-                  />
-                  <div style={{ fontSize: "4pt", fontFamily: "monospace", letterSpacing: "0.3pt", color: "#666", marginTop: "0.5mm" }}>
-                    {codigo}
+                <div style={{ textAlign: "center", flexShrink: 0 }}>
+                  <QRCodeSVG value={codigo} size={cfg.id === "50x30" ? 52 : cfg.id === "70x40" ? 64 : 84} level="M" />
+                  <div style={{ fontSize: "4pt", fontFamily: "monospace", letterSpacing: "0.3pt", color: "#555", marginTop: "0.5mm" }}>
+                    {codigo.length > 14 ? codigo.slice(0, 14) + "…" : codigo}
                   </div>
                 </div>
               </div>
