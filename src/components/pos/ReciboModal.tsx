@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { X, Download, CheckCircle, ShoppingBag, Printer, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ThermalPrinterButton } from "@/components/print/ThermalPrinterButton";
 import type { VentaDetallada } from "@/types";
 import { generarTicketVentaPOS, abrirReporte } from "@/lib/utils/reportes";
+import { buildTicketVentaPOS, fromVentaDetallada } from "@/lib/print/ticket-thermal";
+import { useConfig } from "@/components/ConfigProvider";
 
 interface ReciboModalProps {
   venta: VentaDetallada;
@@ -23,6 +26,22 @@ export function ReciboModal({
   clienteTelefono,
 }: ReciboModalProps) {
   const [downloading, setDownloading] = useState(false);
+  const { config } = useConfig();
+
+  // ── ESC/POS bytes para impresora térmica (58mm por defecto) ───────────────
+  const escposData = useMemo(() => {
+    try {
+      const empresa = {
+        nombre: config?.nombreEmpresa || "CREDIPHONE",
+        rfc: config?.rfc || undefined,
+        direccion: config?.direccionEmpresa || undefined,
+        telefono: config?.telefonoEmpresa || undefined,
+      };
+      return buildTicketVentaPOS(fromVentaDetallada(venta), empresa, 58);
+    } catch {
+      return undefined;
+    }
+  }, [venta, config]);
 
   // ── Ticket 58mm ───────────────────────────────────────
   const buildTicketHtml = () =>
@@ -310,7 +329,17 @@ export function ReciboModal({
                 ¿Qué deseas hacer con el comprobante?
               </p>
               <div className="flex flex-wrap gap-2">
-                {/* Imprimir directamente */}
+                {/* Impresora térmica (BT / App / Red) */}
+                {escposData && (
+                  <ThermalPrinterButton
+                    escposData={escposData}
+                    htmlFallback={buildTicketHtml()}
+                    label="Imprimir térmica"
+                    size="sm"
+                  />
+                )}
+
+                {/* Imprimir en navegador (fallback) */}
                 <button
                   onClick={handleImprimirDirecto}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all"
@@ -391,11 +420,12 @@ export function ReciboModal({
               borderTop: "1px solid var(--color-border-subtle)",
             }}
           >
-            {/* Ticket 58mm (ventana, sin auto-print) */}
-            <Button onClick={handleImprimirTicket} variant="secondary">
-              <Printer className="w-4 h-4 mr-2" />
-              Ticket 58mm
-            </Button>
+            {/* Ticket 58mm — Impresora térmica (BT / App / Red / Navegador) */}
+            <ThermalPrinterButton
+              escposData={escposData}
+              htmlFallback={buildTicketHtml()}
+              label="Ticket 58mm"
+            />
 
             {/* Recibo PDF completo */}
             <Button onClick={handleDownloadRecibo} disabled={downloading} variant="secondary">
