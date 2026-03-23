@@ -1380,7 +1380,7 @@ function EtiquetaModal({
             .etiqueta {
               width: ${cfg.id === "50x30" ? "50mm" : cfg.id === "70x40" ? "70mm" : "100mm"};
               height: ${cfg.id === "50x30" ? "30mm" : cfg.id === "70x40" ? "40mm" : "50mm"};
-              border: 0.5pt solid #ddd;
+              border: 1.5pt solid #333;
               border-radius: 2mm;
               padding: 2mm;
               display: flex;
@@ -1422,7 +1422,7 @@ function EtiquetaModal({
   const etiquetaStyle: CSSProperties = {
     width: cfg.width,
     height: cfg.height,
-    border: "1px solid var(--color-border)",
+    border: "1.5px solid #333",
     borderRadius: 6,
     padding: "8px 10px",
     display: "flex",
@@ -1437,7 +1437,7 @@ function EtiquetaModal({
   const nombreSize   = cfg.id === "50x30" ? "0.5rem" : cfg.id === "70x40" ? "0.625rem" : "0.8125rem";
   const marcaSize    = cfg.id === "50x30" ? "0.4rem"  : cfg.id === "70x40" ? "0.5rem"  : "0.625rem";
   const precioSize   = cfg.id === "50x30" ? "1.1rem"  : cfg.id === "70x40" ? "1.35rem" : "1.75rem";
-  const qrSize       = cfg.id === "50x30" ? 36        : cfg.id === "70x40" ? 48        : 64;
+  const qrSize       = cfg.id === "50x30" ? 52        : cfg.id === "70x40" ? 64        : 84;
 
   const EtiquetaEl = () => (
     <div style={etiquetaStyle}>
@@ -1472,7 +1472,7 @@ function EtiquetaModal({
           )}
           <div style={{ textAlign: "center", flexShrink: 0 }}>
             {/* QR — escaneable desde celular */}
-            <QRCodeSVG value={codigo} size={cfg.id === "50x30" ? qrSize : Math.floor(qrSize * 0.75)} level="M" />
+            <QRCodeSVG value={codigo} size={qrSize} level="M" />
             <div style={{ fontSize: "0.35rem", fontFamily: "monospace", letterSpacing: "0.3px", color: "#666", marginTop: 1 }}>
               {codigo.length > 14 ? codigo.slice(0, 14) + "…" : codigo}
             </div>
@@ -2080,7 +2080,7 @@ function EtiquetasMasivasModal({
       .etiqueta {
         width: ${mm.w}mm;
         height: ${mm.h}mm;
-        border: 0.5pt solid #ccc;
+        border: 1.5pt solid #333;
         border-radius: 1.5mm;
         padding: 2mm;
         display: inline-flex;
@@ -2106,7 +2106,7 @@ function EtiquetasMasivasModal({
       const codigo = p.codigoBarras ?? p.id.slice(-8).toUpperCase();
       const precio = Number(p.precio ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
       const sub    = [p.marca, p.modelo].filter(Boolean).join(" · ");
-      const qrSize = mm.w <= 50 ? 60 : mm.w <= 70 ? 80 : 100;
+      const qrSize = mm.w <= 50 ? 90 : mm.w <= 70 ? 120 : 150;
       return `<div class="etiqueta">
   <div>
     <div class="nombre">${p.nombre ?? ""}</div>
@@ -2115,7 +2115,7 @@ function EtiquetasMasivasModal({
   <div class="bottom">
     ${mostrarPrecio ? `<div class="precio">$${precio}</div>` : ""}
     <div class="qr-wrap">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(codigo)}&margin=0" width="${mm.w <= 50 ? "8mm" : mm.w <= 70 ? "10mm" : "14mm"}" alt="QR" />
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(codigo)}&margin=0" width="${mm.w <= 50 ? "12mm" : mm.w <= 70 ? "15mm" : "20mm"}" alt="QR" />
       <div class="qr-code">${codigo}</div>
     </div>
   </div>
@@ -2212,7 +2212,7 @@ ${chunkArray(rows.split("\n\n"), porPagina).map((chunk) =>
       const sub    = [p.marca, p.modelo].filter(Boolean).join(" · ");
 
       shapes += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
-  <rect width="${labelW.toFixed(1)}" height="${labelH.toFixed(1)}" rx="5" ry="5" fill="white" stroke="#ccc" stroke-width="0.5"/>
+  <rect width="${labelW.toFixed(1)}" height="${labelH.toFixed(1)}" rx="5" ry="5" fill="white" stroke="#333" stroke-width="1.5"/>
   <text x="4" y="14" font-size="${mm.w <= 50 ? 7 : 8}" font-weight="bold" fill="#111" font-family="Arial">${escXml(p.nombre ?? "")}</text>
   ${sub ? `<text x="4" y="${mm.w <= 50 ? 20 : 22}" font-size="6" fill="#666" font-family="Arial">${escXml(sub)}</text>` : ""}
   ${mostrarPrecio ? `<text x="4" y="${labelH - 5}" font-size="${mm.w <= 50 ? 12 : 14}" font-weight="bold" fill="#0d1e35" font-family="Arial">$${escXml(precio)}</text>` : ""}
