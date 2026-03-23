@@ -100,6 +100,12 @@ el usuario no es super_admin.
 | 52 | Liquid Glass en íconos del sidebar | — |
 | 53 | Dashboard Ejecutivo Persistente — Command Center con auto-refresh 3min | `25205bf` |
 | FIX | Hydration mismatch WhatsApp + async params Next.js 15/16 en lotes-piezas | `6d22fe4` |
+| 54a | Catálogo de Servicios de Reparación — tabla BD, CRUD admin, precarga en órdenes | migraciones `fase54a/b` |
+| 55 | Control de Asistencia / Reloj Checador — QR/PIN, WidgetChecador, `/dashboard/asistencia` | migración `fase55` |
+| FIX | mapProductoFromDB en productos.ts (todos los campos camelCase), codigoBarras/sku en updateProducto | `3799f21` |
+| FIX | Etiquetas: QR más grande, borde de corte visible 1.5pt, precio más grande, CODE128 en printRef | `3d24152`, `8a43a91` |
+| FIX | resumen-pos/route.ts: params como Promise (Next.js 16) — arreglaba build Vercel | `7ff4308` |
+| FIX | npm audit fix: 0 vulnerabilidades (ajv, dompurify, flatted, minimatch) | `5f7a92f` |
 
 ---
 
@@ -217,11 +223,24 @@ Dashboard Ejecutivo Persistente: Command Center para admin/super_admin, KPIs en 
 
 ---
 
+### 📊 FASE 54a — ✅ COMPLETADA (migraciones `fase54a-catalogo-servicios-reparacion.sql` + `fase54b-orden-catalogo-servicio.sql`)
+Catálogo de Servicios de Reparación: tabla `catalogo_servicios_reparacion`, CRUD admin en `/dashboard/admin/catalogo-reparaciones`, precarga de servicio al crear orden, API `/api/catalogo-servicios/`.
+
+---
+
+### 📊 FASE 55 — ✅ COMPLETADA (migración `fase55-asistencia-checador.sql`)
+Control de Asistencia / Reloj Checador: tabla `asistencia_registros`, check-in/out por QR o PIN, `WidgetChecador.tsx`, página `/dashboard/asistencia/`, API `/api/asistencia/activa` + `/checkout`.
+
+---
+
 ### 🔄 FASES PENDIENTES (no iniciadas — esperar indicación de Trini)
 - FASE 54: Facturación CFDI (integración Facturapi)
-- FASE 55: Control de asistencia / reloj checador por QR o PIN
-- FASE 56: WhatsApp Business API oficial (plantillas aprobadas Meta, historial, doble tick)
+- FASE 56: WhatsApp Business API oficial (plantillas aprobadas Meta, historial, doble tick) — infraestructura parcial ya existe (`/api/whatsapp/`, `WhatsAppAPITab.tsx`), falta integración Meta completa
 - FASE 57: Links de pago (Clip, Conekta) — enviar link de cobro al cliente por WhatsApp
+
+### ⚠️ CÓDIGO SIN MIGRACIÓN BD — fallan en producción hasta que se apliquen:
+- **FASE 61 — Kits**: `src/lib/db/kits.ts`, `src/app/api/kits/`, `src/app/dashboard/productos/kits/`, `KitsPOSPanel.tsx` → tablas `kits` y `kits_items` NO existen en Supabase
+- **FASE 62 — Series por Lote**: `src/lib/db/lotesSeries.ts` → tablas `lotes_series` y `lotes_series_items` NO existen en Supabase
 
 ---
 
@@ -299,4 +318,4 @@ Por eso existe este archivo. Si algo importante pasa en una sesión (nueva decis
 
 ---
 
-*Última actualización: 2026-03-21 — Trini + Claude (FASE 35 registrada, FASES 41+42 extendidas con trabajo de sesión, FASES 51-53 marcadas como completadas, fix hydration/async params registrado)*
+*Última actualización: 2026-03-23 — Trini + Claude (FASES 54a + 55 verificadas y marcadas como completadas, FASE 56 renumerada, FASES 61+62 documentadas como código sin migración BD, fixes de sesión 2026-03-22/23 registrados)*
