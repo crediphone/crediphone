@@ -1,6 +1,54 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Producto } from "@/types";
 
+/**
+ * Convierte una fila de la tabla `productos` (snake_case) al tipo TypeScript `Producto` (camelCase).
+ * Sin este mapper los campos compuestos como `categoria_id`, `codigo_barras`, `es_serializado`, etc.
+ * quedan como `undefined` en el frontend y el formulario de edición no puede pre-rellenarlos.
+ */
+function mapProductoFromDB(db: any): Producto {
+  return {
+    id:               db.id,
+    distribuidorId:   db.distribuidor_id   ?? undefined,
+    nombre:           db.nombre,
+    marca:            db.marca,
+    modelo:           db.modelo,
+    precio:           db.precio,
+    stock:            db.stock,
+    imagen:           db.imagen            ?? undefined,
+    descripcion:      db.descripcion       ?? undefined,
+    activo:           db.activo            ?? undefined,
+
+    // FASE 22: Inventario Avanzado
+    categoriaId:      db.categoria_id      ?? undefined,
+    subcategoriaId:   db.subcategoria_id   ?? undefined,
+    proveedorId:      db.proveedor_id      ?? undefined,
+    costo:            db.costo             ?? undefined,
+    stockMinimo:      db.stock_minimo      ?? undefined,
+    stockMaximo:      db.stock_maximo      ?? undefined,
+    tipo:             db.tipo              ?? undefined,
+    esSerializado:    db.es_serializado    ?? undefined,
+    ubicacionFisica:  db.ubicacion_fisica  ?? undefined,
+
+    // FASE 19: Barcode y ubicación
+    codigoBarras:     db.codigo_barras     ?? undefined,
+    sku:              db.sku               ?? undefined,
+    ubicacionId:      db.ubicacion_id      ?? undefined,
+    ultimaVerificacion: db.ultima_verificacion ? new Date(db.ultima_verificacion) : undefined,
+    verificadoPor:    db.verificado_por    ?? undefined,
+
+    // FASE 27: Campos de equipo celular
+    imei:             db.imei              ?? undefined,
+    color:            db.color             ?? undefined,
+    ram:              db.ram               ?? undefined,
+    almacenamiento:   db.almacenamiento    ?? undefined,
+    folioRemision:    db.folio_remision    ?? undefined,
+
+    createdAt:        db.created_at        ? new Date(db.created_at)  : new Date(),
+    updatedAt:        db.updated_at        ? new Date(db.updated_at)  : new Date(),
+  };
+}
+
 export async function getProductos(distribuidorId?: string): Promise<Producto[]> {
   const supabase = createAdminClient();
   let query = supabase
@@ -15,7 +63,7 @@ export async function getProductos(distribuidorId?: string): Promise<Producto[]>
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as Producto[];
+  return (data as any[]).map(mapProductoFromDB);
 }
 
 export async function getProductoById(id: string, distribuidorId?: string): Promise<Producto | null> {
@@ -35,7 +83,7 @@ export async function getProductoById(id: string, distribuidorId?: string): Prom
     if (error.code === "PGRST116") return null;
     throw error;
   }
-  return data as Producto;
+  return mapProductoFromDB(data);
 }
 
 export async function getProductosEnStock(distribuidorId?: string): Promise<Producto[]> {
@@ -53,7 +101,7 @@ export async function getProductosEnStock(distribuidorId?: string): Promise<Prod
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as Producto[];
+  return (data as any[]).map(mapProductoFromDB);
 }
 
 export async function createProducto(producto: Omit<Producto, "id" | "createdAt" | "updatedAt">): Promise<Producto> {
@@ -90,7 +138,7 @@ export async function createProducto(producto: Omit<Producto, "id" | "createdAt"
     .single();
 
   if (error) throw error;
-  return data as Producto;
+  return mapProductoFromDB(data);
 }
 
 export async function updateProducto(id: string, producto: Partial<Producto>, distribuidorId?: string): Promise<Producto> {
@@ -117,6 +165,9 @@ export async function updateProducto(id: string, producto: Partial<Producto>, di
   if (producto.tipo !== undefined) updates.tipo = producto.tipo;
   if (producto.esSerializado !== undefined) updates.es_serializado = producto.esSerializado;
   if (producto.ubicacionFisica !== undefined) updates.ubicacion_fisica = producto.ubicacionFisica;
+  // FASE 19 Fields
+  if (producto.codigoBarras !== undefined) updates.codigo_barras = producto.codigoBarras || null;
+  if (producto.sku !== undefined) updates.sku = producto.sku || null;
   // FASE 27 Fields
   if (producto.imei !== undefined) updates.imei = producto.imei || null;
   if (producto.color !== undefined) updates.color = producto.color || null;
@@ -138,7 +189,7 @@ export async function updateProducto(id: string, producto: Partial<Producto>, di
     .single();
 
   if (error) throw error;
-  return data as Producto;
+  return mapProductoFromDB(data);
 }
 
 export async function deleteProducto(id: string, distribuidorId?: string): Promise<void> {
@@ -172,7 +223,7 @@ export async function searchProductos(query: string, distribuidorId?: string): P
   const { data, error } = await dbQuery;
 
   if (error) throw error;
-  return data as Producto[];
+  return (data as any[]).map(mapProductoFromDB);
 }
 
 // ==========================================
@@ -204,7 +255,7 @@ export async function searchProductoByBarcode(
     throw error;
   }
 
-  return data as Producto;
+  return mapProductoFromDB(data);
 }
 
 /**
@@ -227,7 +278,7 @@ export async function updateProductoBarcode(
     .single();
 
   if (error) throw error;
-  return data as Producto;
+  return mapProductoFromDB(data);
 }
 
 /**
@@ -252,7 +303,7 @@ export async function getProductosByUbicacion(
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as Producto[];
+  return (data as any[]).map(mapProductoFromDB);
 }
 
 /**
@@ -274,7 +325,7 @@ export async function getProductosSinUbicacion(distribuidorId?: string): Promise
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as Producto[];
+  return (data as any[]).map(mapProductoFromDB);
 }
 
 /**
@@ -297,5 +348,5 @@ export async function getProductosSinBarcode(distribuidorId?: string): Promise<P
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as Producto[];
+  return (data as any[]).map(mapProductoFromDB);
 }
