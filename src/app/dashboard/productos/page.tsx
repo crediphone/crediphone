@@ -18,6 +18,7 @@ import {
   Printer, Minus as MinusIcon, Plus as PlusIcon, CheckSquare, Square, CheckCircle, Zap,
 } from "lucide-react";
 import type { CSSProperties } from "react";
+import { inferirCategoria, generarSKU, MARCAS_CELULARES, getNombresModelosPorMarca, getCapacidadesPorModelo } from "@/lib/catalog/celulares";
 
 // ─── Tipos y constantes ────────────────────────────────────────────────────────
 
@@ -738,6 +739,8 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
   // FASE 56: soporte escáner USB/Bluetooth — estado de foco y confirmación visual
   const [barcodeScanned, setBarcodeScanned] = useState(false);
   const [barcodeFocused, setBarcodeFocused] = useState(false);
+  // FASE 65: capacidades del catálogo para celulares
+  const [capacidadesCatalogo, setCapacidadesCatalogo] = useState<string[]>([]);
 
   // FASE 53b: incluir X-Distribuidor-Id para que super_admin reciba las categorías del distribuidor activo
   useEffect(() => {
@@ -749,25 +752,62 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
     fetch("/api/proveedores", { headers }).then((r) => r.json()).then((d) => { if (d.success) setProveedores(d.data); }).catch(() => {});
     // Cargar ubicaciones físicas de almacén
     fetch("/api/inventario/ubicaciones").then((r) => r.json()).then((d) => { if (d.success) setUbicaciones(d.data ?? []); }).catch(() => {});
-    // FASE 54: cargar marcas existentes al abrir el formulario
+    // FASE 54: cargar marcas existentes + mezclar con catálogo estático (FASE 65)
+    setSugerenciasMarcas(MARCAS_CELULARES); // precarga inmediata desde catálogo
     fetch("/api/productos/sugerencias?campo=marcas", { headers })
       .then((r) => r.json())
-      .then((d) => { if (d.success) setSugerenciasMarcas(d.data); })
+      .then((d) => {
+        if (d.success) {
+          const merged = Array.from(new Set([...MARCAS_CELULARES, ...d.data])).sort();
+          setSugerenciasMarcas(merged);
+        }
+      })
       .catch(() => {});
   }, [distribuidorActivo?.id]);
 
-  // FASE 54: cargar modelos cuando cambia la marca seleccionada
+  // FASE 54 + FASE 65: cargar modelos cuando cambia la marca — mezcla DB + catálogo estático
   useEffect(() => {
-    if (!formData.marca.trim()) { setSugerenciasModelos([]); return; }
+    if (!formData.marca.trim()) { setSugerenciasModelos([]); setCapacidadesCatalogo([]); return; }
+    // Precarga inmediata desde catálogo estático
+    const catalogModelos = getNombresModelosPorMarca(formData.marca);
+    setSugerenciasModelos(catalogModelos);
     const headers: HeadersInit = {};
     if (distribuidorActivo?.id) headers["X-Distribuidor-Id"] = distribuidorActivo.id;
     const marca = encodeURIComponent(formData.marca.trim());
     fetch(`/api/productos/sugerencias?campo=modelos&marca=${marca}`, { headers })
       .then((r) => r.json())
-      .then((d) => { if (d.success) setSugerenciasModelos(d.data); })
+      .then((d) => {
+        if (d.success) {
+          const merged = Array.from(new Set([...catalogModelos, ...d.data])).sort();
+          setSugerenciasModelos(merged);
+        }
+      })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.marca]);
+
+  // FASE 65: capacidades del catálogo cuando cambia marca+modelo
+  useEffect(() => {
+    if (!formData.marca || !formData.modelo) { setCapacidadesCatalogo([]); return; }
+    const caps = getCapacidadesPorModelo(formData.marca, formData.modelo);
+    setCapacidadesCatalogo(caps);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.marca, formData.modelo]);
+
+  // FASE 65: auto-sugerencia de categoría desde el nombre del producto (solo en modo crear)
+  useEffect(() => {
+    if (mode !== "create" || !formData.nombre.trim() || !categorias.length) return;
+    const sugerida = inferirCategoria(formData.nombre);
+    if (!sugerida) return;
+    const cat = categorias.find((c) =>
+      c.nombre.toLowerCase().includes(sugerida.toLowerCase()) ||
+      sugerida.toLowerCase().includes(c.nombre.toLowerCase())
+    );
+    if (cat) {
+      setFormData((prev) => ({ ...prev, categoriaId: prev.categoriaId || cat.id }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.nombre, categorias]);
 
   // FASE 57: cargar subcategorías cuando cambia la categoría seleccionada
   useEffect(() => {
@@ -935,6 +975,35 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
               placeholder="Negro, Azul, Verde..."
             />
           </div>
+          {/* FASE 65: Chips de capacidad desde catálogo */}
+          {capacidadesCatalogo.length > 0 && (
+            <div>
+              <p className="text-xs font-medium mb-1.5" style={{ color: "var(--color-info-text)" }}>
+                Capacidades del catálogo — selecciona una:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {capacidadesCatalogo.map((cap) => {
+                  const [ram, alm] = cap.split("/");
+                  const activo = formData.ram === ram && formData.almacenamiento === alm;
+                  return (
+                    <button
+                      key={cap}
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, ram: ram || "", almacenamiento: alm || "" }))}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                      style={{
+                        background: activo ? "var(--color-info)" : "var(--color-bg-surface)",
+                        color: activo ? "#fff" : "var(--color-info-text)",
+                        border: `1px solid var(--color-info)${activo ? "" : "66"}`,
+                      }}
+                    >
+                      {cap}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="RAM"
@@ -1102,7 +1171,56 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
           )}
         </div>
 
-        <Input label="SKU / Referencia" name="sku" value={formData.sku} onChange={handleChange} placeholder="SKU-001" />
+        {/* FASE 65: SKU con botón Auto-SKU */}
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-text-secondary)" }}>
+            SKU / Referencia
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              name="sku"
+              value={formData.sku}
+              onChange={handleChange}
+              placeholder="SKU-001"
+              autoComplete="off"
+              className="flex-1 h-10 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30"
+              style={{
+                background: "var(--color-bg-sunken)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-text-primary)",
+                fontFamily: "var(--font-mono)",
+              }}
+            />
+            {!formData.sku && (
+              <button
+                type="button"
+                title="Generar SKU automático"
+                onClick={() => setFormData((prev) => ({ ...prev, sku: generarSKU(prev.marca, prev.modelo) }))}
+                className="shrink-0 px-3 h-10 rounded-md text-xs font-semibold transition-colors"
+                style={{
+                  background: "var(--color-accent-light)",
+                  color: "var(--color-accent)",
+                  border: "1px solid var(--color-accent)44",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-accent)"; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-accent-light)"; (e.currentTarget as HTMLElement).style.color = "var(--color-accent)"; }}
+              >
+                Auto-SKU
+              </button>
+            )}
+            {formData.sku && (
+              <button
+                type="button"
+                title="Borrar SKU"
+                onClick={() => setFormData((prev) => ({ ...prev, sku: "" }))}
+                className="shrink-0 px-2 h-10 rounded-md text-xs transition-colors"
+                style={{ color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--color-danger)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--color-danger)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--color-text-muted)"; (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"; }}
+              >✕</button>
+            )}
+          </div>
+        </div>
 
         {showScanner && (
           <div className="p-4 rounded-xl" style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-border)" }}>
@@ -1110,7 +1228,12 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
               Escanear código de barras
             </p>
             <BarcodeScanner
-              onScan={(codigo) => { setFormData((prev) => ({ ...prev, codigoBarras: codigo })); setShowScanner(false); }}
+              onScan={(codigo) => {
+                setFormData((prev) => ({ ...prev, codigoBarras: codigo }));
+                setShowScanner(false);
+                setBarcodeScanned(true);
+                setTimeout(() => setBarcodeScanned(false), 2500);
+              }}
               lastScannedCode={formData.codigoBarras}
             />
           </div>

@@ -5,6 +5,7 @@ import { Search, QrCode, X, Smartphone } from "lucide-react";
 import Image from "next/image";
 import { Input } from "@/components/ui/Input";
 import { BarcodeScanner } from "@/components/inventario/BarcodeScanner";
+import { MobileScannerQR } from "@/components/pos/MobileScannerQR";
 import { obtenerUrlImagen } from "@/lib/storage";
 import type { Producto } from "@/types";
 
@@ -24,6 +25,7 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds 
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [loadError, setLoadError] = useState("");
   const [showScanner, setShowScanner] = useState(false);
+  const [showQRBridge, setShowQRBridge] = useState(false);
   const [scanMsg, setScanMsg] = useState("");
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -171,6 +173,14 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds 
 
   return (
     <div ref={searchRef} className="relative">
+      {/* FASE 65: Modal QR Bridge */}
+      {showQRBridge && (
+        <MobileScannerQR
+          onCodigoRecibido={handleBarcodeScan}
+          onClose={() => setShowQRBridge(false)}
+        />
+      )}
+
       {loadError && (
         <div
           className="mb-2 p-2 rounded-lg"
@@ -212,7 +222,7 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds 
         <button
           type="button"
           onClick={() => setShowScanner((v) => !v)}
-          title="Escanear código de barras"
+          title="Escanear código de barras con cámara del navegador"
           className="px-3 rounded-xl border transition-colors"
           style={
             showScanner
@@ -231,6 +241,31 @@ export function ProductSearchBar({ onSelectProduct, focusTrigger, topProductIds 
           }}
         >
           {showScanner ? <X className="w-5 h-5" /> : <QrCode className="w-5 h-5" />}
+        </button>
+
+        {/* FASE 65: Botón QR Bridge — escanear con celular */}
+        <button
+          type="button"
+          onClick={() => setShowQRBridge(true)}
+          title="Escanear productos con tu celular (QR Bridge)"
+          className="px-3 rounded-xl border transition-colors"
+          style={
+            showQRBridge
+              ? { background: "var(--color-accent)", borderColor: "var(--color-accent)", color: "#fff" }
+              : { borderColor: "var(--color-border)", color: "var(--color-text-secondary)", background: "transparent" }
+          }
+          onMouseEnter={(e) => {
+            if (!showQRBridge) {
+              (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!showQRBridge) {
+              (e.currentTarget as HTMLElement).style.background = "transparent";
+            }
+          }}
+        >
+          <Smartphone className="w-5 h-5" />
         </button>
       </div>
 

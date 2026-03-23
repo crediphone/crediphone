@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getProductos, createProducto } from "@/lib/db/productos";
 import { getAuthContext } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { tienePermiso } from "@/lib/permisos";
 
 export async function GET() {
   try {
@@ -37,13 +38,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { userId, role, distribuidorId } = await getAuthContext();
+    const { userId, role, distribuidorId, permisosExplicitos } = await getAuthContext();
 
     if (!userId) {
       return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
     }
 
-    if (!role || !["admin", "super_admin"].includes(role)) {
+    // FASE 56: verificar permiso producto_crear (admin/super_admin siempre pueden; empleados con permiso explícito también)
+    if (!tienePermiso(role, permisosExplicitos, "producto_crear")) {
       return NextResponse.json({ success: false, error: "No autorizado" }, { status: 403 });
     }
 

@@ -127,6 +127,9 @@ export async function createProducto(producto: Omit<Producto, "id" | "createdAt"
       tipo: producto.tipo,
       es_serializado: producto.esSerializado,
       ubicacion_fisica: producto.ubicacionFisica,
+      // FASE 19: Código de barras y SKU
+      codigo_barras: producto.codigoBarras || null,
+      sku: producto.sku || null,
       // FASE 27: Campos dedicados para equipos
       imei: producto.imei || null,
       color: producto.color || null,
