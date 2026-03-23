@@ -359,7 +359,7 @@ export default function ProductosPage() {
 
       {/* Modales */}
       <Modal isOpen={isModalOpen} onClose={handleModalClose} title={modalMode === "create" ? "Nuevo Producto" : "Editar Producto"} size="lg">
-        <ProductoForm mode={modalMode} producto={selectedProducto} onSuccess={handleSuccess} onCancel={handleModalClose} />
+        <ProductoForm mode={modalMode} producto={selectedProducto} onSuccess={handleSuccess} onCancel={handleModalClose} productosExistentes={productos} />
       </Modal>
 
       <Modal isOpen={deleteConfirmModal} onClose={() => setDeleteConfirmModal(false)} title="Confirmar Eliminación">
@@ -696,9 +696,11 @@ interface ProductoFormProps {
   producto: Producto | null;
   onSuccess: () => void;
   onCancel: () => void;
+  /** FASE 66: productos existentes para autocompletar nombre */
+  productosExistentes?: Producto[];
 }
 
-function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps) {
+function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes = [] }: ProductoFormProps) {
   // FASE 53b: necesitamos el distribuidor activo para pasar el header a /api/categorias y /api/proveedores
   const { distribuidorActivo } = useDistribuidor();
 
@@ -741,6 +743,11 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
   const [barcodeFocused, setBarcodeFocused] = useState(false);
   // FASE 65: capacidades del catálogo para celulares
   const [capacidadesCatalogo, setCapacidadesCatalogo] = useState<string[]>([]);
+  // FASE 66: autocompletar nombre desde productos existentes
+  const [nombreSugs, setNombreSugs]           = useState<Producto[]>([]);
+  const [showNombreSugs, setShowNombreSugs]   = useState(false);
+  const [nombreSugIdx, setNombreSugIdx]       = useState(-1);
+  const nombreRef = useRef<HTMLDivElement>(null);
 
   // FASE 53b: incluir X-Distribuidor-Id para que super_admin reciba las categorías del distribuidor activo
   useEffect(() => {
@@ -808,6 +815,64 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.nombre, categorias]);
+
+  // FASE 66: filtrar sugerencias de nombre desde productos existentes
+  useEffect(() => {
+    const term = formData.nombre.trim().toLowerCase();
+    if (!term || term.length < 2 || productosExistentes.length === 0) {
+      setNombreSugs([]);
+      setShowNombreSugs(false);
+      return;
+    }
+    const found = productosExistentes.filter((p) =>
+      p.nombre.toLowerCase().includes(term) ||
+      p.marca.toLowerCase().includes(term) ||
+      p.modelo.toLowerCase().includes(term)
+    ).slice(0, 8);
+    setNombreSugs(found);
+    setShowNombreSugs(found.length > 0);
+    setNombreSugIdx(-1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.nombre]);
+
+  // FASE 66: cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (nombreRef.current && !nombreRef.current.contains(e.target as Node)) {
+        setShowNombreSugs(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  // FASE 66: pre-llenar formulario desde producto existente seleccionado
+  const handleNombreSugSelect = (p: Producto) => {
+    setFormData((prev) => ({
+      ...prev,
+      nombre:         p.nombre,
+      marca:          p.marca,
+      modelo:         p.modelo,
+      precio:         p.precio?.toString() || prev.precio,
+      costo:          p.costo?.toString()  || prev.costo,
+      tipo:           p.tipo               || prev.tipo,
+      categoriaId:    p.categoriaId        || prev.categoriaId,
+      proveedorId:    p.proveedorId        || prev.proveedorId,
+      descripcion:    p.descripcion        || prev.descripcion,
+      imagen:         p.imagen             || prev.imagen,
+      esSerializado:  p.esSerializado      ?? prev.esSerializado,
+      color:          p.color              || prev.color,
+      ram:            p.ram                || prev.ram,
+      almacenamiento: p.almacenamiento     || prev.almacenamiento,
+      ubicacionFisica: p.ubicacionFisica   || prev.ubicacionFisica,
+      // stock y codigoBarras/sku/imei se limpian para ingreso nuevo
+      stock:          "1",
+      codigoBarras:   "",
+      sku:            "",
+      imei:           "",
+    }));
+    setShowNombreSugs(false);
+  };
 
   // FASE 57: cargar subcategorías cuando cambia la categoría seleccionada
   useEffect(() => {
@@ -895,10 +960,111 @@ function ProductoForm({ mode, producto, onSuccess, onCancel }: ProductoFormProps
   };
   const labelStyle: CSSProperties = { color: "var(--color-text-secondary)" };
 
+  // FASE 66: teclado en el campo nombre para navegar sugerencias
+  const handleNombreKeyDown = (e: React.KeyboardEvent) => {
+    if (!showNombreSugs || nombreSugs.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setNombreSugIdx((i) => (i < nombreSugs.length - 1 ? i + 1 : i));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setNombreSugIdx((i) => (i > 0 ? i - 1 : -1));
+    } else if (e.key === "Enter" && nombreSugIdx >= 0) {
+      e.preventDefault();
+      handleNombreSugSelect(nombreSugs[nombreSugIdx]);
+    } else if (e.key === "Escape") {
+      setShowNombreSugs(false);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
 
-      <Input label="Nombre del Producto *" name="nombre" value={formData.nombre} onChange={handleChange} error={errors.nombre} placeholder="Samsung Galaxy A17" required />
+      {/* FASE 66: Campo nombre con dropdown de autocompletar desde productos existentes */}
+      <div ref={nombreRef} className="relative">
+        <Input
+          label="Nombre del Producto *"
+          name="nombre"
+          value={formData.nombre}
+          onChange={(e) => { handleChange(e); }}
+          onKeyDown={handleNombreKeyDown}
+          onFocus={() => { if (nombreSugs.length > 0) setShowNombreSugs(true); }}
+          error={errors.nombre}
+          placeholder="Samsung Galaxy A17 128GB"
+          required
+          autoComplete="off"
+        />
+        {showNombreSugs && nombreSugs.length > 0 && (
+          <div
+            className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden"
+            style={{
+              background: "var(--color-bg-surface)",
+              border: "1px solid var(--color-border)",
+              boxShadow: "var(--shadow-lg)",
+              maxHeight: "280px",
+              overflowY: "auto",
+            }}
+          >
+            <p
+              className="px-3 py-1.5 text-xs font-semibold tracking-wide uppercase"
+              style={{
+                color: "var(--color-text-muted)",
+                borderBottom: "1px solid var(--color-border-subtle)",
+                background: "var(--color-bg-elevated)",
+              }}
+            >
+              Basar en producto existente
+            </p>
+            {nombreSugs.map((p, idx) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleNombreSugSelect(p); }}
+                className="w-full px-3 py-2.5 text-left flex items-center gap-3 transition-colors"
+                style={{
+                  background: idx === nombreSugIdx ? "var(--color-accent-light)" : "transparent",
+                  borderBottom: "1px solid var(--color-border-subtle)",
+                }}
+                onMouseEnter={() => setNombreSugIdx(idx)}
+                onMouseLeave={() => setNombreSugIdx(-1)}
+              >
+                {/* Miniatura */}
+                {p.imagen ? (
+                  <img
+                    src={obtenerUrlImagen(p.imagen) || ""}
+                    alt=""
+                    className="w-9 h-9 rounded-lg object-cover shrink-0"
+                    style={{ border: "1px solid var(--color-border-subtle)" }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center"
+                    style={{ background: "var(--color-accent-light)" }}
+                  >
+                    <Smartphone className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)" }}>
+                    {p.nombre}
+                  </p>
+                  <p className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>
+                    {p.marca} {p.modelo}
+                    {p.color && <span className="ml-1">· {p.color}</span>}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold" style={{ color: "var(--color-accent)", fontFamily: "var(--font-data)" }}>
+                    ${Number(p.precio).toFixed(2)}
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>×{p.stock}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* FASE 54: Autocompletado de marca y modelo desde productos existentes */}
       <datalist id="dl-marcas">
