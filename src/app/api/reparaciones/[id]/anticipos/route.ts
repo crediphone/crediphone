@@ -88,16 +88,26 @@ export async function POST(
 
     const requiereConfirmacion = esDepositoTransferencia;
 
-    // Sesión de caja (solo se usa cuando NO es traspaso ni requiere confirmación)
+    // Sesión de caja activa del usuario (solo aplica para efectivo no-técnico y no-depósito)
     let sesionCajaId: string | undefined;
     if (!esTecnicoConEfectivo && !requiereConfirmacion) {
       try {
         const sesion = await getSesionActiva(userId);
         sesionCajaId = sesion?.id;
       } catch {
-        // Sin sesión activa — el anticipo se registra igual, solo sin caja
+        // Sin sesión activa — ver caso de "sin sesión" abajo
       }
     }
+
+    // NUEVA LÓGICA (propuesta de usuario): Admin/vendedor cobra efectivo SIN sesión activa
+    // → crear traspaso igualmente para que el dinero no quede en limbo
+    // El admin/vendedor es el responsable hasta que lo entregue a caja y alguien confirme
+    const esEfectivoSinSesion =
+      body.tipoPago === "efectivo" &&
+      !esTecnicoConEfectivo &&
+      !requiereConfirmacion &&
+      !sesionCajaId;
+    // Nota: super_admin también puede caer aquí, incluirlo en el flujo de traspaso
 
     // Nombre del cliente (para notificaciones)
     const clienteData = orden?.cliente as { nombre?: string; apellido?: string } | null;
@@ -106,7 +116,7 @@ export async function POST(
       : "Cliente";
 
     // Crear el anticipo en anticipos_reparacion
-    // - Si es traspaso O transferencia/depósito: sin caja (se asienta al confirmar)
+    // - Si es traspaso O transferencia/depósito O sin sesión: sin caja (se asienta al confirmar)
     const anticipo = await addAnticipoReparacion(
       id,
       {
@@ -117,7 +127,7 @@ export async function POST(
         notas: body.notas,
       },
       userId,
-      (esTecnicoConEfectivo || requiereConfirmacion) ? undefined : sesionCajaId,
+      (esTecnicoConEfectivo || requiereConfirmacion || esEfectivoSinSesion) ? undefined : sesionCajaId,
       orden?.folio
     );
 
@@ -128,6 +138,7 @@ export async function POST(
         reparacionId: id,
         anticipoId: anticipo.id,
         tecnicoId: userId,
+        creadoPorRol: "tecnico",
         folioOrden: orden?.folio || "Sin folio",
         clienteNombre,
         montoRegistrado: Number(body.monto),
@@ -140,6 +151,31 @@ export async function POST(
         requiereTraspaso: true,
         requiereConfirmacion: false,
         registradoEnCaja: false,
+      });
+    }
+
+    // NUEVA: Admin/vendedor/super_admin cobró efectivo pero SIN sesión de caja activa
+    // → crear traspaso para que el dinero aterrice y haya un responsable nombrado
+    if (esEfectivoSinSesion) {
+      await createTraspasoAnticipo({
+        distribuidorId: distribuidorId ?? undefined,
+        reparacionId: id,
+        anticipoId: anticipo.id,
+        tecnicoId: userId,                                    // el que tiene el dinero
+        creadoPorRol: (role ?? "admin") as import("@/types").UserRole,
+        folioOrden: orden?.folio || "Sin folio",
+        clienteNombre,
+        montoRegistrado: Number(body.monto),
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: anticipo,
+        message: "Anticipo registrado sin sesión de caja activa. Se generó una alerta para entregarlo a caja. Abre una sesión y confirma la entrega.",
+        requiereTraspaso: true,
+        requiereConfirmacion: false,
+        registradoEnCaja: false,
+        sinSesion: true,
       });
     }
 

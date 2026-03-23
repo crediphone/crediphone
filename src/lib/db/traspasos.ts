@@ -6,6 +6,8 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { TraspasoAnticipo } from "@/types";
+import { notificarResponsablesKassa } from "@/lib/db/notificaciones";
+import type { UserRole } from "@/types";
 
 function mapTraspasoFromDB(row: Record<string, unknown>): TraspasoAnticipo {
   return {
@@ -30,12 +32,23 @@ function mapTraspasoFromDB(row: Record<string, unknown>): TraspasoAnticipo {
   };
 }
 
-/** Crea un traspaso pendiente cuando el técnico registra un anticipo en efectivo */
+/**
+ * Crea un traspaso pendiente cuando alguien registra un anticipo en efectivo
+ * sin sesión de caja activa.
+ *
+ * Originalmente solo para técnicos (FASE 37), ahora extendido a cualquier rol
+ * que cobre efectivo sin caja abierta (admin, vendedor, etc.).
+ *
+ * Después de crear el traspaso, notifica automáticamente a:
+ * - Si creador es técnico: notifica a TODOS los vendedores y admins del distribuidor
+ * - Si creador es admin/vendedor: notifica a los demás admins y vendedores
+ */
 export async function createTraspasoAnticipo(params: {
   distribuidorId?: string;
   reparacionId: string;
   anticipoId: string;
-  tecnicoId: string;
+  tecnicoId: string;        // el user que tiene el dinero (puede ser admin, vendedor, técnico)
+  creadoPorRol?: UserRole;  // rol del creador, para personalizar el mensaje
   folioOrden: string;
   clienteNombre: string;
   montoRegistrado: number;
@@ -52,13 +65,50 @@ export async function createTraspasoAnticipo(params: {
       folio_orden: params.folioOrden,
       cliente_nombre: params.clienteNombre,
       monto_registrado: params.montoRegistrado,
+      creador_rol: params.creadoPorRol ?? "tecnico",
       estado: "pendiente",
+      // SLA de 4 horas: si no se confirma en ese tiempo, la alerta escala
+      fecha_limite_entrega: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
     }])
     .select()
     .single();
 
   if (error) throw new Error(`Error al crear traspaso: ${error.message}`);
-  return mapTraspasoFromDB(data as unknown as Record<string, unknown>);
+
+  const traspaso = mapTraspasoFromDB(data as unknown as Record<string, unknown>);
+
+  // --- Notificaciones automáticas ---
+  // Si es técnico: avisar a vendedores y admins que hay dinero esperando confirmación
+  // Si es admin/vendedor sin caja: avisar a los demás que hay anticipo sin registrar en caja
+  const rol = params.creadoPorRol ?? "tecnico";
+  const esTecnico = rol === "tecnico";
+
+  const montoStr = `$${params.montoRegistrado.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
+
+  if (esTecnico) {
+    // Técnico cobró → avisar a vendedores/admins para que confirmen recepción
+    await notificarResponsablesKassa({
+      distribuidorId: params.distribuidorId,
+      titulo: "💰 Anticipo pendiente de recepción",
+      cuerpo: `Técnico registró anticipo de ${montoStr} en orden ${params.folioOrden} (${params.clienteNombre}). Confirma que recibiste el efectivo.`,
+      url: "/dashboard/pos/caja",
+      tipo: "traspaso_pendiente",
+      ordenId: params.reparacionId,
+    });
+  } else {
+    // Admin/vendedor sin sesión activa → notificar a admins que hay anticipo sin caja
+    await notificarResponsablesKassa({
+      distribuidorId: params.distribuidorId,
+      titulo: "⚠️ Anticipo sin sesión de caja",
+      cuerpo: `Se registró anticipo de ${montoStr} en orden ${params.folioOrden} (${params.clienteNombre}) sin sesión de caja activa. El efectivo debe entregarse a caja.`,
+      url: "/dashboard/pos/caja",
+      tipo: "anticipo_sin_caja",
+      ordenId: params.reparacionId,
+      soloAdmins: false,
+    });
+  }
+
+  return traspaso;
 }
 
 /** Lista traspasos pendientes para un distribuidor (con nombres del técnico) */
@@ -191,10 +241,86 @@ export async function confirmarTraspaso(params: {
     }
   }
 
+  const traspasoFinal = mapTraspasoFromDB(updatedData as unknown as Record<string, unknown>);
+
+  // --- Notificaciones post-confirmación ---
+  if (hayDiscrepancia) {
+    // BUG FIX: Antes el mensaje decía "Se notificó al admin" pero NUNCA se notificaba.
+    // Ahora SÍ se notifica al admin con los detalles de la discrepancia.
+    const montoReg = `$${traspaso.montoRegistrado.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
+    const montoConf = `$${params.montoConfirmado.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
+    const diferencia = `$${Math.abs(diff).toLocaleString("es-MX", { minimumFractionDigits: 2 })}`;
+
+    await notificarResponsablesKassa({
+      distribuidorId: traspaso.distribuidorId,
+      titulo: "🚨 Discrepancia en traspaso de anticipo",
+      cuerpo: `Orden ${traspaso.folioOrden}: técnico declaró ${montoReg}, vendedor confirmó ${montoConf}. Diferencia: ${diferencia}. Revisar urgente.`,
+      url: "/dashboard/pos/caja",
+      tipo: "discrepancia_traspaso",
+      ordenId: traspaso.reparacionId,
+      soloAdmins: true, // solo admins ven discrepancias, no todos los vendedores
+    });
+  } else {
+    // Confirmación exitosa: notificar al técnico que su traspaso fue aceptado
+    await notificarUsuario({
+      userId: traspaso.tecnicoId,
+      titulo: "✅ Anticipo confirmado",
+      cuerpo: `Tu anticipo de $${params.montoConfirmado.toLocaleString("es-MX", { minimumFractionDigits: 2 })} de la orden ${traspaso.folioOrden} fue recibido por el vendedor.`,
+      tipo: "traspaso_confirmado",
+      ordenId: traspaso.reparacionId,
+    });
+  }
+
   return {
-    traspaso: mapTraspasoFromDB(updatedData as unknown as Record<string, unknown>),
+    traspaso: traspasoFinal,
     hayDiscrepancia,
   };
+}
+
+/**
+ * Notifica a un usuario individual (para confirmaciones exitosas, etc.)
+ * Fire-and-forget.
+ */
+async function notificarUsuario(params: {
+  userId: string;
+  titulo: string;
+  cuerpo: string;
+  tipo: string;
+  ordenId?: string;
+}): Promise<void> {
+  try {
+    const supabase = createAdminClient();
+    await supabase.from("notificaciones").insert({
+      orden_reparacion_id: params.ordenId ?? null,
+      tipo: params.tipo,
+      canal: "sistema",
+      mensaje: `${params.titulo}: ${params.cuerpo}`,
+      destinatario_id: params.userId,
+      estado: "pendiente",
+      datos_adicionales: { titulo: params.titulo, cuerpo: params.cuerpo },
+    });
+
+    // Push
+    const baseUrl =
+      process.env.NEXTAUTH_URL ??
+      process.env.NEXT_PUBLIC_APP_URL ??
+      "http://localhost:3000";
+    await fetch(`${baseUrl}/api/push/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": process.env.INTERNAL_API_SECRET ?? "crediphone-internal",
+      },
+      body: JSON.stringify({
+        userIds: [params.userId],
+        title: params.titulo,
+        body: params.cuerpo,
+        url: "/dashboard/reparaciones",
+      }),
+    }).catch(() => {});
+  } catch (err) {
+    console.error("[notificarUsuario] Error:", err);
+  }
 }
 
 /** Obtiene el traspaso asociado a un anticipo específico (si existe) */

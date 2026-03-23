@@ -510,3 +510,118 @@ export async function marcarNotificacionComoLeida(notificacionId: string): Promi
     // No lanzar error
   }
 }
+
+// =====================================================
+// HELPERS DE NOTIFICACIÓN PARA FLUJO DE CAJA/ANTICIPOS
+// =====================================================
+
+/**
+ * Obtiene los IDs de los administradores de un distribuidor.
+ * Si no hay admins en el distribuidor, devuelve los super_admins.
+ * Usado para notificaciones de alerta de caja.
+ */
+export async function getAdminIdsParaNotificar(distribuidorId?: string): Promise<string[]> {
+  const supabase = createAdminClient();
+
+  if (distribuidorId) {
+    // Primero buscar admins del distribuidor
+    const { data: admins } = await supabase
+      .from("users")
+      .select("id")
+      .eq("distribuidor_id", distribuidorId)
+      .eq("role", "admin")
+      .eq("activo", true);
+
+    if (admins && admins.length > 0) {
+      return admins.map((u: { id: string }) => u.id);
+    }
+  }
+
+  // Fallback: super_admins (distribuidor_id IS NULL)
+  const { data: superAdmins } = await supabase
+    .from("users")
+    .select("id")
+    .is("distribuidor_id", null)
+    .eq("role", "super_admin")
+    .eq("activo", true);
+
+  return (superAdmins || []).map((u: { id: string }) => u.id);
+}
+
+/**
+ * Obtiene los IDs de todos los vendedores activos de un distribuidor.
+ * Incluye también a los admins del distribuidor.
+ */
+export async function getVendedorIdsParaNotificar(distribuidorId?: string): Promise<string[]> {
+  const supabase = createAdminClient();
+
+  if (!distribuidorId) return [];
+
+  const { data: vendedores } = await supabase
+    .from("users")
+    .select("id")
+    .eq("distribuidor_id", distribuidorId)
+    .in("role", ["vendedor", "admin"])
+    .eq("activo", true);
+
+  return (vendedores || []).map((u: { id: string }) => u.id);
+}
+
+/**
+ * Notifica a los responsables de caja de un distribuidor (admin + vendedores).
+ * Guarda notificación en DB + envía push.
+ * Fire-and-forget — no lanza errores al caller.
+ */
+export async function notificarResponsablesKassa(params: {
+  distribuidorId?: string;
+  titulo: string;
+  cuerpo: string;
+  url?: string;
+  tipo: string;
+  ordenId?: string;
+  soloAdmins?: boolean; // si true, no incluye vendedores
+}): Promise<void> {
+  try {
+    const supabase = createAdminClient();
+
+    const adminIds = await getAdminIdsParaNotificar(params.distribuidorId);
+    const vendedorIds = params.soloAdmins
+      ? []
+      : await getVendedorIdsParaNotificar(params.distribuidorId);
+
+    // Unir sin duplicados
+    const destinatarios = [...new Set([...adminIds, ...vendedorIds])];
+    if (destinatarios.length === 0) return;
+
+    // Insertar notificaciones en DB para cada destinatario
+    const notifs = destinatarios.map((userId) => ({
+      orden_reparacion_id: params.ordenId ?? null,
+      tipo: params.tipo,
+      canal: "sistema",
+      mensaje: `${params.titulo}: ${params.cuerpo}`,
+      destinatario_id: userId,
+      estado: "pendiente",
+      datos_adicionales: {
+        titulo: params.titulo,
+        cuerpo: params.cuerpo,
+        url: params.url ?? "/dashboard",
+      },
+    }));
+
+    const { error } = await supabase.from("notificaciones").insert(notifs);
+    if (error) {
+      console.error("[notificarResponsablesKassa] Error insertando notificaciones:", error);
+    }
+
+    // Enviar push a todos
+    await enviarPushNotificacion({
+      userIds: destinatarios,
+      title: params.titulo,
+      body: params.cuerpo,
+      url: params.url ?? "/dashboard",
+    });
+  } catch (err) {
+    console.error("[notificarResponsablesKassa] Error:", err);
+    // No relanzar — notificaciones son opcionales, no deben frenar el flujo principal
+  }
+}
