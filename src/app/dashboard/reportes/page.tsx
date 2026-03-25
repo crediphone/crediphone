@@ -501,7 +501,7 @@ function TabPnl() {
                           fontSize: 12,
                           color: "var(--color-text-primary)",
                         }}
-                        formatter={(v: number | undefined) => [fmtDec(v ?? 0), ""]}
+                        formatter={(v: unknown) => [fmtDec(typeof v === "number" ? v : 0), ""]}
                       />
                       <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
                         {chartData.map((entry, index) => (

@@ -558,7 +558,7 @@ export default function RentabilidadPage() {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v: number | string | undefined) => fmt(Number(v ?? 0))}
+                formatter={(v: unknown) => fmt(Number(v ?? 0))}
                 contentStyle={{
                   background: "var(--color-bg-surface)",
                   border: "1px solid var(--color-border)",
