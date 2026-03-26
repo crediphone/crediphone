@@ -70,6 +70,13 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [modalEditarOpen, setModalEditarOpen] = useState(false);
   const [modalPresupuestoOpen, setModalPresupuestoOpen] = useState(false);
   const [modalCambiarEstadoOpen, setModalCambiarEstadoOpen] = useState(false);
+  const [estadoInicialModal, setEstadoInicialModal] = useState<import("@/types").EstadoOrdenReparacion | undefined>(undefined);
+
+  /** Abre el modal de cambio de estado, opcionalmente pre-seleccionando un destino */
+  function abrirCambiarEstado(estadoDestino?: import("@/types").EstadoOrdenReparacion) {
+    setEstadoInicialModal(estadoDestino);
+    setModalCambiarEstadoOpen(true);
+  }
 
   const isOpen = !!ordenId;
 
@@ -525,13 +532,28 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 <Edit className="w-4 h-4" />
               </button>
             )}
+            {/* Botón rápido "✓ Listo" — solo cuando está en_reparacion */}
+            {orden && orden.estado === "en_reparacion" && (
+              <button
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold"
+                style={{ color: "var(--color-success-text)", background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                onClick={() => abrirCambiarEstado("completado")}
+                title="Marcar reparación como completada"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span className="ml-1">Listo</span>
+              </button>
+            )}
+            {/* Botón de estado genérico para el resto de transiciones */}
             {orden && !["entregado", "cancelado", "no_reparable"].includes(orden.estado) && (
               <button
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
                 style={{ color: "var(--color-primary)", background: "var(--color-primary-light)", border: "1px solid transparent" }}
                 onMouseEnter={(e) => (e.currentTarget.style.border = "1px solid var(--color-primary)")}
                 onMouseLeave={(e) => (e.currentTarget.style.border = "1px solid transparent")}
-                onClick={() => setModalCambiarEstadoOpen(true)}
+                onClick={() => abrirCambiarEstado()}
                 title="Cambiar estado de la orden"
               >
                 <GitBranch className="w-3.5 h-3.5" />
@@ -741,6 +763,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             folio={orden.folio}
             estadoActual={orden.estado}
             onSuccess={handleSuccess}
+            estadoInicial={estadoInicialModal}
           />
         </>
       )}

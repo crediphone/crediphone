@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -15,6 +15,8 @@ interface ModalCambiarEstadoProps {
   folio: string;
   estadoActual: EstadoOrdenReparacion;
   onSuccess: () => void;
+  /** Pre-selecciona un estado destino al abrir el modal (ej: "completado" desde botón rápido) */
+  estadoInicial?: EstadoOrdenReparacion;
 }
 
 // Transiciones válidas según el estado actual
@@ -57,14 +59,24 @@ export function ModalCambiarEstado({
   folio,
   estadoActual,
   onSuccess,
+  estadoInicial,
 }: ModalCambiarEstadoProps) {
-  const [nuevoEstado, setNuevoEstado] = useState<EstadoOrdenReparacion | "">("");
+  const [nuevoEstado, setNuevoEstado] = useState<EstadoOrdenReparacion | "">(estadoInicial ?? "");
   const [notas, setNotas] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
   const estadosDisponibles = transicionesValidas[estadoActual] || [];
+
+  // Sincroniza la pre-selección cada vez que el modal se abre con un estadoInicial
+  useEffect(() => {
+    if (isOpen) {
+      setNuevoEstado(estadoInicial ?? "");
+      setShowConfirmation(false);
+      setError(null);
+    }
+  }, [isOpen, estadoInicial]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

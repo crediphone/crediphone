@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { EnvioPresupuesto } from "./EnvioPresupuesto";
@@ -28,6 +28,9 @@ export function ModalDiagnostico({
   const [submitting, setSubmitting] = useState(false);
   const [diagnosticoGuardado, setDiagnosticoGuardado] = useState(false);
   const [ordenActualizada, setOrdenActualizada] = useState<OrdenReparacionDetallada | null>(null);
+  const [cotizacionPreCargada, setCotizacionPreCargada] = useState(false);
+  const [mostrarNuevoProblema, setMostrarNuevoProblema] = useState(false);
+  const preloadedRef = useRef(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -42,6 +45,24 @@ export function ModalDiagnostico({
   const [partes, setPartes] = useState<ParteReemplazada[]>([
     { parte: "", costo: 0, cantidad: 1 },
   ]);
+
+  // Pre-cargar cotización existente si la orden ya tiene presupuesto del modal de recepción
+  useEffect(() => {
+    if (!isOpen || preloadedRef.current) return;
+    const costoExistente = (orden as any)?.costoReparacion
+      ?? (orden as any)?.presupuestoManoDeObra
+      ?? 0;
+    if (costoExistente > 0) {
+      preloadedRef.current = true;
+      setCotizacionPreCargada(true);
+      setFormData((prev) => ({
+        ...prev,
+        costoReparacion: costoExistente,
+        // Si ya hubo aprobación en recepción, no necesita volver a aprobarse
+        requiereAprobacion: false,
+      }));
+    }
+  }, [isOpen, orden]);
 
   // Calcular costo total de partes
   const costoTotalPartes = partes.reduce(
@@ -164,6 +185,9 @@ export function ModalDiagnostico({
   }
 
   function resetForm() {
+    preloadedRef.current = false;
+    setCotizacionPreCargada(false);
+    setMostrarNuevoProblema(false);
     setFormData({
       diagnosticoTecnico: "",
       costoReparacion: 0,
@@ -201,6 +225,57 @@ export function ModalDiagnostico({
           </p>
         </div>
 
+        {/* Banner: cotización ya existe desde la recepción */}
+        {cotizacionPreCargada && (
+          <div className="rounded-lg p-4" style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}>
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: "var(--color-success)" }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: "var(--color-success-text)" }}>
+                  Cotización pre-cargada desde recepción
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-success)" }}>
+                  El costo de mano de obra ya fue registrado al crear la orden. Puedes ajustarlo si cambia algo.
+                </p>
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-medium underline"
+                  style={{ color: "var(--color-success-text)" }}
+                  onClick={() => setMostrarNuevoProblema((v) => !v)}
+                >
+                  {mostrarNuevoProblema ? "▲ Ocultar" : "▼ Agregar costo por nuevo problema detectado"}
+                </button>
+              </div>
+            </div>
+            {/* Input adicional solo si se encontró un nuevo problema */}
+            {mostrarNuevoProblema && (
+              <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--color-success)" }}>
+                <label className="block text-xs font-medium mb-1" style={{ color: "var(--color-success-text)" }}>
+                  Costo adicional por problema nuevo ($)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                  style={{ border: "1px solid var(--color-success)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                  onChange={(e) => {
+                    const extra = parseFloat(e.target.value) || 0;
+                    const base = (orden as any)?.costoReparacion ?? (orden as any)?.presupuestoManoDeObra ?? 0;
+                    setFormData((prev) => ({ ...prev, costoReparacion: base + extra }));
+                  }}
+                />
+                <p className="text-xs mt-1" style={{ color: "var(--color-success)" }}>
+                  Se sumará al costo base. Total mano de obra: <strong>${formData.costoReparacion.toFixed(2)}</strong>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Diagnóstico Técnico */}
         <div>
           <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
@@ -222,6 +297,11 @@ export function ModalDiagnostico({
         <div>
           <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-text-secondary)" }}>
             Costo de Mano de Obra
+            {cotizacionPreCargada && (
+              <span className="ml-2 text-xs font-normal px-1.5 py-0.5 rounded" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                Pre-cargado
+              </span>
+            )}
           </label>
           <div className="relative">
             <span className="absolute left-3 top-2" style={{ color: "var(--color-text-muted)" }}>$</span>
