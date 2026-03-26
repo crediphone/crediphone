@@ -1,416 +1,313 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Wrench,
-  Search,
-  Filter,
-  Eye,
-  Send,
-  Clock,
-  CheckCircle2,
-  Package,
-  AlertCircle,
-} from "lucide-react";
-import { OrdenReparacion, OrdenReparacionDetallada, EstadoOrdenReparacion } from "@/types";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/components/AuthProvider";
+import { OrdenCard } from "@/components/reparaciones/cards/OrdenCard";
+import { OrdenDrawer } from "@/components/reparaciones/drawer/OrdenDrawer";
 import { ModalDiagnostico } from "@/components/reparaciones/ModalDiagnostico";
-import { EstadoBadge, PrioridadBadge } from "@/components/reparaciones/EstadoBadge";
+import { ModalCambiarEstado } from "@/components/reparaciones/ModalCambiarEstado";
+import { Wrench } from "lucide-react";
+import type { OrdenReparacionDetallada, EstadoOrdenReparacion } from "@/types";
 
-interface Estadisticas {
+const ESTADOS_CRITICOS: EstadoOrdenReparacion[] = ["cancelado", "no_reparable"];
+
+interface Stats {
   total: number;
   diagnostico: number;
   presupuesto: number;
   aprobado: number;
-  en_reparacion: number;
-  completado_hoy: number;
+  esperandoPiezas: number;
+  enReparacion: number;
+  completadoHoy: number;
 }
 
 export default function PanelTecnicoPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+
   const [ordenes, setOrdenes] = useState<OrdenReparacionDetallada[]>([]);
-  const [estadisticas, setEstadisticas] = useState<Estadisticas>({
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("todas");
+  const [stats, setStats] = useState<Stats>({
     total: 0,
     diagnostico: 0,
     presupuesto: 0,
     aprobado: 0,
-    en_reparacion: 0,
-    completado_hoy: 0,
+    esperandoPiezas: 0,
+    enReparacion: 0,
+    completadoHoy: 0,
   });
 
-  // Filtros
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState<string>("todas");
-  const [filtroPrioridad, setFiltroPrioridad] = useState<string>("todas");
+  // Drawer lateral
+  const [drawerOrdenId, setDrawerOrdenId] = useState<string | null>(null);
+  const [drawerDefaultTab, setDrawerDefaultTab] = useState("resumen");
 
-  // Modal de diagnóstico
+  // Modal diagnóstico
   const [modalDiagnosticoOpen, setModalDiagnosticoOpen] = useState(false);
   const [ordenSeleccionada, setOrdenSeleccionada] = useState<OrdenReparacionDetallada | null>(null);
 
-  // Cargar datos al montar
-  useEffect(() => {
-    cargarOrdenes();
+  // Modal cambiar estado
+  const [modalCambiarEstadoOpen, setModalCambiarEstadoOpen] = useState(false);
+  const [ordenParaEstado, setOrdenParaEstado] = useState<OrdenReparacionDetallada | null>(null);
 
-    // Refresh automático cada 60 segundos
-    const interval = setInterval(cargarOrdenes, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function cargarOrdenes() {
+  const cargarOrdenes = useCallback(async () => {
+    if (!user) return;
     try {
       setLoading(true);
-
-      // Obtener usuario actual (técnico)
-      const userResponse = await fetch("/api/auth/me");
-      const userData = await userResponse.json();
-
-      if (!userData.success || !userData.user) {
-        router.push("/login");
-        return;
-      }
-
-      const tecnicoId = userData.user.id;
-
-      // Cargar órdenes del técnico
       const response = await fetch(
-        `/api/reparaciones?tecnico_id=${tecnicoId}&detalladas=true`
+        `/api/reparaciones?tecnico_id=${user.id}&detalladas=true`
       );
       const data = await response.json();
-
       if (data.success) {
         setOrdenes(data.data);
-        calcularEstadisticas(data.data);
+        calcularStats(data.data);
       } else {
-        console.error("Error al cargar órdenes:", data.message);
+        console.error("Error al cargar órdenes:", data.error);
       }
     } catch (error) {
       console.error("Error al cargar órdenes:", error);
     } finally {
       setLoading(false);
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-  function calcularEstadisticas(ordenes: OrdenReparacionDetallada[]) {
+  useEffect(() => {
+    if (!authLoading && user) {
+      cargarOrdenes();
+      const interval = setInterval(cargarOrdenes, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [authLoading, user, cargarOrdenes]);
+
+  function calcularStats(lista: OrdenReparacionDetallada[]) {
     const hoy = new Date().toISOString().split("T")[0];
-
-    const stats: Estadisticas = {
-      total: ordenes.length,
-      diagnostico: ordenes.filter((o) => o.estado === "diagnostico").length,
-      presupuesto: ordenes.filter((o) => o.estado === "presupuesto").length,
-      aprobado: ordenes.filter((o) => o.estado === "aprobado").length,
-      en_reparacion: ordenes.filter((o) => o.estado === "en_reparacion").length,
-      completado_hoy: ordenes.filter(
+    setStats({
+      total: lista.length,
+      diagnostico: lista.filter((o) => o.estado === "diagnostico").length,
+      presupuesto: lista.filter((o) => o.estado === "presupuesto").length,
+      aprobado: lista.filter((o) => o.estado === "aprobado").length,
+      esperandoPiezas: lista.filter((o) => o.estado === "esperando_piezas").length,
+      enReparacion: lista.filter((o) => o.estado === "en_reparacion").length,
+      completadoHoy: lista.filter(
         (o) =>
           o.estado === "completado" &&
           o.fechaCompletado &&
           new Date(o.fechaCompletado).toISOString().split("T")[0] === hoy
       ).length,
-    };
-
-    setEstadisticas(stats);
+    });
   }
 
   const ordenesFiltradas = ordenes.filter((orden) => {
-    // Filtro de búsqueda
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase();
       const coincide =
-        orden.folio?.toLowerCase().includes(query) ||
-        orden.clienteNombre?.toLowerCase().includes(query) ||
-        orden.clienteApellido?.toLowerCase().includes(query) ||
-        orden.marcaDispositivo?.toLowerCase().includes(query) ||
-        orden.modeloDispositivo?.toLowerCase().includes(query) ||
-        orden.imei?.toLowerCase().includes(query);
-
+        orden.folio?.toLowerCase().includes(q) ||
+        orden.clienteNombre?.toLowerCase().includes(q) ||
+        (orden.clienteApellido ?? "").toLowerCase().includes(q) ||
+        orden.marcaDispositivo?.toLowerCase().includes(q) ||
+        orden.modeloDispositivo?.toLowerCase().includes(q) ||
+        (orden.imei ?? "").toLowerCase().includes(q);
       if (!coincide) return false;
     }
-
-    // Filtro de estado
-    if (filtroEstado !== "todas" && orden.estado !== filtroEstado) {
-      return false;
-    }
-
-    // Filtro de prioridad
-    if (filtroPrioridad !== "todas" && orden.prioridad !== filtroPrioridad) {
-      return false;
-    }
-
+    if (filtroEstado !== "todas" && orden.estado !== filtroEstado) return false;
     return true;
   });
 
-  function handleAbrirDiagnostico(orden: OrdenReparacionDetallada) {
+  function handleOpenDrawer(orden: OrdenReparacionDetallada, tab = "resumen") {
+    setDrawerOrdenId(orden.id);
+    setDrawerDefaultTab(tab);
+  }
+
+  function handleDiagnostico(orden: OrdenReparacionDetallada) {
     setOrdenSeleccionada(orden);
     setModalDiagnosticoOpen(true);
   }
 
-  function handleEnviarPresupuesto(orden: OrdenReparacionDetallada) {
-    // Abrir modal con la orden para enviar presupuesto directamente
-    setOrdenSeleccionada(orden);
-    setModalDiagnosticoOpen(true);
+  async function handleCambiarEstadoInline(
+    orden: OrdenReparacionDetallada,
+    nuevoEstado: EstadoOrdenReparacion
+  ) {
+    if (ESTADOS_CRITICOS.includes(nuevoEstado)) {
+      setOrdenParaEstado(orden);
+      setModalCambiarEstadoOpen(true);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/estado`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: nuevoEstado }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await cargarOrdenes();
+      } else {
+        alert(data.error || "Error al cambiar estado");
+      }
+    } catch {
+      alert("Error al cambiar estado");
+    }
   }
 
-  function handleVerDetalle(ordenId: string) {
-    router.push(`/dashboard/reparaciones?orden=${ordenId}`);
-  }
+  const kpiCards = [
+    { label: "Total",          value: stats.total,           bg: "var(--color-bg-surface)",  color: "var(--color-text-primary)" },
+    { label: "Diagnóstico",    value: stats.diagnostico,     bg: "var(--color-warning-bg)",  color: "var(--color-warning-text)" },
+    { label: "Presupuesto",    value: stats.presupuesto,     bg: "var(--color-info-bg)",     color: "var(--color-info-text)" },
+    { label: "Aprobado",       value: stats.aprobado,        bg: "var(--color-success-bg)",  color: "var(--color-success-text)" },
+    { label: "Esp. Piezas",    value: stats.esperandoPiezas, bg: "var(--color-warning-bg)",  color: "var(--color-warning-text)" },
+    { label: "En Reparación",  value: stats.enReparacion,    bg: "var(--color-accent-light)", color: "var(--color-accent)" },
+    { label: "Completadas Hoy",value: stats.completadoHoy,   bg: "var(--color-success-bg)",  color: "var(--color-success-text)" },
+  ];
 
   return (
-    <div className="p-6 lg:p-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center shadow-lg">
-            <Wrench className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Panel del Técnico
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Gestiona tus órdenes de reparación asignadas
+    <div className="p-6">
+      {/* ── Header ── */}
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1
+            className="text-3xl font-bold tracking-tight"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            Mi Panel de Reparaciones
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
+            Órdenes de servicio asignadas a tu perfil
+          </p>
+        </div>
+      </div>
+
+      {/* ── KPI cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+        {kpiCards.map(({ label, value, bg, color }) => (
+          <div
+            key={label}
+            className="p-4 rounded-xl"
+            style={{ background: bg, boxShadow: "var(--shadow-sm)" }}
+          >
+            <p className="text-xs font-medium" style={{ color }}>{label}</p>
+            <p
+              className="text-2xl font-bold mt-0.5"
+              style={{ color, fontFamily: "var(--font-data)" }}
+            >
+              {value}
             </p>
           </div>
-        </div>
-      </motion.div>
+        ))}
+      </div>
 
-      {/* Estadísticas */}
-      {!loading && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6"
+      {/* ── Toolbar ── */}
+      <div className="flex flex-col md:flex-row gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Buscar por folio, cliente, dispositivo, IMEI..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="flex-1 px-4 py-2 rounded-xl text-sm"
+          style={{
+            background: "var(--color-bg-surface)",
+            border: "1px solid var(--color-border)",
+            color: "var(--color-text-primary)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        />
+        <select
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          className="w-full md:w-56 px-4 py-2 rounded-xl text-sm"
+          style={{
+            background: "var(--color-bg-surface)",
+            border: "1px solid var(--color-border)",
+            color: "var(--color-text-primary)",
+            boxShadow: "var(--shadow-sm)",
+          }}
         >
-          {/* Total */}
-          <StatCard
-            title="Total Asignadas"
-            value={estadisticas.total}
-            icon={<Package className="w-5 h-5" />}
-            color="blue"
-          />
+          <option value="todas">Todos los estados</option>
+          <option value="recibido">Recibido</option>
+          <option value="diagnostico">En Diagnóstico</option>
+          <option value="esperando_piezas">Esperando Piezas</option>
+          <option value="presupuesto">Presupuesto Pendiente</option>
+          <option value="aprobado">Aprobado</option>
+          <option value="en_reparacion">En Reparación</option>
+          <option value="completado">Completado</option>
+          <option value="listo_entrega">Listo para Entrega</option>
+          <option value="entregado">Entregado</option>
+          <option value="no_reparable">No Reparable</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
 
-          {/* Diagnóstico */}
-          <StatCard
-            title="En Diagnóstico"
-            value={estadisticas.diagnostico}
-            icon={<Search className="w-5 h-5" />}
-            color="yellow"
+      {/* ── Grid de tarjetas ── */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-2xl animate-pulse"
+              style={{
+                height: "220px",
+                background: "var(--color-bg-elevated)",
+              }}
+            />
+          ))}
+        </div>
+      ) : ordenesFiltradas.length === 0 ? (
+        <div className="text-center py-20">
+          <Wrench
+            size={40}
+            className="mx-auto mb-3"
+            style={{ color: "var(--color-border-strong)" }}
           />
-
-          {/* Presupuesto */}
-          <StatCard
-            title="Presupuesto"
-            value={estadisticas.presupuesto}
-            icon={<Clock className="w-5 h-5" />}
-            color="orange"
-          />
-
-          {/* Aprobado */}
-          <StatCard
-            title="Aprobadas"
-            value={estadisticas.aprobado}
-            icon={<CheckCircle2 className="w-5 h-5" />}
-            color="green"
-          />
-
-          {/* En Reparación */}
-          <StatCard
-            title="En Reparación"
-            value={estadisticas.en_reparacion}
-            icon={<Wrench className="w-5 h-5" />}
-            color="purple"
-          />
-
-          {/* Completadas Hoy */}
-          <StatCard
-            title="Completadas Hoy"
-            value={estadisticas.completado_hoy}
-            icon={<CheckCircle2 className="w-5 h-5" />}
-            color="teal"
-          />
-        </motion.div>
+          <p
+            className="text-base font-medium"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            {searchQuery || filtroEstado !== "todas"
+              ? "Sin resultados para este filtro"
+              : "No tienes órdenes asignadas"}
+          </p>
+          <p
+            className="text-sm mt-1"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            {!searchQuery && filtroEstado === "todas"
+              ? "Cuando te asignen órdenes de reparación, aparecerán aquí"
+              : "Prueba ajustando los filtros de búsqueda"}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {ordenesFiltradas.map((orden) => (
+              <OrdenCard
+                key={orden.id}
+                orden={orden}
+                userRole={user?.role || "tecnico"}
+                onOpenDrawer={(o) => handleOpenDrawer(o)}
+                onDiagnostico={handleDiagnostico}
+                onCambiarEstado={handleCambiarEstadoInline}
+                onRefresh={cargarOrdenes}
+              />
+            ))}
+          </div>
+          <p
+            className="mt-4 text-xs text-center"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            {ordenesFiltradas.length} de {ordenes.length} órdenes
+          </p>
+        </>
       )}
 
-      {/* Barra de herramientas */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Búsqueda */}
-          <div className="relative md:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por folio, cliente, dispositivo, IMEI..."
-              className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
-            />
-          </div>
+      {/* ── Drawer lateral ── */}
+      <OrdenDrawer
+        ordenId={drawerOrdenId}
+        onClose={() => setDrawerOrdenId(null)}
+        onRefresh={cargarOrdenes}
+        defaultTab={drawerDefaultTab}
+      />
 
-          {/* Filtros */}
-          <div className="flex gap-2">
-            <select
-              value={filtroEstado}
-              onChange={(e) => setFiltroEstado(e.target.value)}
-              className="flex-1 px-3 py-2.5 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
-            >
-              <option value="todas">Todos los estados</option>
-              <option value="recibido">Recibido</option>
-              <option value="diagnostico">Diagnóstico</option>
-              <option value="presupuesto">Presupuesto</option>
-              <option value="aprobado">Aprobado</option>
-              <option value="en_reparacion">En Reparación</option>
-              <option value="completado">Completado</option>
-            </select>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Tabla de órdenes */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
-      >
-        {loading ? (
-          <LoadingState />
-        ) : ordenesFiltradas.length === 0 ? (
-          <EmptyState hasFilters={searchQuery !== "" || filtroEstado !== "todas"} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-900">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Folio
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Dispositivo
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Problema
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Prioridad
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                <AnimatePresence mode="popLayout">
-                  {ordenesFiltradas.map((orden, index) => (
-                    <motion.tr
-                      key={orden.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-bold text-blue-600">
-                          {orden.folio}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {orden.clienteNombre} {orden.clienteApellido || ""}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {orden.clienteTelefono}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-white">
-                          {orden.marcaDispositivo} {orden.modeloDispositivo}
-                        </div>
-                        {orden.imei && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            IMEI: {orden.imei}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate">
-                          {orden.problemaReportado || "Sin especificar"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <EstadoBadge estado={orden.estado} />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <PrioridadBadge prioridad={orden.prioridad || "normal"} />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-2">
-                          {/* Botón Actualizar Diagnóstico */}
-                          {(orden.estado === "recibido" ||
-                            orden.estado === "diagnostico" ||
-                            orden.estado === "presupuesto") && (
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleAbrirDiagnostico(orden)}
-                              className="p-2 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
-                              title="Actualizar Diagnóstico"
-                            >
-                              <Wrench className="w-4 h-4" />
-                            </motion.button>
-                          )}
-
-                          {/* Botón Enviar Presupuesto */}
-                          {orden.estado === "presupuesto" && (
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleEnviarPresupuesto(orden)}
-                              className="p-2 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                              title="Enviar Presupuesto por WhatsApp"
-                            >
-                              <Send className="w-4 h-4" />
-                            </motion.button>
-                          )}
-
-                          {/* Botón Ver Detalles */}
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleVerDetalle(orden.id)}
-                            className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                            title="Ver Detalles"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </motion.button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </AnimatePresence>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
-
-      {/* Modal de Diagnóstico */}
+      {/* ── Modal Diagnóstico ── */}
       {ordenSeleccionada && (
         <ModalDiagnostico
           isOpen={modalDiagnosticoOpen}
@@ -418,89 +315,28 @@ export default function PanelTecnicoPage() {
             setModalDiagnosticoOpen(false);
             setOrdenSeleccionada(null);
           }}
-          onSuccess={() => {
-            cargarOrdenes();
-          }}
+          onSuccess={cargarOrdenes}
           ordenId={ordenSeleccionada.id}
           ordenFolio={ordenSeleccionada.folio}
           dispositivo={`${ordenSeleccionada.marcaDispositivo} ${ordenSeleccionada.modeloDispositivo}`}
           orden={ordenSeleccionada}
         />
       )}
-    </div>
-  );
-}
 
-// Componente StatCard
-interface StatCardProps {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  color: "blue" | "yellow" | "orange" | "green" | "purple" | "teal";
-}
-
-function StatCard({ title, value, icon, color }: StatCardProps) {
-  const colorClasses = {
-    blue: "from-blue-500 to-blue-600 text-blue-600",
-    yellow: "from-yellow-500 to-yellow-600 text-yellow-600",
-    orange: "from-orange-500 to-orange-600 text-orange-600",
-    green: "from-green-500 to-green-600 text-green-600",
-    purple: "from-purple-500 to-purple-600 text-purple-600",
-    teal: "from-teal-500 to-teal-600 text-teal-600",
-  };
-
-  const bgClass = colorClasses[color].split(" ")[0] + " " + colorClasses[color].split(" ")[1];
-  const textClass = colorClasses[color].split(" ")[2];
-
-  return (
-    <motion.div
-      whileHover={{ scale: 1.02, y: -2 }}
-      className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden"
-    >
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className={`p-2 rounded-lg bg-gradient-to-br ${bgClass} text-white`}>
-            {icon}
-          </div>
-        </div>
-        <div className="text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
-        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{title}</div>
-      </div>
-    </motion.div>
-  );
-}
-
-// Estado de carga
-function LoadingState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4" />
-      <p className="text-gray-600 dark:text-gray-400 font-medium">Cargando órdenes...</p>
-    </div>
-  );
-}
-
-// Estado vacío
-function EmptyState({ hasFilters }: { hasFilters: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <div className="w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4">
-        {hasFilters ? (
-          <Filter className="w-10 h-10 text-gray-400" />
-        ) : (
-          <Package className="w-10 h-10 text-gray-400" />
-        )}
-      </div>
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-        {hasFilters
-          ? "No se encontraron resultados"
-          : "No tienes órdenes asignadas"}
-      </h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400 text-center max-w-md">
-        {hasFilters
-          ? "Intenta ajustar los filtros de búsqueda o estado para ver más resultados."
-          : "Cuando te asignen órdenes de reparación, aparecerán aquí."}
-      </p>
+      {/* ── Modal Cambiar Estado ── */}
+      {ordenParaEstado && (
+        <ModalCambiarEstado
+          isOpen={modalCambiarEstadoOpen}
+          onClose={() => {
+            setModalCambiarEstadoOpen(false);
+            setOrdenParaEstado(null);
+          }}
+          onSuccess={cargarOrdenes}
+          ordenId={ordenParaEstado.id}
+          folio={ordenParaEstado.folio}
+          estadoActual={ordenParaEstado.estado}
+        />
+      )}
     </div>
   );
 }

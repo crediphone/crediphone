@@ -307,10 +307,13 @@ export default function ReparacionesPage() {
           <option value="diagnostico">En Diagnóstico</option>
           <option value="presupuesto">Presupuesto Pendiente</option>
           <option value="aprobado">Aprobado</option>
+          <option value="esperando_piezas">Esperando Piezas</option>
           <option value="en_reparacion">En Reparación</option>
           <option value="completado">Completado</option>
           <option value="listo_entrega">Listo para Entrega</option>
           <option value="entregado">Entregado</option>
+          <option value="no_reparable">No Reparable</option>
+          <option value="cancelado">Cancelado</option>
         </select>
       </div>
 
