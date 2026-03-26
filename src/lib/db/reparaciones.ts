@@ -448,8 +448,13 @@ export async function createOrdenReparacion(
       accesorios_incluidos: ordenData.accesoriosEntregados || null,
       problema_reportado: ordenData.problemaReportado,
       estado: "recibido",
-      costo_reparacion: ordenData.costoReparacion || 0,
+      // costo_reparacion: labor cost (mano de obra). Usa el desglose del presupuesto
+      // como fallback para que no quede en 0 cuando viene del modal de nueva orden.
+      costo_reparacion: ordenData.costoReparacion || ordenData.presupuestoManoDeObra || 0,
+      // costo_partes: partes reales (se recalcula en recalcularCostoPiezas al agregar piezas)
       costo_partes: ordenData.costoPartes || 0,
+      // costo_total inicial = mano de obra (las piezas reales se suman en recalcularCostoPiezas)
+      costo_total: (ordenData.costoReparacion || ordenData.presupuestoManoDeObra || 0) + (ordenData.costoPartes || 0),
       partes_reemplazadas: ordenData.partesReemplazadas || [],
       fecha_estimada_entrega: ordenData.fechaEstimadaEntrega || null,
       notas_internas: ordenData.notasInternas || null,
