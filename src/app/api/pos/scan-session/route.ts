@@ -2,7 +2,7 @@
  * FASE 65: QR Bridge — crear sesión de escaneo móvil
  * POST /api/pos/scan-session → genera token + URL QR para el celular
  */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -15,7 +15,7 @@ function generateToken(length = 12): string {
   return token;
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const { userId, role, distribuidorId } = await getAuthContext();
     if (!userId) {
@@ -45,8 +45,14 @@ export async function POST() {
 
     if (error) throw error;
 
-    // La URL base del sitio — en producción será el dominio real
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "";
+    // Derivar URL base del request real (no del env var que se inlinea al compilar)
+    let baseUrl: string;
+    try {
+      const { protocol, host } = new URL(request.url);
+      baseUrl = `${protocol}//${host}`;
+    } catch {
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "";
+    }
     const mobileUrl = `${baseUrl}/pos/scan/${token}`;
 
     return NextResponse.json({

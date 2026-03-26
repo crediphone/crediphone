@@ -8,6 +8,19 @@ function generarTokenQR(): string {
   return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** Deriva la URL base del request real (funciona en dev y en producción/CF) */
+function getBaseUrl(request: NextRequest): string {
+  // Prioridad: env var explícito (ya configurado en wrangler.jsonc para prod)
+  // pero como NEXT_PUBLIC_* se inlinea al compilar con el valor del .env.local,
+  // usamos el request.url que siempre refleja el hostname real.
+  try {
+    const { protocol, host } = new URL(request.url);
+    return `${protocol}//${host}`;
+  } catch {
+    return process.env.NEXT_PUBLIC_BASE_URL || "";
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await getAuthContext();
@@ -78,7 +91,7 @@ export async function POST(request: NextRequest) {
         ordenId: sesion.orden_id,
         maxImagenes: sesion.max_imagenes,
         expiresAt: sesion.expires_at,
-        url: `${process.env.NEXT_PUBLIC_BASE_URL || ""}/fotos/${sesion.token}`,
+        url: `${getBaseUrl(request)}/fotos/${sesion.token}`,
       },
     });
   } catch (error) {

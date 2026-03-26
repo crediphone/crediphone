@@ -12,6 +12,15 @@ import crypto from "crypto";
  * Devuelve:
  *   { success: true, url: "https://…/tracking/<token>", folio: "REP-0001", token: "…" }
  */
+function getBaseUrl(req: NextRequest): string {
+  try {
+    const { protocol, host } = new URL(req.url);
+    return `${protocol}//${host}`;
+  } catch {
+    return process.env.NEXT_PUBLIC_BASE_URL || "";
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -77,7 +86,7 @@ export async function GET(
       if (insertError) {
         console.error("Error al crear tracking token:", insertError);
         // Fallback sin token: devolver URL por folio
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+        const baseUrl = getBaseUrl(_req);
         return NextResponse.json({
           success: true,
           url: `${baseUrl}/reparacion/${orden.folio}`,
@@ -87,7 +96,7 @@ export async function GET(
       }
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+    const baseUrl = getBaseUrl(_req);
     return NextResponse.json({
       success: true,
       url: `${baseUrl}/tracking/${token}`,
