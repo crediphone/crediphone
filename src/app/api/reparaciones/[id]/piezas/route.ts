@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getPiezasReparacion,
   agregarPiezaReparacion,
@@ -83,6 +84,30 @@ export async function POST(
       );
     }
 
+    // Verificar stock ANTES de intentar agregar — para ofrecer solicitud_pieza si es 0
+    const supabase = createAdminClient();
+    const { data: producto } = await supabase
+      .from("productos")
+      .select("id, nombre, stock")
+      .eq("id", productoId)
+      .single();
+
+    if (producto && producto.stock < cantidad) {
+      // Sin stock suficiente → 409 con flag para que el frontend ofrezca solicitud_pieza
+      return NextResponse.json(
+        {
+          success: false,
+          sinStock: true,
+          error: `Stock insuficiente. Disponible: ${producto.stock}, solicitado: ${cantidad}`,
+          productoId,
+          productoNombre: producto.nombre,
+          stockDisponible: producto.stock,
+          cantidadSolicitada: cantidad,
+        },
+        { status: 409 }
+      );
+    }
+
     const pieza = await agregarPiezaReparacion(
       ordenId,
       productoId,
@@ -98,12 +123,12 @@ export async function POST(
     );
   } catch (error) {
     console.error("Error en POST /api/reparaciones/[id]/piezas:", error);
+    // Detectar error de stock de agregarPiezaReparacion (fallback por si el check previo falló)
+    const msg = error instanceof Error ? error.message : "Error al agregar pieza";
+    const sinStock = msg.toLowerCase().includes("stock insuficiente");
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Error al agregar pieza",
-      },
-      { status: 500 }
+      { success: false, sinStock, error: msg },
+      { status: sinStock ? 409 : 500 }
     );
   }
 }

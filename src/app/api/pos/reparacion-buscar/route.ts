@@ -132,7 +132,7 @@ export async function GET(request: Request) {
         .from("anticipos_reparacion")
         .select("orden_id, monto")
         .in("orden_id", ordenIds)
-        .eq("estado", "aplicado");
+        .neq("estado", "devuelto"); // incluir pendiente + aplicado, excluir solo devuelto
 
       if (anticipos && anticipos.length > 0) {
         const anticiposPorOrden: Record<string, number> = {};

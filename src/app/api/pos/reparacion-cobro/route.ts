@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSesionActiva } from "@/lib/db/caja";
-import type { TipoPago, DesglosePagoMixto } from "@/types";
+import { createTraspasoAnticipo } from "@/lib/db/traspasos";
+import type { TipoPago, DesglosePagoMixto, UserRole } from "@/types";
 
 /**
  * POST /api/pos/reparacion-cobro
@@ -21,7 +22,7 @@ import type { TipoPago, DesglosePagoMixto } from "@/types";
  */
 export async function POST(request: Request) {
   try {
-    const { userId, distribuidorId, isSuperAdmin } = await getAuthContext();
+    const { userId, role, distribuidorId, isSuperAdmin } = await getAuthContext();
 
     if (!userId) {
       return NextResponse.json(
@@ -56,10 +57,13 @@ export async function POST(request: Request) {
 
     const supabase = createAdminClient();
 
-    // Obtener datos de la orden
+    // Obtener datos de la orden con nombre del cliente para el traspaso
     const { data: orden, error: ordenError } = await supabase
       .from("ordenes_reparacion")
-      .select("id, folio, cliente_id, costo_total, distribuidor_id")
+      .select(`
+        id, folio, cliente_id, costo_total, distribuidor_id,
+        cliente:clientes(nombre, apellido)
+      `)
       .eq("id", ordenId)
       .single();
 
@@ -87,12 +91,12 @@ export async function POST(request: Request) {
       // Sin sesión activa — no hay problema, el anticipo se registra sin caja
     }
 
-    // Obtener total de anticipos existentes
+    // Obtener total de anticipos existentes (todos los activos, no solo "aplicado")
     const { data: anticiposExistentes } = await supabase
       .from("anticipos_reparacion")
       .select("monto")
       .eq("orden_id", ordenId)
-      .eq("estado", "aplicado");
+      .neq("estado", "devuelto"); // incluye pendiente + aplicado, excluye devuelto
 
     const totalAnticiposActual = anticiposExistentes
       ? anticiposExistentes.reduce((sum: number, a: any) => sum + parseFloat(a.monto || 0), 0)
@@ -126,6 +130,53 @@ export async function POST(request: Request) {
       );
     }
 
+    const anticipoId = nuevoAnticipo?.[0]?.id;
+    const clienteRow = orden.cliente as { nombre?: string; apellido?: string } | null;
+    const clienteNombre = clienteRow
+      ? `${clienteRow.nombre || ""} ${clienteRow.apellido || ""}`.trim()
+      : "Cliente";
+
+    // Determinar si el pago incluye efectivo físico (requiere traspaso sin caja)
+    const incluyeEfectivo =
+      metodoPago === "efectivo" ||
+      (metodoPago === "mixto" &&
+        desgloseMixto &&
+        (parseFloat(desgloseMixto.efectivo || 0) > 0));
+
+    if (sesionCajaId) {
+      // HAY sesión activa → registrar entrada en caja_movimientos para auditoría
+      try {
+        await supabase.from("caja_movimientos").insert({
+          sesion_id: sesionCajaId,
+          tipo: tipo === "saldo_final" ? "cobro_reparacion" : "entrada_anticipo",
+          monto: parseFloat(monto),
+          concepto: `${tipo === "saldo_final" ? "Saldo final" : "Anticipo"} reparación ${orden.folio} (${metodoPago})`,
+          referencia_id: anticipoId,
+          distribuidor_id: orden.distribuidor_id || null,
+        });
+      } catch (cajaErr) {
+        // No bloqueamos el flujo si falla el movimiento de caja
+        console.error("No se pudo registrar movimiento en caja:", cajaErr);
+      }
+    } else if (incluyeEfectivo && anticipoId) {
+      // SIN sesión y con efectivo → crear traspaso para auditoría y notificación
+      try {
+        await createTraspasoAnticipo({
+          distribuidorId: orden.distribuidor_id || undefined,
+          reparacionId: ordenId,
+          anticipoId,
+          tecnicoId: userId, // quién tiene el dinero
+          creadoPorRol: (role ?? "vendedor") as UserRole,
+          folioOrden: orden.folio,
+          clienteNombre,
+          montoRegistrado: parseFloat(monto),
+        });
+      } catch (traspasoErr) {
+        // No bloqueamos el flujo; el anticipo ya quedó registrado
+        console.error("No se pudo crear traspaso:", traspasoErr);
+      }
+    }
+
     // Si es saldo final y el nuevo saldo es 0 o negativo, marcar como entregado
     let entregado = false;
     if (tipo === "saldo_final" && nuevoSaldo <= 0) {
@@ -149,7 +200,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       data: {
-        anticipoId: nuevoAnticipo?.[0]?.id,
+        anticipoId,
         nuevoSaldo: Math.max(0, nuevoSaldo),
         entregado,
       },
