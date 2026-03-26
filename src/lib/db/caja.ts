@@ -463,7 +463,7 @@ export async function getAnticiposBySesion(sesionId: string): Promise<AnticipoEn
       orden:ordenes_reparacion (
         id,
         folio,
-        descripcion_problema,
+        problema_reportado,
         cliente:clientes ( nombre, apellido )
       ),
       empleado:users!recibido_por ( name )
@@ -488,7 +488,7 @@ export async function getAnticiposBySesion(sesionId: string): Promise<AnticipoEn
       fechaAnticipo: new Date(row.fecha_anticipo),
       estado: row.estado,
       folioOrden: orden?.folio || "Sin folio",
-      descripcionProblema: orden?.descripcion_problema || undefined,
+      descripcionProblema: orden?.problema_reportado || undefined,
       ordenId: orden?.id || "",
       clienteNombre: cliente
         ? [cliente.nombre, cliente.apellido].filter(Boolean).join(" ")
@@ -518,7 +518,7 @@ export async function getAnticiposSinSesion(distribuidorId?: string): Promise<An
       orden:ordenes_reparacion (
         id,
         folio,
-        descripcion_problema,
+        problema_reportado,
         distribuidor_id,
         cliente:clientes ( nombre, apellido )
       ),
@@ -555,7 +555,7 @@ export async function getAnticiposSinSesion(distribuidorId?: string): Promise<An
         fechaAnticipo: new Date(row.fecha_anticipo),
         estado: row.estado,
         folioOrden: orden?.folio || "Sin folio",
-        descripcionProblema: orden?.descripcion_problema || undefined,
+        descripcionProblema: orden?.problema_reportado || undefined,
         ordenId: orden?.id || "",
         clienteNombre: cliente
           ? [cliente.nombre, cliente.apellido].filter(Boolean).join(" ")
