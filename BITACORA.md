@@ -401,7 +401,7 @@ Por eso existe este archivo. Si algo importante pasa en una sesión (nueva decis
 
 **Severidad:** CRÍTICO — Silencioso, en producción ahora mismo
 **Detectado:** 2026-03-28
-**Estado:** ❌ SIN RESOLVER
+**Estado:** ✅ RESUELTO — commit `feedae4` (2026-03-28)
 
 **El problema central:** La tabla `caja_movimientos` fue definida en FASE 18 con solo 7 columnas y un CHECK que solo acepta 2 tipos:
 ```sql
@@ -471,7 +471,7 @@ ALTER TABLE caja_movimientos
 
 **Severidad:** CRÍTICO — Bloquea cobro de anticipos en órdenes nuevas
 **Detectado:** 2026-03-28
-**Estado:** ❌ SIN RESOLVER
+**Estado:** ✅ RESUELTO — commit `feedae4` (2026-03-28)
 
 **Archivo:** `src/components/pos/ReparacionesPOSPanel.tsx`
 
@@ -494,7 +494,7 @@ Si la orden tiene `costo_total = 0` (nueva orden donde no se ha cotizado precio)
 
 **Severidad:** MEDIA — Confusión operativa para Trini
 **Detectado:** 2026-03-28
-**Estado:** ❌ SIN RESOLVER — Trini quiere que siempre entre como CREDIPHONE Principal
+**Estado:** ✅ RESUELTO — commit `feedae4` (2026-03-28)
 
 **Archivo:** `src/components/DistribuidorProvider.tsx` líneas 78-87
 
@@ -522,7 +522,7 @@ Si Trini usó CELLMAN en la sesión anterior, la próxima vez entra como CELLMAN
 
 **Severidad:** MEDIA — Admin de CELLMAN puede ver inventario de CREDIPHONE
 **Detectado:** 2026-03-28
-**Estado:** ❌ SIN RESOLVER
+**Estado:** ✅ RESUELTO — commit `feedae4` (2026-03-28)
 
 **Archivo:** `src/lib/db/verificaciones.ts` función `getAllVerificaciones()`
 
@@ -553,7 +553,7 @@ La función retorna las 100 verificaciones más recientes sin filtrar por distri
 
 **Severidad:** MEDIA — Tab Kits en POS siempre falla silenciosamente
 **Detectado:** 2026-03-28
-**Estado:** ❌ PENDIENTE (FASE 61 — esperar que Trini indique)
+**Estado:** ❌ PENDIENTE (FASE 61 — esperar indicación de Trini)
 
 El componente `src/components/pos/KitsPOSPanel.tsx` llama APIs que consultan tablas que no tienen migración SQL aplicada. Resultado: la pestaña de Kits no muestra nada y no da error visible.
 
