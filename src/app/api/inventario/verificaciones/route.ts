@@ -13,7 +13,7 @@ import type { NuevaVerificacionFormData, ScanProductoFormData } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId, role } = await getAuthContext();
+    const { userId, role, distribuidorId, isSuperAdmin } = await getAuthContext();
     if (!userId) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
@@ -31,9 +31,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: stats });
     }
 
-    // Admin and super_admin see all verifications
+    // Admin ve solo su distribuidor; super_admin ve todos
     if (role === "admin" || role === "super_admin") {
-      const verificaciones = await getAllVerificaciones();
+      const filterDistId = isSuperAdmin ? undefined : (distribuidorId ?? undefined);
+      const verificaciones = await getAllVerificaciones(filterDistId);
       return NextResponse.json({ success: true, data: verificaciones });
     } else {
       const verificaciones = await getVerificacionesByUsuario(userId);

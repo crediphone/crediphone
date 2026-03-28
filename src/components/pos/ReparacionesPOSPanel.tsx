@@ -549,8 +549,9 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
             </div>
 
             {/* Botones de acción */}
-            {hayDeuda && (
-              <div className="grid grid-cols-2 gap-2">
+            {/* "Registrar anticipo" siempre visible en órdenes activas (costo_total puede ser 0 en diagnóstico) */}
+            {orden.estado !== "entregado" && orden.estado !== "cancelado" ? (
+              <div className={hayDeuda ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
                 <button
                   onClick={() => setShowModalAnticipo(true)}
                   disabled={procesandoAnticipo || procesandoCobroSaldo}
@@ -563,21 +564,21 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
                 >
                   Registrar anticipo
                 </button>
-                <button
-                  onClick={() => setShowModalCobroSaldo(true)}
-                  disabled={procesandoCobroSaldo || procesandoAnticipo}
-                  className="py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
-                  style={{
-                    background: "var(--color-accent)",
-                    color: "#fff",
-                  }}
-                >
-                  Cobrar saldo
-                </button>
+                {hayDeuda && (
+                  <button
+                    onClick={() => setShowModalCobroSaldo(true)}
+                    disabled={procesandoCobroSaldo || procesandoAnticipo}
+                    className="py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+                    style={{
+                      background: "var(--color-accent)",
+                      color: "#fff",
+                    }}
+                  >
+                    Cobrar saldo
+                  </button>
+                )}
               </div>
-            )}
-
-            {!hayDeuda && (
+            ) : (
               <div
                 className="rounded-lg p-3 text-center text-sm"
                 style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}

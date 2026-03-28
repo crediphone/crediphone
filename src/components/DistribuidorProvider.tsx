@@ -4,9 +4,12 @@
  * DistribuidorProvider
  * Contexto de distribuidor activo para super_admin.
  *
- * - super_admin arranca en el primer distribuidor activo (Crediphone por defecto)
- *   y puede cambiar a cualquier otro o a "Vista Global" (null).
- * - La selección persiste en localStorage entre sesiones.
+ * - super_admin SIEMPRE arranca en CREDIPHONE Principal (primer distribuidor activo).
+ *   El localStorage NO se usa para restaurar entre sesiones — solo persiste
+ *   dentro de la misma sesión de navegador (sessionStorage no implementado por ahora:
+ *   simplemente no se lee el localStorage al cargar).
+ * - El super_admin puede cambiar a cualquier otro distribuidor o a "Vista Global" (null)
+ *   desde el selector en el dashboard.
  * - Roles normales (admin/vendedor/etc.) nunca usan este contexto;
  *   su distribuidor_id viene de getAuthContext() en el servidor.
  * - Las API routes que necesiten el distribuidor activo del super_admin
@@ -74,25 +77,12 @@ export function DistribuidorProvider({ children }: { children: React.ReactNode }
         const dists: DistribuidorItem[] = data.data;
         setDistribuidores(dists);
 
-        // Restaurar selección guardada en localStorage
-        const savedId =
-          typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
-
-        if (savedId) {
-          const found = dists.find((d) => d.id === savedId);
-          if (found) {
-            setDistribuidorActivoState(found);
-            return;
-          }
-        }
-
-        // Sin selección guardada → usar el primer distribuidor activo
+        // Siempre arrancar con CREDIPHONE Principal (primer distribuidor activo).
+        // NO restauramos desde localStorage entre sesiones — Trini quiere entrar
+        // siempre en su tienda principal por defecto (opción C).
         const primero = dists.find((d) => d.activo) ?? dists[0] ?? null;
         if (primero) {
           setDistribuidorActivoState(primero);
-          if (typeof window !== "undefined") {
-            localStorage.setItem(LS_KEY, primero.id);
-          }
         }
       })
       .catch(() => {})

@@ -222,10 +222,12 @@ export async function getVerificacionActiva(
 /**
  * Get all verifications (admin)
  */
-export async function getAllVerificaciones(): Promise<
-  VerificacionInventarioDetallada[]
-> {
-  const supabase = createAdminClient(); const { data, error } = await supabase
+export async function getAllVerificaciones(
+  distribuidorId?: string
+): Promise<VerificacionInventarioDetallada[]> {
+  const supabase = createAdminClient();
+
+  let query = supabase
     .from("verificaciones_inventario")
     .select(
       `
@@ -236,6 +238,13 @@ export async function getAllVerificaciones(): Promise<
     )
     .order("fecha_inicio", { ascending: false })
     .limit(100);
+
+  // Filtrar por distribuidor cuando el rol no es super_admin
+  if (distribuidorId) {
+    query = query.eq("distribuidor_id", distribuidorId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 

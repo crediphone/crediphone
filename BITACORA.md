@@ -106,6 +106,74 @@ el usuario no es super_admin.
 | FIX | Etiquetas: QR más grande, borde de corte visible 1.5pt, precio más grande, CODE128 en printRef | `3d24152`, `8a43a91` |
 | FIX | resumen-pos/route.ts: params como Promise (Next.js 16) — arreglaba build Vercel | `7ff4308` |
 | FIX | npm audit fix: 0 vulnerabilidades (ajv, dompurify, flatted, minimatch) | `5f7a92f` |
+| **MIGRACIÓN** | **Deploy completo a Cloudflare Workers + R2. Vercel abandonado.** | Ver sección abajo |
+
+---
+
+## 🚀 MIGRACIÓN VERCEL → CLOUDFLARE (2026-03-25 al 2026-03-28)
+
+### Estado post-migración: ✅ COMPLETADA
+
+**Stack nuevo:**
+- **Deploy:** `@opennextjs/cloudflare` → Cloudflare Workers
+- **Storage:** Cloudflare R2 bucket `crediphone-storage` (binding `R2_BUCKET`)
+- **URL pública R2:** `https://pub-89451411d31c49d9959b166475cda47a.r2.dev`
+- **Dominio:** `https://crediphone.com.mx` → Cloudflare Worker `crediphone`
+- **Script deploy:** `npm run deploy:cf` en el directorio del proyecto
+- **Token Cloudflare:** `crediphone-wrangler-deploy` (con permisos Workers Scripts + R2 + Builds)
+
+**Comandos de deploy (desde VM o máquina con wrangler auth):**
+```bash
+CLOUDFLARE_API_TOKEN=<token> npx opennextjs-cloudflare build
+CLOUDFLARE_API_TOKEN=<token> npx opennextjs-cloudflare deploy
+```
+
+**PROBLEMA CONOCIDO — Deploy desde VM:**
+El `wrangler login` en la VM de Cowork no persiste entre sesiones. Solución: usar `CLOUDFLARE_API_TOKEN` explícito. El token `crediphone-wrangler-deploy` puede renovarse desde `dash.cloudflare.com/profile/api-tokens`.
+
+---
+
+### Fixes aplicados post-migración
+
+| Commit | Fix | Problema original |
+|---|---|---|
+| `a3ae5d1` | QR fotos y scan-session usan `new URL(request.url)` en lugar de `NEXT_PUBLIC_BASE_URL` | QR apuntaba a `localhost:3000` en producción |
+| `a5afa19` | `obtenerUrlImagen()` sirve imágenes antiguas desde Supabase Storage | Imágenes de productos no cargaban (URL vacía) |
+| `a99dea4` | `obtenerUrlImagen()` distingue Supabase vs R2 por número de segmentos del path; `productos/page.tsx` y `clientes/page.tsx` guardan URL completa en BD | Nuevas subidas a R2 con path relativo de 3+ segmentos se mapeaban incorrectamente a Supabase |
+| `dbdc50b` | Bug C3: stock insuficiente en reparaciones devuelve 409 con `sinStock:true` | Error 500 genérico al agregar pieza sin stock |
+| (sesión anterior) | Bug C1+C2: bolsa virtual POS suma anticipos pendiente+aplicado; traspaso creado al cobrar sin sesión de caja | Saldo incorrecto mostrado al vendedor |
+
+---
+
+### Estado actual del storage de imágenes
+
+| Tipo de imagen | Dónde vive | Cómo se identifica en BD |
+|---|---|---|
+| Productos legacy (antes Mar 25) | Supabase Storage bucket `productos` | Path plano: `productos/filename.jpg` (2 segmentos) |
+| Productos nuevos (Mar 26+) | Cloudflare R2 | URL completa: `https://pub-89451.../productos/productos/...` |
+| Reparaciones (fotos QR y admin) | Cloudflare R2 | URL completa: `https://pub-89451.../reparaciones/...` |
+| Documentos clientes (INE, etc.) | Cloudflare R2 | URL completa: `https://pub-89451.../productos/documentos/...` |
+
+**Imágenes perdidas:** 6 productos con imágenes que no existen ni en Supabase ni en R2 (subidas durante la transición Mar 25). Deben re-subirse manualmente desde el panel de edición de productos.
+
+**`obtenerUrlImagen()` lógica actual (storage.ts):**
+```
+path.startsWith("http")       → devolver tal cual (R2 url completa)
+path tiene 2 segmentos y empieza con "productos/" → Supabase Storage (legacy)
+cualquier otro path            → R2 CDN (multi-nivel)
+```
+
+---
+
+### Variables de entorno críticas (.env.local Y wrangler.jsonc vars)
+
+```
+NEXT_PUBLIC_R2_PUBLIC_URL=https://pub-89451411d31c49d9959b166475cda47a.r2.dev
+NEXT_PUBLIC_BASE_URL=https://crediphone.com.mx   ← solo fallback, las rutas usan request.url
+NEXT_PUBLIC_APP_URL=https://crediphone.com.mx    ← solo fallback
+```
+
+**IMPORTANTE:** Las variables `NEXT_PUBLIC_*` se inyectan en build time desde `.env.local`. Si cambia alguna, hay que reconstruir y redesplegar. Las vars en `wrangler.jsonc [vars]` NO sobreescriben las del build para variables `NEXT_PUBLIC_*` (son static inline).
 
 ---
 
@@ -319,3 +387,255 @@ Por eso existe este archivo. Si algo importante pasa en una sesión (nueva decis
 ---
 
 *Última actualización: 2026-03-23 — Trini + Claude (FASES 54a + 55 verificadas y marcadas como completadas, FASE 56 renumerada, FASES 61+62 documentadas como código sin migración BD, fixes de sesión 2026-03-22/23 registrados)*
+
+---
+
+## 🔴 BUGS ENCONTRADOS EN AUDITORÍA 2026-03-28
+
+> Auditoría completa: POS, caja, reparaciones, inventario, bolsa virtual, fotos QR, URLs, super_admin distribuidor.
+> Todos verificados con evidencia de código y migración SQL.
+
+---
+
+### [CAJA-001] `caja_movimientos` — esquema de BD no soporta los tipos de la FASE 41
+
+**Severidad:** CRÍTICO — Silencioso, en producción ahora mismo
+**Detectado:** 2026-03-28
+**Estado:** ❌ SIN RESOLVER
+
+**El problema central:** La tabla `caja_movimientos` fue definida en FASE 18 con solo 7 columnas y un CHECK que solo acepta 2 tipos:
+```sql
+tipo TEXT NOT NULL CHECK (tipo IN ('deposito', 'retiro'))
+-- Solo acepta: 'deposito' | 'retiro'
+-- Columnas reales: id, sesion_id, tipo, monto, concepto, autorizado_por, created_at
+```
+
+Pero en FASES 37, 38, 40, 41 el código intenta insertar tipos y columnas que NO existen:
+- `tipo: "cobro_reparacion"` → inválido (CHECK constraint)
+- `tipo: "entrada_anticipo"` → inválido
+- `tipo: "anticipo_reparacion"` → inválido
+- `tipo: "pay_in"` / `"pay_out"` → inválidos
+- `tipo: "devolucion_anticipo"` → inválido
+- Columna `referencia_id` → NO EXISTE en la tabla
+- Columna `distribuidor_id` → NO EXISTE en la tabla
+- Columna `descripcion` → NO EXISTE (el correcto es `concepto`)
+- Columna `registrado_por` → NO EXISTE
+
+**Archivos afectados con fallo silencioso:**
+1. `src/app/api/pos/reparacion-cobro/route.ts` líneas 149-160 → try-catch silencia el error
+2. `src/lib/db/traspasos.ts` líneas 231-242 → try-catch silencia el error
+3. `src/lib/db/confirmaciones.ts` líneas 186-195 → sin try-catch pero resultado no se destructura → silencioso
+
+**Archivos afectados con lógica inservible:**
+4. `src/lib/db/caja.ts` líneas 230-233 → `cerrarCaja()` busca tipos `"entrada_anticipo"`, `"pay_in"`, `"pay_out"` que NUNCA pueden existir en BD → totales de depositos/retiros siempre incorrectos
+
+**Impacto real:**
+- Los pagos de reparaciones cobrados desde el POS (FASE 41) NO quedan en el registro de caja
+- Los traspasos anticipo técnico→vendedor (FASE 37) NO quedan en registro de caja
+- Los depósitos/transferencias confirmados (FASE 38) NO quedan en registro de caja
+- El Reporte Z siempre muestra un saldo incompleto (falta todo el dinero de reparaciones)
+- El cuadre de caja al cierre de turno está mal cada vez que hay anticipos de reparación
+
+**Fix requerido (migración SQL):**
+```sql
+-- 1. Eliminar el CHECK constraint viejo
+ALTER TABLE caja_movimientos
+  DROP CONSTRAINT IF EXISTS caja_movimientos_tipo_check;
+
+-- 2. Agregar CHECK con todos los tipos válidos
+ALTER TABLE caja_movimientos
+  ADD CONSTRAINT caja_movimientos_tipo_check
+  CHECK (tipo IN (
+    'deposito',
+    'retiro',
+    'cobro_reparacion',
+    'entrada_anticipo',
+    'devolucion_anticipo',
+    'pay_in',
+    'pay_out'
+  ));
+
+-- 3. Agregar columnas faltantes
+ALTER TABLE caja_movimientos
+  ADD COLUMN IF NOT EXISTS referencia_id UUID,
+  ADD COLUMN IF NOT EXISTS distribuidor_id UUID REFERENCES distribuidores(id);
+```
+
+**Fix en código (`confirmaciones.ts` línea 191):** Cambiar `descripcion` por `concepto`.
+
+**Pregunta para Trini:** ¿Quieres que también agregue `registrado_por UUID` (quien confirmó)?
+
+---
+
+### [CAJA-002] Botones de cobro ocultos en órdenes con `costo_total = 0`
+
+**Severidad:** CRÍTICO — Bloquea cobro de anticipos en órdenes nuevas
+**Detectado:** 2026-03-28
+**Estado:** ❌ SIN RESOLVER
+
+**Archivo:** `src/components/pos/ReparacionesPOSPanel.tsx`
+
+**Qué pasa:** El panel calcula:
+```typescript
+const saldoPendiente = costoTotal - totalAnticipos;
+const hayDeuda = saldoPendiente > 0;
+// Cuando hayDeuda = false → botones "Registrar anticipo" y "Cobrar saldo" se ocultan
+```
+
+Si la orden tiene `costo_total = 0` (nueva orden donde no se ha cotizado precio), `hayDeuda = false` y desaparecen TODOS los botones de cobro. El vendedor no puede registrar un anticipo aunque el cliente quiera pagar.
+
+**Ejemplo real en producción:** ORD-20260326-0004 muestra "$0.00 PAGADO" con -$300 de anticipos porque fue ingresado sin poder actualizar el saldo.
+
+**Fix propuesto:** Mostrar el botón "Registrar anticipo" siempre que la orden esté en estado activo (no entregado, no cancelado), independientemente del saldo.
+
+---
+
+### [MULTITENANT-001] Super admin siempre entra como el último distribuidor usado
+
+**Severidad:** MEDIA — Confusión operativa para Trini
+**Detectado:** 2026-03-28
+**Estado:** ❌ SIN RESOLVER — Trini quiere que siempre entre como CREDIPHONE Principal
+
+**Archivo:** `src/components/DistribuidorProvider.tsx` líneas 78-87
+
+**Qué pasa:**
+```typescript
+const savedId = localStorage.getItem(LS_KEY);
+if (savedId) {
+  const found = dists.find(d => d.id === savedId);
+  if (found) {
+    setDistribuidorActivoState(found); // ← Siempre usa el guardado
+    return; // ← Nunca llega al "primer activo"
+  }
+}
+// Esta línea solo se ejecuta si no hay nada guardado:
+const primero = dists.find(d => d.activo) ?? dists[0] ?? null;
+```
+
+Si Trini usó CELLMAN en la sesión anterior, la próxima vez entra como CELLMAN. Trini quiere siempre entrar como CREDIPHONE Principal por defecto.
+
+**Fix:** Borrar el localStorage al hacer logout, o siempre iniciar con el primer distribuidor activo y solo guardar el cambio cuando el usuario lo selecciona explícitamente durante la sesión.
+
+---
+
+### [MULTITENANT-002] `getAllVerificaciones()` sin filtro de distribuidor
+
+**Severidad:** MEDIA — Admin de CELLMAN puede ver inventario de CREDIPHONE
+**Detectado:** 2026-03-28
+**Estado:** ❌ SIN RESOLVER
+
+**Archivo:** `src/lib/db/verificaciones.ts` función `getAllVerificaciones()`
+
+La función retorna las 100 verificaciones más recientes sin filtrar por distribuidor. Un admin de CELLMAN puede ver las verificaciones de inventario de CREDIPHONE Principal y viceversa.
+
+**Fix:** Pasar `distribuidorId` como parámetro y agregar `.eq("distribuidor_id", distribuidorId)` cuando el rol no es super_admin.
+
+---
+
+### [FOTO-001] Fotos QR — path incorrecto en búsqueda ✅ RESUELTO
+
+**Estado:** ✅ CORREGIDO y desplegado 2026-03-28
+**Archivos corregidos:**
+- `src/app/api/reparaciones/qr/[token]/fotos/route.ts`
+- `src/app/api/reparaciones/fotos/ligar-sesion-qr/route.ts`
+**Fix:** Cambiar `temp/${token}/%` por `reparaciones/temp/${token}/%` en ambos filtros
+
+---
+
+### [URL-001] WhatsApp y tracking apuntaban a localhost ✅ RESUELTO
+
+**Estado:** ✅ CORREGIDO y desplegado 2026-03-28 (build `2321b3fe`)
+**Fix:** `.env.local` — `NEXT_PUBLIC_BASE_URL` y `NEXT_PUBLIC_APP_URL` → `https://crediphone.com.mx`
+
+---
+
+### [POS-001] KitsPOSPanel — tablas `kits` y `kits_items` no existen en BD
+
+**Severidad:** MEDIA — Tab Kits en POS siempre falla silenciosamente
+**Detectado:** 2026-03-28
+**Estado:** ❌ PENDIENTE (FASE 61 — esperar que Trini indique)
+
+El componente `src/components/pos/KitsPOSPanel.tsx` llama APIs que consultan tablas que no tienen migración SQL aplicada. Resultado: la pestaña de Kits no muestra nada y no da error visible.
+
+---
+
+## 📋 INFORMACIÓN DE NEGOCIO — Bolsa Virtual (para Claude al reanudar)
+
+### Flujo completo de la bolsa virtual (reparaciones en caja):
+
+```
+SITUACIÓN: Cliente trae dispositivo a reparar.
+
+1. SE CREA LA ORDEN
+   - Admin/vendedor crea nueva orden en /dashboard/reparaciones/nueva
+   - costo_total = 0 al inicio (aún no hay diagnóstico)
+   - BUG-CAJA-002: si se intenta cobrar anticipo antes de poner precio → botones ocultos
+
+2. COBRO DE ANTICIPO (desde POS → Tab "Cobrar Rep.")
+   - Vendedor busca orden por folio/nombre/teléfono
+   - Registra anticipo con método de pago
+   - anticipo se guarda en anticipos_reparacion ✅
+   - Si hay sesión de caja → intenta entrar a caja_movimientos ❌ (BUG-CAJA-001: falla)
+   - Si no hay sesión y es efectivo → crea traspasos_anticipo ✅
+
+3. TRASPASO TÉCNICO→VENDEDOR (sin sesión de caja)
+   - Técnico cobró efectivo directo (sin caja abierta)
+   - Sistema notifica al vendedor (WhatsApp/sistema)
+   - Vendedor confirma monto real
+   - traspasos_anticipo se actualiza ✅
+   - Intento de registrar en caja_movimientos ❌ (BUG-CAJA-001: falla)
+
+4. DEPÓSITO/TRANSFERENCIA (FASE 38)
+   - Cliente hace transferencia bancaria
+   - Admin confirma desde /dashboard/reparaciones/[id]
+   - confirmaciones_deposito se actualiza ✅
+   - Intento de registrar en caja_movimientos ❌ (BUG-CAJA-001: falla)
+
+5. COBRO FINAL (desde POS)
+   - Cuando saldo = 0 → orden auto-pasa a "entregado" ✅
+   - Registro en caja_movimientos ❌ (BUG-CAJA-001: falla)
+
+6. CIERRE DE CAJA (Reporte Z)
+   - cerrarCaja() lee caja_movimientos
+   - NUNCA encuentra pagos de reparaciones (no existen por BUG-CAJA-001)
+   - Saldo final siempre incompleto ❌
+```
+
+### Impacto financiero real:
+Cada anticipo de reparación cobrado = dinero que NO aparece en el Reporte Z del turno.
+Si en un turno se cobran $1,500 en anticipos de reparación → el cuadre de caja estará $1,500 "corto" y generará falsa discrepancia.
+
+---
+
+## 💡 IDEAS Y DESEOS DE TRINI (no perder)
+
+### Fotos a largo plazo:
+- Comprimir bien (ya se hace en cliente) ✅
+- **Pendiente decidir:** ¿Cuántos meses conservar fotos post-entrega antes de eliminar?
+- Hay fotos "huérfanas" en R2 (temp sin orden, de órdenes canceladas) → cleanup job pendiente
+- Trini quiere eficiencia de storage sin perder calidad
+
+### Bolsa virtual — visibilidad deseada:
+- Ver en tiempo real cuánto dinero está "en reparaciones" vs liquidado
+- Saber qué anticipos ya fueron cuadrados con caja
+- Si se usa anticipo para pedir pieza: registrar de qué anticipo sale
+- Si hay costo de envío en lote de piezas: ya se distribuye proporcionalmente (FASE 42) ✅
+- Al cierre de turno: ver línea separada de "cobros por reparaciones" en Reporte Z
+
+### Subdistribuidores (DIFERIDO — no iniciar hasta que Trini diga):
+- Trini tiene 4 opciones de modelo
+- Las columnas ya existen en BD: `modo_operacion`, `grupo_inventario`, `tipo_acceso`, etc.
+
+---
+
+## ❓ PREGUNTAS ABIERTAS PARA TRINI
+
+1. **`caja_movimientos` fix:** ¿Aplico la migración SQL para ampliar el esquema y de una vez arreglar los 4 bugs de caja? ¿Quieres que agregue también columna `registrado_por` para saber quién confirmó cada movimiento?
+2. **Fotos post-entrega:** ¿Cuánto tiempo quieres conservar las fotos después de que una orden se entrega? ¿6 meses, 12 meses, indefinido?
+3. **Default distribuidor:** ¿Siempre CREDIPHONE Principal al entrar, o configurable?
+4. **Anticipo para pieza:** Cuando el técnico usa dinero del anticipo para comprar pieza, ¿cómo quieres registrarlo en el sistema?
+5. **Reporte Z:** ¿Quieres los cobros de reparación como una sección separada del efectivo de ventas POS, o todo junto?
+
+---
+
+*Última actualización: 2026-03-28 — Claude (Auditoría completa: POS, caja, reparaciones, fotos QR, URLs, inventario. Bugs CAJA-001/002, MULTITENANT-001/002, POS-001 documentados. FOTO-001 y URL-001 resueltos y desplegados.)*

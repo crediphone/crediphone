@@ -184,14 +184,17 @@ export async function confirmarDeposito(
 
   // 2. Si hay sesión de caja → crear entrada en caja
   if (sesionCajaId) {
-    await supabase.from("caja_movimientos").insert({
+    const { error: cajaErr } = await supabase.from("caja_movimientos").insert({
       sesion_id: sesionCajaId,
-      tipo: "anticipo_reparacion",
+      tipo: "entrada_anticipo",
       monto: conf.monto,
-      descripcion: `Anticipo por ${conf.tipo_pago} — ${conf.folio_orden || conf.reparacion_id}`,
+      concepto: `Anticipo por ${conf.tipo_pago} — ${conf.folio_orden || conf.reparacion_id}`,
       referencia_id: conf.reparacion_id,
       registrado_por: adminId,
     });
+    if (cajaErr) {
+      console.error("No se pudo registrar confirmación en caja:", cajaErr);
+    }
   }
 
   // 3. Actualizar estado de la confirmación
