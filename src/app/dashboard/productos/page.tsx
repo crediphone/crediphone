@@ -1476,7 +1476,7 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
 
       <ImageUpload
         currentImage={formData.imagen}
-        onImageUploaded={(path) => setFormData((p) => ({ ...p, imagen: path }))}
+        onImageUploaded={(_path, url) => setFormData((p) => ({ ...p, imagen: url }))}
         onImageRemoved={() => setFormData((p) => ({ ...p, imagen: "" }))}
         categoria="productos"
         label="Imagen del Producto"

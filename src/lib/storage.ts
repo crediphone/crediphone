@@ -94,10 +94,12 @@ export async function eliminarImagen(path: string): Promise<boolean> {
  * Devuelve la URL pública de una imagen dado su path.
  *
  * Casos:
- *  1. URL completa (nuevas subidas a R2)  → devolver tal cual
- *  2. Path relativo (imágenes antiguas en Supabase Storage) → construir URL de Supabase
- *     El bucket "productos" en Supabase guarda los objetos con el path tal cual está en BD.
- *     Ej. path="productos/crop-abc.jpg" → .../public/productos/productos/crop-abc.jpg
+ *  1. URL completa (http/https) → devolver tal cual (nuevas subidas a R2 almacenadas como URL)
+ *  2. Path plano de Supabase: "productos/filename.jpg" (solo 2 segmentos, primer nivel = "productos")
+ *     → construir URL de Supabase Storage (bucket público "productos")
+ *     Ej. "productos/crop-abc.jpg" → .../public/productos/productos/crop-abc.jpg
+ *  3. Path multi-nivel de R2: "productos/productos/...", "reparaciones/...", "productos/documentos/..."
+ *     → construir URL de Cloudflare R2 (dominio público del bucket)
  */
 const SUPABASE_STORAGE_URL =
   "https://ihvjjfsefnvcrczrcmhp.supabase.co/storage/v1/object/public/productos";
@@ -106,10 +108,19 @@ export function obtenerUrlImagen(
   path: string | null | undefined
 ): string | null {
   if (!path) return null;
-  // Nuevas subidas a R2 → URL completa almacenada directamente en BD
+  // Caso 1: URL completa (R2 nuevo o externo) → tal cual
   if (path.startsWith("http")) return path;
-  // Imágenes antiguas en Supabase Storage
-  return `${SUPABASE_STORAGE_URL}/${path}`;
+
+  // Caso 2: path plano de Supabase Storage legacy — exactamente 2 segmentos: "productos/filename.ext"
+  // Todos los paths antiguos de Supabase eran flat (sin subcarpeta dentro del bucket)
+  const segments = path.split("/");
+  const isLegacySupabase = segments.length === 2 && segments[0] === "productos";
+  if (isLegacySupabase) {
+    return `${SUPABASE_STORAGE_URL}/${path}`;
+  }
+
+  // Caso 3: path multi-nivel → R2 (productos/productos/..., reparaciones/..., etc.)
+  return `${R2_PUBLIC_URL}/${path}`;
 }
 
 /**

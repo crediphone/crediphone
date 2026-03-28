@@ -534,8 +534,8 @@ function ClienteForm({ mode, cliente, onSuccess, onCancel }: ClienteFormProps) {
             label="INE Frontal"
             tipoDocumento="ine_frontal"
             imagenActual={formData.fotoIneFrontal}
-            onImagenCargada={(path) => {
-              setFormData({ ...formData, fotoIneFrontal: path });
+            onImagenCargada={(_path, url) => {
+              setFormData({ ...formData, fotoIneFrontal: url });
             }}
             onImagenEliminada={() => {
               setFormData({ ...formData, fotoIneFrontal: "" });
@@ -547,8 +547,8 @@ function ClienteForm({ mode, cliente, onSuccess, onCancel }: ClienteFormProps) {
             label="INE Reverso"
             tipoDocumento="ine_reverso"
             imagenActual={formData.fotoIneReverso}
-            onImagenCargada={(path) => {
-              setFormData({ ...formData, fotoIneReverso: path });
+            onImagenCargada={(_path, url) => {
+              setFormData({ ...formData, fotoIneReverso: url });
             }}
             onImagenEliminada={() => {
               setFormData({ ...formData, fotoIneReverso: "" });
@@ -562,8 +562,8 @@ function ClienteForm({ mode, cliente, onSuccess, onCancel }: ClienteFormProps) {
             label="Comprobante de Domicilio"
             tipoDocumento="comprobante"
             imagenActual={formData.fotoComprobanteDomicilio}
-            onImagenCargada={(path) => {
-              setFormData({ ...formData, fotoComprobanteDomicilio: path });
+            onImagenCargada={(_path, url) => {
+              setFormData({ ...formData, fotoComprobanteDomicilio: url });
             }}
             onImagenEliminada={() => {
               setFormData({ ...formData, fotoComprobanteDomicilio: "" });
