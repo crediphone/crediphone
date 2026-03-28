@@ -19,6 +19,25 @@ Es multi-tenant: un super_admin gestiona múltiples distribuidores (tiendas fran
 | Estilos | Tailwind CSS |
 | UI Components | Componentes propios en `src/components/ui/` |
 | Tema | next-themes (defaultTheme: "light", enableSystem: true) |
+| **Deploy** | **Cloudflare Workers** vía `@opennextjs/cloudflare` (antes: Vercel) |
+| **Storage** | **Cloudflare R2** bucket `crediphone-storage` binding `R2_BUCKET` |
+
+### Deploy a Cloudflare (migrado 2026-03-25)
+
+```bash
+# Desde el directorio del proyecto — requiere token de Cloudflare
+CLOUDFLARE_API_TOKEN=<token> npx opennextjs-cloudflare build
+CLOUDFLARE_API_TOKEN=<token> npx opennextjs-cloudflare deploy
+# O combinado:
+npm run deploy:cf   # requiere wrangler autenticado localmente
+```
+
+- **Worker name:** `crediphone` → `https://crediphone.com.mx`
+- **Token para deploy:** `crediphone-wrangler-deploy` en dash.cloudflare.com/profile/api-tokens
+- **Cuenta Cloudflare:** `5a93cb5abe3296c3514fa68939da455f` (trinicanales@gmail.com)
+- **R2 URL pública:** `https://pub-89451411d31c49d9959b166475cda47a.r2.dev`
+- **PROBLEMA:** `wrangler login` no persiste entre sesiones de Cowork VM. Usar `CLOUDFLARE_API_TOKEN` explícito.
+- **VARIABLES `NEXT_PUBLIC_*`** se inyectan en **build time** desde `.env.local`. No se pueden sobreescribir en runtime desde `wrangler.jsonc [vars]`. Si cambian → rebuildar.
 
 ---
 
@@ -580,6 +599,13 @@ PAYJOY_WEBHOOK_SECRET=
 7. **Todas las tablas** deben tener `distribuidor_id` para multi-tenant (excepto `distribuidores` misma)
 8. **La tabla `configuracion`** puede tener múltiples filas (una por distribuidor) — no es un singleton global
 9. **middleware.ts fue renombrado a `src/proxy.ts`** y la función a `proxy` (convención Next.js 16)
+10. **Storage de imágenes — lógica de `obtenerUrlImagen()` (src/lib/storage.ts):**
+    - `path.startsWith("http")` → URL completa de R2 (guardada directamente en BD en uploads nuevos) → devolver tal cual
+    - path con **2 segmentos** y primer segmento = `"productos"` (ej. `productos/archivo.jpg`) → **Supabase Storage** legacy (imágenes anteriores a Mar 25, 2026)
+    - Cualquier otro path multi-nivel (ej. `productos/productos/...`, `reparaciones/...`) → **Cloudflare R2**
+    - **Al guardar imágenes en BD:** usar siempre la `url` (no el `path`) del resultado de `subirImagen()` para que quede como URL completa y no haya ambigüedad.
+    - **6 productos tienen imágenes perdidas** (no existen en Supabase ni R2 — subidas durante transición Mar 25). Re-subir desde el panel de edición de productos.
+11. **URLs dinámicas en API routes** (QR, tracking): usar `new URL(request.url)` para extraer `protocol+host`, NUNCA `process.env.NEXT_PUBLIC_BASE_URL` (que queda `localhost:3000` si el .env.local no se actualizó para producción).
 
 ---
 
