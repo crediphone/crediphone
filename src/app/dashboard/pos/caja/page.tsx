@@ -221,11 +221,11 @@ export default function CajaPage() {
       const response = await fetch(`/api/pos/caja/${sesionId}?action=reporte`);
       const data = await response.json();
       if (!data.success) throw new Error(data.error);
-      const { sesion, movimientos: movs, ventas, distribuidorNombre } = data.data;
+      const { sesion, movimientos: movs, ventas, anticipos, distribuidorNombre } = data.data;
       const html =
         tipo === "X"
-          ? generarReporteX({ sesion, movimientos: movs, ventas, distribuidorNombre })
-          : generarReporteZ({ sesion, movimientos: movs, ventas, distribuidorNombre });
+          ? generarReporteX({ sesion, movimientos: movs, ventas, anticipos, distribuidorNombre })
+          : generarReporteZ({ sesion, movimientos: movs, ventas, anticipos, distribuidorNombre });
       abrirReporte(html, `Reporte ${tipo} — ${sesion.folio}`);
     } catch (error) {
       console.error("Error generando reporte:", error);

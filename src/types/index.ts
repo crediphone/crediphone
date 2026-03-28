@@ -739,6 +739,9 @@ export interface AnticipoEnSesion {
   folioOrden: string;
   descripcionProblema?: string;
   ordenId: string;
+  // Estado de la orden — determina si el dinero sigue "en bolsa" o fue liberado
+  ordenEstado?: string;
+  ordenEntregada?: boolean; // true cuando estado = "entregado"
   // Datos del cliente
   clienteNombre: string;
   // Empleado que recibió el pago

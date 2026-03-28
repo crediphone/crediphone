@@ -7,6 +7,20 @@
 // TIPOS INTERNOS DE REPORTE
 // =====================================================
 
+// Anticipo de reparación para el reporte (subconjunto de AnticipoEnSesion)
+export interface AnticipoReporte {
+  id: string;
+  monto: number;
+  tipoPago: string;
+  fechaAnticipo: Date | string;
+  estado: string;
+  folioOrden: string;
+  clienteNombre: string;
+  empleadoNombre?: string;
+  ordenEstado?: string;
+  ordenEntregada?: boolean;
+}
+
 export interface ReporteSesionData {
   sesion: {
     id: string;
@@ -55,6 +69,8 @@ export interface ReporteSesionData {
       imei?: string;
     }>;
   }>;
+  /** Bolsa virtual: anticipos de reparación cobrados durante este turno */
+  anticipos?: AnticipoReporte[];
   distribuidorNombre: string;
 }
 
@@ -156,6 +172,13 @@ const CSS_COMUN = `
     letter-spacing: 1px;
   }
   .print-btn:hover { background: #0e3570; }
+  .bolsa-efvo { background: #f0fdf4; border-left: 3px solid #15803d; padding: 4px 8px; margin: 4px 0; }
+  .bolsa-transf { background: #eff6ff; border-left: 3px solid #1d4ed8; padding: 4px 8px; margin: 4px 0; }
+  .bolsa-tarj { background: #faf5ff; border-left: 3px solid #7e22ce; padding: 4px 8px; margin: 4px 0; }
+  .bolsa-alerta { background: #fef9c3; border-left: 3px solid #b45309; padding: 6px 8px; margin: 6px 0; font-size: 10px; }
+  .estado-bolsa { font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 2px; }
+  .estado-en-bolsa { background: #fef3c7; color: #92400e; }
+  .estado-liberado { background: #dcfce7; color: #14532d; }
   @media print {
     .print-btn { display: none; }
     body { padding: 0; }
@@ -163,18 +186,106 @@ const CSS_COMUN = `
 `;
 
 // =====================================================
+// HELPER: Genera HTML de la sección "Bolsa Virtual de Reparaciones"
+// =====================================================
+
+function generarHtmlBolsaVirtual(anticipos: AnticipoReporte[]): string {
+  if (!anticipos || anticipos.length === 0) return "";
+
+  const efvo = anticipos.filter(a => a.tipoPago === "efectivo");
+  const transf = anticipos.filter(a => a.tipoPago === "transferencia");
+  const tarj = anticipos.filter(a => a.tipoPago === "tarjeta");
+
+  const totalEfvo = efvo.reduce((s, a) => s + a.monto, 0);
+  const totalTransf = transf.reduce((s, a) => s + a.monto, 0);
+  const totalTarj = tarj.reduce((s, a) => s + a.monto, 0);
+  const totalGeneral = totalEfvo + totalTransf + totalTarj;
+
+  const filaAnticipo = (a: AnticipoReporte, cls: string) => {
+    const estadoBadge = a.ordenEntregada
+      ? `<span class="estado-bolsa estado-liberado">LIBERADO</span>`
+      : `<span class="estado-bolsa estado-en-bolsa">EN BOLSA</span>`;
+    return `
+      <tr class="${cls}">
+        <td class="mono">${a.folioOrden}</td>
+        <td>${a.clienteNombre}</td>
+        <td class="mono">${fmtHora(a.fechaAnticipo)}</td>
+        <td>${a.empleadoNombre || "—"}</td>
+        <td>${estadoBadge}</td>
+        <td class="right mono">${fmt(a.monto)}</td>
+      </tr>`;
+  };
+
+  let html = `
+  <div class="divider"></div>
+  <p class="section-title">🔧 Bolsa Virtual de Reparaciones</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Orden</th>
+        <th>Cliente</th>
+        <th>Hora</th>
+        <th>Recibió</th>
+        <th>Estado</th>
+        <th class="right">Monto</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  if (efvo.length > 0) {
+    html += `<tr><td colspan="6" style="background:#dcfce7;font-weight:bold;font-size:10px;padding:2px 4px;">💵 EFECTIVO — se cuenta en gaveta</td></tr>`;
+    html += efvo.map(a => filaAnticipo(a, "bolsa-efvo")).join("");
+    html += `<tr class="totales"><td colspan="5">Subtotal efectivo reparaciones</td><td class="right mono">${fmt(totalEfvo)}</td></tr>`;
+  }
+
+  if (transf.length > 0) {
+    html += `<tr><td colspan="6" style="background:#dbeafe;font-weight:bold;font-size:10px;padding:2px 4px;">🏦 TRANSFERENCIA — verificar en cuenta bancaria</td></tr>`;
+    html += transf.map(a => filaAnticipo(a, "bolsa-transf")).join("");
+    html += `<tr class="totales"><td colspan="5">Subtotal transferencias reparaciones</td><td class="right mono">${fmt(totalTransf)}</td></tr>`;
+  }
+
+  if (tarj.length > 0) {
+    html += `<tr><td colspan="6" style="background:#f3e8ff;font-weight:bold;font-size:10px;padding:2px 4px;">💳 TARJETA — no en gaveta, verificar terminal</td></tr>`;
+    html += tarj.map(a => filaAnticipo(a, "bolsa-tarj")).join("");
+    html += `<tr class="totales"><td colspan="5">Subtotal tarjeta reparaciones</td><td class="right mono">${fmt(totalTarj)}</td></tr>`;
+  }
+
+  html += `</tbody></table>
+  <div class="divider"></div>
+  <div class="row"><span class="label">Total reparaciones en turno:</span><span class="value mono">${fmt(totalGeneral)}</span></div>
+  <div class="row"><span class="label">↳ De los cuales en efectivo:</span><span class="value mono diferencia-positiva">${fmt(totalEfvo)}</span></div>`;
+
+  if (totalTransf > 0 || totalTarj > 0) {
+    html += `
+  <div class="bolsa-alerta">
+    ⚠️ No contar en gaveta: Transferencias ${fmt(totalTransf)} + Tarjeta ${fmt(totalTarj)} = ${fmt(totalTransf + totalTarj)}.
+    Verificar en cuentas bancarias / terminal.
+  </div>`;
+  }
+
+  const enBolsa = anticipos.filter(a => !a.ordenEntregada);
+  if (enBolsa.length > 0) {
+    const montoEnBolsa = enBolsa.reduce((s, a) => s + a.monto, 0);
+    html += `
+  <div class="bolsa-alerta">
+    🔒 Dinero aún en bolsa virtual (órdenes no entregadas): ${fmt(montoEnBolsa)}
+    — ${enBolsa.map(a => a.folioOrden).join(", ")}.
+    No disponible hasta que el cliente recoja y pague.
+  </div>`;
+  }
+
+  return html;
+}
+
+// =====================================================
 // GENERADOR REPORTE X (turno abierto — sin cerrar)
 // =====================================================
 
 export function generarReporteX(data: ReporteSesionData): string {
-  const { sesion, movimientos, ventas, distribuidorNombre } = data;
+  const { sesion, movimientos, ventas, distribuidorNombre, anticipos = [] } = data;
 
-  const totalEfectivo = sesion.total_ventas_efectivo ?? 0;
-  const totalTransferencia = sesion.total_ventas_transferencia ?? 0;
-  const totalTarjeta = sesion.total_ventas_tarjeta ?? 0;
   const totalDepositos = sesion.total_depositos ?? 0;
   const totalRetiros = sesion.total_retiros ?? 0;
-  const numVentas = sesion.numero_ventas ?? ventas.filter(v => v.estado === "completada").length;
 
   // Calcular totales en vivo desde las ventas (sesión abierta no los tiene en DB)
   let efvo = 0, transf = 0, tarj = 0, nv = 0;
@@ -193,7 +304,12 @@ export function generarReporteX(data: ReporteSesionData): string {
     }
   });
 
-  const montoEsperado = sesion.monto_inicial + efvo + totalDepositos - totalRetiros;
+  // Anticipos de reparación en efectivo → suman al efectivo esperado en gaveta
+  const anticipsEfvo = anticipos
+    .filter(a => a.tipoPago === "efectivo")
+    .reduce((s, a) => s + a.monto, 0);
+
+  const montoEsperado = sesion.monto_inicial + efvo + anticipsEfvo + totalDepositos - totalRetiros;
 
   const ventasRows = ventas.filter(v => v.estado === "completada").map(v => {
     const t = typeof v.total === "number" ? v.total : parseFloat(v.total as unknown as string || "0");
@@ -254,9 +370,10 @@ export function generarReporteX(data: ReporteSesionData): string {
 
   <p class="section-title">Flujo de Caja</p>
   <div class="row"><span class="label">Monto Inicial:</span><span class="value mono">${fmt(sesion.monto_inicial)}</span></div>
-  <div class="row"><span class="label">+ Ventas Efectivo:</span><span class="value mono">${fmt(efvo)}</span></div>
-  ${totalDepositos > 0 ? `<div class="row"><span class="label">+ Depósitos:</span><span class="value mono">${fmt(totalDepositos)}</span></div>` : ""}
-  ${totalRetiros > 0 ? `<div class="row"><span class="label">- Retiros:</span><span class="value mono">${fmt(totalRetiros)}</span></div>` : ""}
+  <div class="row"><span class="label">+ Ventas Efectivo (POS):</span><span class="value mono">${fmt(efvo)}</span></div>
+  ${anticipsEfvo > 0 ? `<div class="row"><span class="label">+ Anticipos Rep. Efectivo:</span><span class="value mono">${fmt(anticipsEfvo)}</span></div>` : ""}
+  ${totalDepositos > 0 ? `<div class="row"><span class="label">+ Depósitos / Pay In:</span><span class="value mono">${fmt(totalDepositos)}</span></div>` : ""}
+  ${totalRetiros > 0 ? `<div class="row"><span class="label">- Retiros / Pay Out:</span><span class="value mono">${fmt(totalRetiros)}</span></div>` : ""}
   <div class="divider-solid"></div>
   <div class="row"><span class="label">Efectivo Esperado en Caja:</span><span class="value mono">${fmt(montoEsperado)}</span></div>
 
@@ -275,6 +392,8 @@ export function generarReporteX(data: ReporteSesionData): string {
     <tbody>${ventasRows}</tbody>
   </table>
   ` : ""}
+
+  ${anticipos.length > 0 ? generarHtmlBolsaVirtual(anticipos) : ""}
 
   ${movimientos.length > 0 ? `
   <div class="divider"></div>
@@ -301,7 +420,7 @@ export function generarReporteX(data: ReporteSesionData): string {
 // =====================================================
 
 export function generarReporteZ(data: ReporteSesionData): string {
-  const { sesion, movimientos, ventas, distribuidorNombre } = data;
+  const { sesion, movimientos, ventas, distribuidorNombre, anticipos = [] } = data;
 
   const efvo = sesion.total_ventas_efectivo ?? 0;
   const transf = sesion.total_ventas_transferencia ?? 0;
@@ -312,6 +431,11 @@ export function generarReporteZ(data: ReporteSesionData): string {
   const montoEsperado = sesion.monto_esperado ?? 0;
   const montoFinal = sesion.monto_final ?? 0;
   const diferencia = sesion.diferencia ?? 0;
+
+  // Anticipos de reparación por método de pago (para mostrar en arqueo)
+  const anticipsEfvoZ = anticipos.filter(a => a.tipoPago === "efectivo").reduce((s, a) => s + a.monto, 0);
+  const anticipsTransfZ = anticipos.filter(a => a.tipoPago === "transferencia").reduce((s, a) => s + a.monto, 0);
+  const anticipsTarjZ = anticipos.filter(a => a.tipoPago === "tarjeta").reduce((s, a) => s + a.monto, 0);
 
   const duracionMs = sesion.fecha_cierre
     ? new Date(sesion.fecha_cierre).getTime() - new Date(sesion.fecha_apertura).getTime()
@@ -383,21 +507,22 @@ export function generarReporteZ(data: ReporteSesionData): string {
 
   <div class="divider"></div>
 
-  <p class="section-title">Resumen de Ventas</p>
+  <p class="section-title">Resumen de Ventas POS</p>
   <div class="row"><span class="label">Núm. ventas:</span><span class="value mono">${numVentas}</span></div>
   <div class="row"><span class="label">Efectivo:</span><span class="value mono">${fmt(efvo)}</span></div>
   <div class="row"><span class="label">Transferencia:</span><span class="value mono">${fmt(transf)}</span></div>
   <div class="row"><span class="label">Tarjeta:</span><span class="value mono">${fmt(tarj)}</span></div>
   <div class="divider"></div>
-  <div class="row"><span class="label">Total Ventas:</span><span class="value mono">${fmt(efvo + transf + tarj)}</span></div>
+  <div class="row"><span class="label">Total Ventas POS:</span><span class="value mono">${fmt(efvo + transf + tarj)}</span></div>
 
   <div class="divider"></div>
 
   <p class="section-title">Arqueo de Caja</p>
   <div class="row"><span class="label">Monto Inicial:</span><span class="value mono">${fmt(sesion.monto_inicial)}</span></div>
-  <div class="row"><span class="label">+ Ventas Efectivo:</span><span class="value mono">${fmt(efvo)}</span></div>
-  ${depositos > 0 ? `<div class="row"><span class="label">+ Depósitos:</span><span class="value mono">${fmt(depositos)}</span></div>` : ""}
-  ${retiros > 0 ? `<div class="row"><span class="label">- Retiros:</span><span class="value mono">${fmt(retiros)}</span></div>` : ""}
+  <div class="row"><span class="label">+ Ventas Efectivo (POS):</span><span class="value mono">${fmt(efvo)}</span></div>
+  ${anticipsEfvoZ > 0 ? `<div class="row"><span class="label">+ Anticipos Rep. Efectivo:</span><span class="value mono">${fmt(anticipsEfvoZ)}</span></div>` : ""}
+  ${depositos > 0 ? `<div class="row"><span class="label">+ Depósitos / Pay In:</span><span class="value mono">${fmt(depositos)}</span></div>` : ""}
+  ${retiros > 0 ? `<div class="row"><span class="label">- Retiros / Pay Out:</span><span class="value mono">${fmt(retiros)}</span></div>` : ""}
   <div class="divider"></div>
   <div class="row"><span class="label">Monto Esperado:</span><span class="value mono">${fmt(montoEsperado)}</span></div>
   <div class="row"><span class="label">Monto Contado:</span><span class="value mono">${fmt(montoFinal)}</span></div>
@@ -406,6 +531,12 @@ export function generarReporteZ(data: ReporteSesionData): string {
     <span class="label">Diferencia:</span>
     <span class="value mono ${diferenciaClass}">${diferenciaLabel}</span>
   </div>
+  ${anticipsTransfZ > 0 || anticipsTarjZ > 0 ? `
+  <div class="bolsa-alerta">
+    🏦 Verificar en cuentas bancarias / terminal:
+    ${anticipsTransfZ > 0 ? `Transferencias rep. ${fmt(anticipsTransfZ)}` : ""}
+    ${anticipsTarjZ > 0 ? `Tarjeta rep. ${fmt(anticipsTarjZ)}` : ""}
+  </div>` : ""}
 
   ${ventas.filter(v => v.estado === "completada").length > 0 ? `
   <div class="divider"></div>
@@ -423,6 +554,8 @@ export function generarReporteZ(data: ReporteSesionData): string {
     <tbody>${ventasRows}</tbody>
   </table>
   ` : ""}
+
+  ${anticipos.length > 0 ? generarHtmlBolsaVirtual(anticipos) : ""}
 
   ${movimientos.length > 0 ? `
   <div class="divider"></div>

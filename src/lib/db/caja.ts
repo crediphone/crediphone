@@ -234,10 +234,30 @@ export async function cerrarCaja(
     }
   });
 
+  // 3b. Anticipos de reparación en EFECTIVO de esta sesión
+  // Consultamos directamente anticipos_reparacion (fuente de verdad),
+  // no caja_movimientos, para evitar doble conteo y cubrir registros históricos.
+  let totalAnticipsEfectivo = 0;
+  try {
+    const { data: anticipsData } = await supabase
+      .from("anticipos_reparacion")
+      .select("monto")
+      .eq("sesion_caja_id", sesionId)
+      .eq("tipo_pago", "efectivo")
+      .neq("estado", "devuelto");
+
+    totalAnticipsEfectivo = (anticipsData || []).reduce(
+      (sum: number, a: any) => sum + parseFloat(a.monto || 0), 0
+    );
+  } catch {
+    console.warn("[Caja] No se pudieron sumar anticipos de reparación al cuadre");
+  }
+
   // 4. Calcular monto esperado y diferencia
+  // Efectivo esperado = Inicial + Ventas efectivo + Anticipos rep. efectivo + Pay In - Retiros - Pay Out
   const montoInicial = parseFloat(sesionData.monto_inicial);
   const montoEsperado =
-    montoInicial + totalVentasEfectivo + totalDepositos - totalRetiros;
+    montoInicial + totalVentasEfectivo + totalAnticipsEfectivo + totalDepositos - totalRetiros;
   const diferencia = montoFinal - montoEsperado;
 
   // 5. Actualizar sesión
@@ -464,6 +484,7 @@ export async function getAnticiposBySesion(sesionId: string): Promise<AnticipoEn
         id,
         folio,
         problema_reportado,
+        estado,
         cliente:clientes ( nombre, apellido )
       ),
       empleado:users!recibido_por ( name )
@@ -490,6 +511,8 @@ export async function getAnticiposBySesion(sesionId: string): Promise<AnticipoEn
       folioOrden: orden?.folio || "Sin folio",
       descripcionProblema: orden?.problema_reportado || undefined,
       ordenId: orden?.id || "",
+      ordenEstado: orden?.estado || undefined,
+      ordenEntregada: orden?.estado === "entregado",
       clienteNombre: cliente
         ? [cliente.nombre, cliente.apellido].filter(Boolean).join(" ")
         : "Cliente",

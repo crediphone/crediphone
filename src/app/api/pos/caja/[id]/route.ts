@@ -90,6 +90,8 @@ export async function GET(
 
       const movimientos = await getMovimientosSesion(id);
       const ventas = await getVentasBySesion(id);
+      // Bolsa virtual: anticipos de reparación de esta sesión (para Reporte X/Z)
+      const anticipos = await getAnticiposBySesion(id);
 
       // Nombre del distribuidor
       let distribuidorNombre = "";
@@ -108,6 +110,7 @@ export async function GET(
           sesion: sesionCompleta,
           movimientos,
           ventas,
+          anticipos,
           distribuidorNombre,
         },
       });
