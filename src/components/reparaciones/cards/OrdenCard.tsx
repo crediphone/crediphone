@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Phone, MessageCircle, Copy, ChevronDown, MoreVertical, Wrench, Clock, Image as ImageIcon, DollarSign, Shield, AlertTriangle, Circle } from "lucide-react";
+import {
+  Phone, MessageCircle, Copy, ChevronDown, MoreVertical,
+  Wrench, Clock, Image as ImageIcon, DollarSign, Shield, Circle,
+} from "lucide-react";
 import { EstadoBadge, PrioridadBadge } from "@/components/reparaciones/EstadoBadge";
+import { StepperReparacion } from "@/components/reparaciones/StepperReparacion";
+import { ModalWhatsAppEstado } from "@/components/reparaciones/ModalWhatsAppEstado";
+import { AccionesOrdenPanel } from "@/components/reparaciones/AccionesOrdenPanel";
+import { ModalSegundoDiagnostico } from "@/components/reparaciones/ModalSegundoDiagnostico";
 import type { OrdenReparacionDetallada, EstadoOrdenReparacion } from "@/types";
 
 // ─── Mapa de transiciones válidas (espejo de ModalCambiarEstado) ──────────────
@@ -33,30 +40,6 @@ const estadoLabels: Record<EstadoOrdenReparacion, string> = {
   no_reparable:     "No Reparable",
   cancelado:        "Cancelado",
 };
-
-// ─── AccionPrincipal según estado ────────────────────────────────────────────
-function getAccionPrincipal(estado: EstadoOrdenReparacion): { label: string; icon: string; variant: "primary" | "accent" | "success" | "warning" } | null {
-  switch (estado) {
-    case "recibido":
-      return { label: "Iniciar Diagnóstico", icon: "🔧", variant: "accent" };
-    case "diagnostico":
-      return { label: "Capturar Diagnóstico", icon: "🔍", variant: "accent" };
-    case "presupuesto":
-      return { label: "Enviar Presupuesto", icon: "📤", variant: "warning" };
-    case "aprobado":
-      return { label: "Iniciar Reparación", icon: "▶️", variant: "primary" };
-    case "esperando_piezas":
-      return { label: "Piezas Llegaron", icon: "📦", variant: "warning" };
-    case "en_reparacion":
-      return { label: "Marcar Completada", icon: "✅", variant: "success" };
-    case "completado":
-      return { label: "Lista para Entrega", icon: "📦", variant: "success" };
-    case "listo_entrega":
-      return { label: "Cobrar y Entregar", icon: "💰", variant: "primary" };
-    default:
-      return null;
-  }
-}
 
 // ─── Phone Action Menu ────────────────────────────────────────────────────────
 function PhoneMenu({ telefono, onClose }: { telefono: string; onClose: () => void }) {
@@ -177,7 +160,6 @@ function EstadoSelector({
 
 // ─── Timer Display (días desde recepción) ─────────────────────────────────────
 function TimerDisplay({ orden }: { orden: OrdenReparacionDetallada }) {
-  // Capturar timestamp una sola vez al montar (evita llamada impura en render)
   const [now] = useState(() => Date.now());
   const activa = !["entregado", "cancelado", "no_reparable"].includes(orden.estado);
   let elapsed = "--";
@@ -224,10 +206,14 @@ export function OrdenCard({
   onDiagnostico,
   onCambiarEstado,
   onEliminar,
+  onRefresh,
 }: OrdenCardProps) {
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(false);
   const [estadoMenuOpen, setEstadoMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [modalWAOpen, setModalWAOpen] = useState(false);
+  const [nuevoEstadoWA, setNuevoEstadoWA] = useState<EstadoOrdenReparacion>("recibido");
+  const [modalSegundoDiagOpen, setModalSegundoDiagOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -240,25 +226,15 @@ export function OrdenCard({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const accion = getAccionPrincipal(orden.estado);
   const canEdit = ["admin", "super_admin"].includes(userRole);
   const canDelete = userRole === "super_admin";
   const isTerminada = ["entregado", "cancelado", "no_reparable"].includes(orden.estado);
 
-  function handleAccionPrincipal(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (orden.estado === "recibido" || orden.estado === "diagnostico") {
-      onDiagnostico(orden);
-    } else if (orden.estado === "en_reparacion") {
-      // Marcar directamente como completada sin pasar por el drawer
-      onCambiarEstado(orden, "completado");
-    } else if (orden.estado === "completado") {
-      // Avanzar a listo_entrega directamente
-      onCambiarEstado(orden, "listo_entrega");
-    } else {
-      // Para otros estados: abrir drawer
-      onOpenDrawer(orden);
-    }
+  // Llama al padre para cambiar estado Y abre modal WA de notificación
+  function handleEstadoChange(nuevoEstado: EstadoOrdenReparacion) {
+    onCambiarEstado(orden, nuevoEstado);
+    setNuevoEstadoWA(nuevoEstado);
+    setModalWAOpen(true);
   }
 
   function formatCurrency(n: number) {
@@ -286,7 +262,7 @@ export function OrdenCard({
       onClick={() => onOpenDrawer(orden)}
     >
       {/* ── Header ── */}
-      <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-2">
+      <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span
             className="text-sm font-bold tracking-wider"
@@ -323,11 +299,16 @@ export function OrdenCard({
           {estadoMenuOpen && (
             <EstadoSelector
               orden={orden}
-              onEstadoChange={(nuevoEstado) => onCambiarEstado(orden, nuevoEstado)}
+              onEstadoChange={(nuevoEstado) => handleEstadoChange(nuevoEstado)}
               onClose={() => setEstadoMenuOpen(false)}
             />
           )}
         </div>
+      </div>
+
+      {/* ── Stepper de progreso ── */}
+      <div className="px-4 pb-3" onClick={(e) => e.stopPropagation()}>
+        <StepperReparacion estado={orden.estado} compact />
       </div>
 
       {/* ── Dispositivo ── */}
@@ -424,101 +405,115 @@ export function OrdenCard({
         )}
       </div>
 
-      {/* ── Separador ── */}
-      {accion && <div style={{ height: "1px", background: "var(--color-border-subtle)" }} />}
+      {/* ── Footer con acciones contextuales ── */}
+      {!isTerminada && (
+        <>
+          <div style={{ height: "1px", background: "var(--color-border-subtle)" }} />
+          <div className="px-4 py-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+            {/* Panel de acciones por estado */}
+            <AccionesOrdenPanel
+              orden={orden}
+              userRole={userRole}
+              onCambiarEstado={handleEstadoChange}
+              onAbrirDiagnostico={() => onDiagnostico(orden)}
+              onAbrirDrawerTab={(_tab) => onOpenDrawer(orden)}
+              onNuevoDiagnostico={() => setModalSegundoDiagOpen(true)}
+              onRegistrarEntrega={() => onOpenDrawer(orden)}
+            />
 
-      {/* ── Acciones footer ── */}
-      {accion && (
-        <div className="px-4 py-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {/* AccionPrincipal */}
-          <button
-            className="flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all"
-            style={
-              accion.variant === "success"
-                ? { background: "var(--color-success)", color: "#fff" }
-                : accion.variant === "warning"
-                ? { background: "var(--color-warning-bg)", color: "var(--color-warning-text)", border: "1px solid var(--color-warning)" }
-                : accion.variant === "accent"
-                ? { background: "var(--color-accent)", color: "#fff" }
-                : { background: "var(--color-primary)", color: "var(--color-primary-text)" }
-            }
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-            onClick={handleAccionPrincipal}
-          >
-            <span>{accion.icon}</span>
-            {accion.label}
-          </button>
-
-          {/* Menú ⋯ */}
-          {(canEdit || canDelete) && (
-            <div className="relative" ref={moreRef}>
-              <button
-                className="p-2 rounded-lg transition-colors"
-                style={{ color: "var(--color-text-muted)", background: "transparent" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)";
-                  (e.currentTarget as HTMLElement).style.color = "var(--color-text-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                  (e.currentTarget as HTMLElement).style.color = "var(--color-text-muted)";
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMoreMenuOpen((v) => !v);
-                }}
-                title="Más opciones"
-              >
-                <MoreVertical className="w-4 h-4" />
-              </button>
-
-              {moreMenuOpen && (
-                <div
-                  className="absolute z-[200] bottom-10 right-0 rounded-xl overflow-hidden"
-                  style={{
-                    background: "var(--color-bg-surface)",
-                    border: "1px solid var(--color-border)",
-                    boxShadow: "var(--shadow-lg)",
-                    minWidth: "160px",
+            {/* Menú ⋯ (admin/super_admin) */}
+            {(canEdit || canDelete) && (
+              <div className="flex justify-end" ref={moreRef}>
+                <button
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ color: "var(--color-text-muted)", background: "transparent" }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)";
+                    (e.currentTarget as HTMLElement).style.color = "var(--color-text-primary)";
                   }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                    (e.currentTarget as HTMLElement).style.color = "var(--color-text-muted)";
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMoreMenuOpen((v) => !v);
+                  }}
+                  title="Más opciones"
                 >
-                  <button
-                    className="flex items-center gap-3 px-4 py-3 text-sm font-medium w-full text-left transition-colors"
-                    style={{ color: "var(--color-text-primary)", background: "transparent" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMoreMenuOpen(false);
-                      onOpenDrawer(orden);
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+
+                {moreMenuOpen && (
+                  <div
+                    className="absolute z-[200] bottom-10 right-4 rounded-xl overflow-hidden"
+                    style={{
+                      background: "var(--color-bg-surface)",
+                      border: "1px solid var(--color-border)",
+                      boxShadow: "var(--shadow-lg)",
+                      minWidth: "160px",
                     }}
                   >
-                    <AlertTriangle className="w-4 h-4" style={{ color: "var(--color-text-muted)" }} />
-                    Ver en detalle completo
-                  </button>
-
-                  {canDelete && (
                     <button
                       className="flex items-center gap-3 px-4 py-3 text-sm font-medium w-full text-left transition-colors"
-                      style={{ color: "var(--color-danger)", background: "transparent" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-danger-bg)")}
+                      style={{ color: "var(--color-text-primary)", background: "transparent" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       onClick={(e) => {
                         e.stopPropagation();
                         setMoreMenuOpen(false);
-                        onEliminar?.(orden);
+                        onOpenDrawer(orden);
                       }}
                     >
-                      🗑️ Eliminar orden
+                      <Wrench className="w-4 h-4" style={{ color: "var(--color-text-muted)" }} />
+                      Ver detalle completo
                     </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+
+                    {canDelete && (
+                      <button
+                        className="flex items-center gap-3 px-4 py-3 text-sm font-medium w-full text-left transition-colors"
+                        style={{ color: "var(--color-danger)", background: "transparent" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-danger-bg)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoreMenuOpen(false);
+                          onEliminar?.(orden);
+                        }}
+                      >
+                        🗑️ Eliminar orden
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
       )}
+
+      {/* ── Modal WA notificación de cambio de estado ── */}
+      <ModalWhatsAppEstado
+        isOpen={modalWAOpen}
+        onClose={() => setModalWAOpen(false)}
+        orden={orden}
+        nuevoEstado={nuevoEstadoWA}
+      />
+
+      {/* ── Modal segundo diagnóstico / nuevo problema ── */}
+      <ModalSegundoDiagnostico
+        isOpen={modalSegundoDiagOpen}
+        onClose={() => setModalSegundoDiagOpen(false)}
+        orden={orden}
+        onCreado={() => {
+          setModalSegundoDiagOpen(false);
+          onRefresh();
+        }}
+        onCancelarTodo={() => {
+          setModalSegundoDiagOpen(false);
+          handleEstadoChange("cancelado");
+        }}
+      />
     </div>
   );
 }

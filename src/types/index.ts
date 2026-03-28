@@ -568,6 +568,54 @@ export interface OrdenReparacionDetallada extends OrdenReparacion {
   tecnicoNombre: string;
 }
 
+// ─── FASE 56: Multi-diagnóstico ─────────────────────────────────────────────
+
+export type EstadoDiagnostico =
+  | "pendiente_aprobacion"
+  | "aprobado"
+  | "rechazado"
+  | "cancelado_todo";
+
+export type TipoAprobacionDiagnostico = "presencial" | "whatsapp" | "telefono";
+
+export interface ReparacionDiagnostico {
+  id: string;
+  ordenId: string;
+  numeroDiagnostico: number;
+  tecnicoId?: string;
+  tecnicoNombre?: string;
+  descripcionProblema: string;
+  diagnosticoTecnico?: string;
+  costoLabor: number;
+  costoPartes: number;
+  partesNecesarias: Array<{ nombre: string; cantidad: number; costo: number }>;
+  estado: EstadoDiagnostico;
+  aprobadoPorCliente: boolean;
+  fechaAprobacion?: Date | string;
+  tipoAprobacion?: TipoAprobacionDiagnostico;
+  aprobadoPorEmpleadoId?: string;
+  notas?: string;
+  esDiagnosticoInicial: boolean;
+  distribuidorId?: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CrearDiagnosticoPayload {
+  ordenId: string;
+  descripcionProblema: string;
+  diagnosticoTecnico?: string;
+  costoLabor?: number;
+  costoPartes?: number;
+  partesNecesarias?: Array<{ nombre: string; cantidad: number; costo: number }>;
+  notas?: string;
+}
+
+export interface AprobarDiagnosticoPayload {
+  tipoAprobacion: TipoAprobacionDiagnostico;
+  estado: "aprobado" | "rechazado" | "cancelado_todo";
+}
+
 export interface EstadisticasTecnico {
   tecnicoId: string;
   nombreTecnico: string;
