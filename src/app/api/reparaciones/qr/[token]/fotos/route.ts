@@ -43,7 +43,7 @@ export async function GET(
     if (sesion.orden_id) {
       query = query.eq("orden_id", sesion.orden_id);
     } else {
-      query = query.like("path_storage", `temp/${token}/%`);
+      query = query.like("path_storage", `reparaciones/temp/${token}/%`);
     }
 
     const { data: imagenes, error: imagenesError } = await query;

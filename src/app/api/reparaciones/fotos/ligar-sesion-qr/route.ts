@@ -61,13 +61,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Las fotos subidas en modo creación se guardan en "temp/{sessionToken}/..."
+    // Las fotos subidas en modo creación se guardan en "reparaciones/temp/{sessionToken}/..."
     // Actualizar todas las que tengan ese path para asignarles la orden real
     const { data: imagenesActualizadas } = await supabase
       .from("imagenes_reparacion")
       .update({ orden_id: ordenId })
       .is("orden_id", null)
-      .like("path_storage", `temp/${sessionToken}/%`)
+      .like("path_storage", `reparaciones/temp/${sessionToken}/%`)
       .select("id");
 
     const totalLigadas = imagenesActualizadas?.length ?? 0;
