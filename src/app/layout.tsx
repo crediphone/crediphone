@@ -39,6 +39,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
+      {/* __name es un helper de esbuild/Turbopack inyectado en el script inline de next-themes.
+          Debe definirse antes de que el script de detección de tema corra. */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: "var __name=(f,n)=>f;" }} />
+      </head>
       <body
         className={`${geist.variable} ${geistMono.variable} ${jetbrainsMono.variable} antialiased`}
       >

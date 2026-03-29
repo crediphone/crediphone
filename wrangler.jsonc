@@ -8,8 +8,9 @@
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Minificación — reduce el bundle gzip de ~5 MB a ~4.4 MB (requerido para plan pagado Workers Bundled $5/mes)
-  "minify": true,
+  // Minificación — DESHABILITADA: Next.js 16 RSC ya viene optimizado por opennextjs/cloudflare;
+  // double-minify de wrangler renombra variables en bootstrap scripts → ReferenceError: r is not defined
+  "minify": false,
 
   "assets": {
     "directory": ".open-next/assets",
@@ -36,6 +37,22 @@
   // NEXT_PUBLIC_R2_PUBLIC_URL = https://pub-XXXX.r2.dev
   //   → Habilitar en: Cloudflare Dashboard > R2 > crediphone-storage > Settings > Public Access
   //   → O usar dominio propio: https://storage.crediphone.com.mx
+
+  // Variables de entorno (plain text — no sensibles)
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://ihvjjfsefnvcrczrcmhp.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_L_zptfavpg_jOx9Mv7uZHQ_ehtvm7iR",
+    "NEXT_PUBLIC_R2_PUBLIC_URL": "https://pub-89451411d31c49d9959b166475cda47a.r2.dev",
+    "NEXT_PUBLIC_APP_URL": "https://crediphone.com.mx",
+    "NEXT_PUBLIC_BASE_URL": "https://crediphone.com.mx",
+    "PAYJOY_ENABLED": "true",
+    "PAYJOY_BASE_URL": "https://partner.payjoy.com/v1",
+    "PAYJOY_AUTO_SYNC": "true",
+    "VAPID_PUBLIC_KEY": "BKm53EANbQsh3D4nVroBm8GNZmuVcUPW4qOTn2-BPi_P1D6e3GHcT-iJD_lJ239v0OLxwqiwBOn5vs-bJ0Oq2xY",
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY": "BKm53EANbQsh3D4nVroBm8GNZmuVcUPW4qOTn2-BPi_P1D6e3GHcT-iJD_lJ239v0OLxwqiwBOn5vs-bJ0Oq2xY",
+    "VAPID_EMAIL": "mailto:admin@crediphone.mx",
+    "NEXT_PUBLIC_WHATSAPP_SOPORTE": "526181245391"
+  },
 
   "observability": {
     "enabled": true

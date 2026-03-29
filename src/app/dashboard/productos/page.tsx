@@ -10,6 +10,7 @@ import type { Producto } from "@/types";
 import ImportRemisionModal from "@/components/productos/ImportRemisionModal";
 import { BarcodeScanner } from "@/components/inventario/BarcodeScanner";
 import { useDistribuidor } from "@/components/DistribuidorProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Package, PackageCheck, AlertTriangle, TrendingUp,
@@ -43,6 +44,10 @@ const TIPOS_MAP = Object.fromEntries(TIPOS_PRODUCTO.map((t) => [t.value, t]));
 // ─── Página principal ──────────────────────────────────────────────────────────
 
 export default function ProductosPage() {
+  const { user } = useAuth();
+  // admin y super_admin pueden crear productos; vendedores solo editan (por defecto)
+  const canCrearProducto = user?.role === "admin" || user?.role === "super_admin";
+
   const [productos, setProductos] = useState<Producto[]>([]);
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,10 +139,12 @@ export default function ProductosPage() {
             <Upload className="w-4 h-4 mr-2" />
             Importar Remisión
           </Button>
-          <Button onClick={handleCreate}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nuevo Producto
-          </Button>
+          {canCrearProducto && (
+            <Button onClick={handleCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Producto
+            </Button>
+          )}
         </div>
       </div>
 
@@ -243,7 +250,7 @@ export default function ProductosPage() {
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Cargando inventario...</p>
           </div>
         ) : filteredProductos.length === 0 ? (
-          <EmptyState query={searchQuery} tipo={filtroTipo} onNew={handleCreate} onImport={() => setImportRemisionOpen(true)} />
+          <EmptyState query={searchQuery} tipo={filtroTipo} onNew={canCrearProducto ? handleCreate : undefined} onImport={() => setImportRemisionOpen(true)} />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -655,7 +662,7 @@ function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, o
 // ─── Empty State ───────────────────────────────────────────────────────────────
 
 function EmptyState({ query, tipo, onNew, onImport }: {
-  query: string; tipo: string; onNew: () => void; onImport: () => void;
+  query: string; tipo: string; onNew?: () => void; onImport: () => void;
 }) {
   const filtered = query || tipo !== "todos";
   return (
@@ -679,10 +686,12 @@ function EmptyState({ query, tipo, onNew, onImport }: {
             <Upload className="w-4 h-4 mr-2" />
             Importar Remisión
           </Button>
-          <Button onClick={onNew}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nuevo Producto
-          </Button>
+          {onNew && (
+            <Button onClick={onNew}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Producto
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -730,6 +739,7 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
   });
   const [loading, setLoading]       = useState(false);
   const [errors, setErrors]         = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [categorias, setCategorias]       = useState<{ id: string; nombre: string }[]>([]);
   const [subcategorias, setSubcategorias] = useState<{ id: string; nombre: string }[]>([]); // FASE 57
   const [proveedores, setProveedores]     = useState<{ id: string; nombre: string }[]>([]);
@@ -919,6 +929,7 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
     ev.preventDefault();
     if (!validate()) return;
     setLoading(true);
+    setSubmitError(null);
     try {
       const url = mode === "create" ? "/api/productos" : `/api/productos/${producto?.id}`;
       const method = mode === "create" ? "POST" : "PUT";
@@ -945,8 +956,18 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
           almacenamiento:  formData.almacenamiento  || undefined,
         }),
       });
-      if (res.ok) { onSuccess(); } else { const data = await res.json(); console.error("Error al guardar:", data); }
+      if (res.ok) {
+        onSuccess();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const mensaje = res.status === 403
+          ? "No tienes permiso para realizar esta acción. Contacta al administrador."
+          : (data?.error || data?.message || `Error al guardar el producto (${res.status})`);
+        setSubmitError(mensaje);
+        console.error("Error al guardar:", data);
+      }
     } catch (err) {
+      setSubmitError("Error de conexión. Verifica tu internet e intenta de nuevo.");
       console.error("Error al guardar producto:", err);
     } finally {
       setLoading(false);
@@ -1481,6 +1502,19 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
         categoria="productos"
         label="Imagen del Producto"
       />
+
+      {submitError && (
+        <div
+          className="rounded-lg px-4 py-3 text-sm font-medium"
+          style={{
+            background: "var(--color-danger-bg)",
+            color: "var(--color-danger-text)",
+            border: "1px solid var(--color-danger)",
+          }}
+        >
+          ⚠️ {submitError}
+        </div>
+      )}
 
       <div
         className="sticky bottom-0 -mx-6 px-6 py-4 mt-2 flex gap-3 justify-end"

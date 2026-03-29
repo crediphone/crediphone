@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getProductoById, updateProducto, deleteProducto } from "@/lib/db/productos";
 import { requireAuth } from "@/lib/auth/guard";
+import { getAuthContext } from "@/lib/auth/server";
+import { tienePermiso } from "@/lib/permisos";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(
@@ -44,8 +46,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireAuth(["admin", "super_admin"]);
-    if (!auth.ok) return auth.response;
+    // Vendedores con permiso producto_editar también pueden actualizar
+    const { userId, role, permisosExplicitos } = await getAuthContext();
+    if (!userId) return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
+    if (!tienePermiso(role, permisosExplicitos, "producto_editar")) {
+      return NextResponse.json({ success: false, error: "No autorizado para editar productos" }, { status: 403 });
+    }
 
     const { id } = await params;
     const body = await request.json();
