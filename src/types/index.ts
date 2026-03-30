@@ -1001,7 +1001,10 @@ export interface Configuracion {
   // FASE 55: WhatsApp Business API oficial
   waEnabled?: boolean;
   waPhoneNumberId?: string;
+  /** SECURITY: write-only — al leer, usar waAccessTokenConfigured. Al escribir, enviar el nuevo token o omitir para no cambiar. */
   waAccessToken?: string;
+  /** true si hay un token guardado. El token real nunca se expone en la API. */
+  waAccessTokenConfigured?: boolean;
   waBusinessAccountId?: string;
   waApiVersion?: string;
   waWebhookVerifyToken?: string;

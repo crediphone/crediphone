@@ -125,7 +125,10 @@ export async function updateConfiguracion(
   // FASE 55: WhatsApp Business API
   if (config.waEnabled            !== undefined) updateData.wa_enabled              = config.waEnabled;
   if (config.waPhoneNumberId      !== undefined) updateData.wa_phone_number_id      = config.waPhoneNumberId;
-  if (config.waAccessToken        !== undefined) updateData.wa_access_token         = config.waAccessToken;
+  // SECURITY: solo actualizar si el cliente envió un token nuevo (no vacío y no el sentinel)
+  if (config.waAccessToken !== undefined && config.waAccessToken !== "" && config.waAccessToken !== "__CONFIGURED__") {
+    updateData.wa_access_token = config.waAccessToken;
+  }
   if (config.waBusinessAccountId  !== undefined) updateData.wa_business_account_id  = config.waBusinessAccountId;
   if (config.waApiVersion         !== undefined) updateData.wa_api_version          = config.waApiVersion;
   if (config.waWebhookVerifyToken !== undefined) updateData.wa_webhook_verify_token = config.waWebhookVerifyToken;
@@ -224,7 +227,9 @@ function mapConfigFromDB(db: any): Configuracion {
     // FASE 55: WhatsApp Business API
     waEnabled:             db.wa_enabled             ?? false,
     waPhoneNumberId:       db.wa_phone_number_id     ?? undefined,
-    waAccessToken:         db.wa_access_token        ?? undefined,
+    // SECURITY: nunca exponer el token real — solo indicar si está configurado
+    waAccessTokenConfigured: !!(db.wa_access_token),
+    waAccessToken:         undefined, // write-only: no se retorna al cliente
     waBusinessAccountId:   db.wa_business_account_id ?? undefined,
     waApiVersion:          db.wa_api_version         ?? "v20.0",
     waWebhookVerifyToken:  db.wa_webhook_verify_token ?? undefined,

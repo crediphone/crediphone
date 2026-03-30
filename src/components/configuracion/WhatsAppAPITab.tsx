@@ -67,7 +67,10 @@ function CanalBadge({ canal }: { canal: string }) {
 interface WAFormData {
   waEnabled: boolean;
   waPhoneNumberId: string;
+  /** write-only: vacío = no cambiar. Solo se envía si el admin ingresa un token nuevo. */
   waAccessToken: string;
+  /** true si ya hay un token guardado en el servidor */
+  waAccessTokenConfigured: boolean;
   waBusinessAccountId: string;
   waApiVersion: string;
   waWebhookVerifyToken: string;
@@ -96,6 +99,7 @@ export function WhatsAppAPITab({ distribuidorId }: WhatsAppAPITabProps) {
     waEnabled: false,
     waPhoneNumberId: "",
     waAccessToken: "",
+    waAccessTokenConfigured: false,
     waBusinessAccountId: "",
     waApiVersion: "v20.0",
     waWebhookVerifyToken: "",
@@ -121,13 +125,14 @@ export function WhatsAppAPITab({ distribuidorId }: WhatsAppAPITabProps) {
       if (!json.success) return;
       const cfg = json.data;
       setForm({
-        waEnabled:             cfg.waEnabled            ?? false,
-        waPhoneNumberId:       cfg.waPhoneNumberId      ?? "",
-        waAccessToken:         cfg.waAccessToken        ?? "",
-        waBusinessAccountId:   cfg.waBusinessAccountId  ?? "",
-        waApiVersion:          cfg.waApiVersion         ?? "v20.0",
-        waWebhookVerifyToken:  cfg.waWebhookVerifyToken ?? "",
-        waLogMensajes:         cfg.waLogMensajes        ?? true,
+        waEnabled:              cfg.waEnabled              ?? false,
+        waPhoneNumberId:        cfg.waPhoneNumberId        ?? "",
+        waAccessToken:          "", // write-only: no se retorna del servidor
+        waAccessTokenConfigured: cfg.waAccessTokenConfigured ?? false,
+        waBusinessAccountId:    cfg.waBusinessAccountId    ?? "",
+        waApiVersion:           cfg.waApiVersion            ?? "v20.0",
+        waWebhookVerifyToken:   cfg.waWebhookVerifyToken   ?? "",
+        waLogMensajes:          cfg.waLogMensajes           ?? true,
       });
     } finally {
       setLoadingConfig(false);
@@ -174,27 +179,24 @@ export function WhatsAppAPITab({ distribuidorId }: WhatsAppAPITabProps) {
 
   // ── Probar conexión ───────────────────────────────────────────────────────
   const handleTest = async () => {
-    if (!form.waPhoneNumberId || !form.waAccessToken) {
-      setTestResult({ ok: false, msg: "Completa Phone Number ID y Access Token primero" });
+    if (!form.waPhoneNumberId || (!form.waAccessTokenConfigured && !form.waAccessToken)) {
+      setTestResult({ ok: false, msg: "Configura y guarda el Phone Number ID y Access Token primero" });
       return;
     }
     setTestingConn(true);
     setTestResult(null);
     try {
-      // Llamar al endpoint de test (GET a la API de Meta para verificar el número)
-      const url = `https://graph.facebook.com/${form.waApiVersion}/${form.waPhoneNumberId}`;
+      // El token se lee directo de la DB en el servidor — no se envía desde el cliente
       const res = await fetch("/api/whatsapp/test-connection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phoneNumberId: form.waPhoneNumberId,
-          accessToken:   form.waAccessToken,
-          apiVersion:    form.waApiVersion,
+          apiVersion: form.waApiVersion,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        setTestResult({ ok: true, msg: `✓ Conectado — ${json.displayPhoneNumber ?? url}` });
+        setTestResult({ ok: true, msg: `✓ Conectado — ${json.displayPhoneNumber ?? form.waPhoneNumberId}` });
       } else {
         setTestResult({ ok: false, msg: json.error || "Error de conexión" });
       }
@@ -332,18 +334,24 @@ export function WhatsAppAPITab({ distribuidorId }: WhatsAppAPITabProps) {
               </p>
             </div>
 
-            {/* Access Token */}
+            {/* Access Token — write-only: el token nunca se retorna del servidor */}
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
                 <Key size={12} className="inline mr-1" />
                 Access Token
               </label>
+              {form.waAccessTokenConfigured && !form.waAccessToken && (
+                <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-lg text-xs"
+                  style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)", border: "1px solid var(--color-success)" }}>
+                  ✓ Token configurado — ingresa uno nuevo para reemplazarlo
+                </div>
+              )}
               <div className="relative">
                 <input
                   type={showToken ? "text" : "password"}
                   value={form.waAccessToken}
                   onChange={e => setForm(f => ({ ...f, waAccessToken: e.target.value }))}
-                  placeholder="EAABsbCS4iZC..."
+                  placeholder={form.waAccessTokenConfigured ? "Dejar vacío para mantener el actual" : "EAABsbCS4iZC..."}
                   className="w-full rounded-lg px-3 py-2 pr-10 text-sm outline-none"
                   style={{
                     background: "var(--color-bg-sunken)",
@@ -361,7 +369,7 @@ export function WhatsAppAPITab({ distribuidorId }: WhatsAppAPITabProps) {
                 </button>
               </div>
               <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>
-                Genera un token permanente (no el temporal de 24h)
+                Genera un token permanente (no el temporal de 24h). Por seguridad, el token no se muestra una vez guardado.
               </p>
             </div>
 
