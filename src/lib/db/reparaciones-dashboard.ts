@@ -450,7 +450,7 @@ export async function getGarantiasProximasVencer(
         id,
         orden_id,
         fecha_vencimiento,
-        orden:ordenes_reparacion!garantias_reparacion_orden_id_fkey(
+        orden:ordenes_reparacion(
           folio,
           cliente:clientes(nombre, apellido)
         )
@@ -458,7 +458,7 @@ export async function getGarantiasProximasVencer(
       )
       .gte("fecha_vencimiento", fechaInicio.toISOString())
       .lte("fecha_vencimiento", fechaFin.toISOString())
-      .eq("activa", true)
+      .eq("estado", "activa")
       .order("fecha_vencimiento", { ascending: true });
 
     if (error) {
