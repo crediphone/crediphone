@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Next.js 16 enables Turbopack by default — declare empty config to silence
+  // the "webpack config present but no turbopack config" error in CI builds.
+  turbopack: {},
   // Disable webpack persistent cache to avoid filling disk during build in CI/VM
+  // (only applies when building with --webpack, not Turbopack)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   webpack: (config: any) => {
     config.cache = false;
