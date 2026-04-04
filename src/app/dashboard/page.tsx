@@ -1269,12 +1269,14 @@ export default function DashboardPage() {
         }}
       />
 
-      {/* Drawer de reparaciones — acceso rápido desde el dashboard */}
-      <OrdenDrawer
-        ordenId={drawerOrdenId}
-        onClose={() => setDrawerOrdenId(null)}
-        onRefresh={fetchOrdenesPendientes}
-      />
+      {/* Drawer de reparaciones — solo se monta cuando hay orden seleccionada */}
+      {drawerOrdenId && (
+        <OrdenDrawer
+          ordenId={drawerOrdenId}
+          onClose={() => setDrawerOrdenId(null)}
+          onRefresh={fetchOrdenesPendientes}
+        />
+      )}
     </div>
   );
 }

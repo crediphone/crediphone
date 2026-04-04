@@ -304,13 +304,15 @@ export default function PanelTecnicoPage() {
         </>
       )}
 
-      {/* ── Drawer lateral ── */}
-      <OrdenDrawer
-        ordenId={drawerOrdenId}
-        onClose={() => setDrawerOrdenId(null)}
-        onRefresh={cargarOrdenes}
-        defaultTab={drawerDefaultTab}
-      />
+      {/* ── Drawer lateral — solo se monta cuando hay una orden seleccionada ── */}
+      {drawerOrdenId && (
+        <OrdenDrawer
+          ordenId={drawerOrdenId}
+          onClose={() => setDrawerOrdenId(null)}
+          onRefresh={cargarOrdenes}
+          defaultTab={drawerDefaultTab}
+        />
+      )}
 
       {/* ── Modal Diagnóstico ── */}
       {ordenSeleccionada && (
