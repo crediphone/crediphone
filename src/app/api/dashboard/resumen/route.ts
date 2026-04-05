@@ -111,7 +111,7 @@ export async function GET() {
           .from("productos")
           .select("id", { count: "exact", head: true })
           .eq("activo", true)
-          .or("stock.eq.0,stock.lt.5");  // stock_minimo no soporta comparación col-col en PostgREST; usar umbral fijo
+          .or("stock.eq.0,stock.lte.stock_minimo");
         if (distId) q = q.eq("distribuidor_id", distId);
         return q;
       })(),

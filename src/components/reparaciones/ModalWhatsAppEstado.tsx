@@ -6,8 +6,8 @@
  * enviarlo o saltarlo. El estado ya cambió en BD — esto es notificación opcional.
  */
 
-import { useState } from "react";
-import { MessageCircle, X, Send, SkipForward, Phone } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Send, SkipForward, Phone, MessageCircle } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import type { EstadoOrdenReparacion, OrdenReparacionDetallada } from "@/types";
 
@@ -91,8 +91,25 @@ export function ModalWhatsAppEstado({
   const [mensajeEditado, setMensajeEditado] = useState<string>("");
   const [iniciado, setIniciado] = useState(false);
 
-  // Inicializar mensaje cuando se abre el modal
   const mensajeBase = generarMensaje(orden, nuevoEstado, notas) ?? "";
+
+  // Si se abre el modal para un estado sin plantilla de WA, cerrar automáticamente.
+  // Se hace en useEffect (nunca durante render) para no violar las reglas de React.
+  useEffect(() => {
+    if (isOpen && !mensajeBase) {
+      onClose();
+    }
+  }, [isOpen, mensajeBase, onClose]);
+
+  // Resetear estado interno cuando el modal se cierra
+  useEffect(() => {
+    if (!isOpen) {
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setIniciado(false);
+      setMensajeEditado("");
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+  }, [isOpen]);
 
   const mensajeFinal = iniciado ? mensajeEditado : mensajeBase;
 
@@ -111,23 +128,14 @@ export function ModalWhatsAppEstado({
     onClose();
   }
 
-  // Limpiar estado al cerrar
-  function handleClose() {
-    setIniciado(false);
-    setMensajeEditado("");
-    onClose();
-  }
-
-  if (!mensajeBase) {
-    // Si no hay plantilla para este estado, no mostrar modal
-    handleClose();
-    return null;
-  }
+  // Retorno temprano DESPUÉS de todos los hooks (nunca antes).
+  // No llamar setState aquí — solo retornar null es seguro.
+  if (!isOpen || !mensajeBase) return null;
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleClose}
+      onClose={onClose}
       title="Notificar al cliente por WhatsApp"
       size="md"
     >
@@ -219,7 +227,7 @@ export function ModalWhatsAppEstado({
         {/* Botones */}
         <div className="flex gap-3 pt-1">
           <button
-            onClick={handleClose}
+            onClick={onClose}
             className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium transition-all"
             style={{
               background: "var(--color-bg-elevated)",

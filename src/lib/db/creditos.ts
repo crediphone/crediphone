@@ -5,7 +5,7 @@ export async function getCreditos(distribuidorId?: string): Promise<Credito[]> {
   const supabase = createAdminClient();
   let query = supabase
     .from("creditos")
-    .select("*, distribuidor:distribuidores(nombre)")
+    .select("*")
     .order("created_at", { ascending: false });
 
   if (distribuidorId) {
@@ -14,12 +14,7 @@ export async function getCreditos(distribuidorId?: string): Promise<Credito[]> {
 
   const { data, error } = await query;
   if (error) throw error;
-  // Flatten distribuidor.nombre → distribuidorNombre (BUG-003)
-  return (data || []).map((row: any) => ({
-    ...row,
-    distribuidorNombre: row.distribuidor?.nombre || undefined,
-    distribuidor: undefined,
-  })) as Credito[];
+  return data as Credito[];
 }
 
 export async function getCreditoById(id: string, distribuidorId?: string): Promise<Credito | null> {

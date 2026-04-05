@@ -183,7 +183,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       };
 
   // ── Tab: Resumen ─────────────────────────────────────────────────────────
-  function TabResumen() {
+  function tabResumen() {
     if (!orden) return null;
     return (
       <div className="space-y-4 pb-6">
@@ -323,7 +323,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   }
 
   // ── Tab: Diagnóstico ─────────────────────────────────────────────────────
-  function TabDiagnostico() {
+  function tabDiagnostico() {
     if (!orden) return null;
     return (
       <div className="space-y-4 pb-6">
@@ -396,7 +396,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   }
 
   // ── Tab: Presupuesto ─────────────────────────────────────────────────────
-  function TabPresupuesto() {
+  function tabPresupuesto() {
     if (!orden) return null;
     return (
       <div className="space-y-4 pb-6">
@@ -423,9 +423,9 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   function renderTab() {
     if (!orden) return null;
     switch (activeTab) {
-      case "resumen":     return <TabResumen />;
-      case "diagnostico": return <TabDiagnostico />;
-      case "presupuesto": return <TabPresupuesto />;
+      case "resumen":     return tabResumen();
+      case "diagnostico": return tabDiagnostico();
+      case "presupuesto": return tabPresupuesto();
       case "historial":
         return (
           <div className="space-y-4 pb-6">

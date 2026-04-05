@@ -120,8 +120,6 @@ function mapOrdenDetalladaFromDB(dbOrden: any): OrdenReparacionDetallada {
     clienteApellido: dbOrden.cliente_apellido || undefined,
     clienteTelefono: dbOrden.cliente_telefono || "",
     tecnicoNombre: dbOrden.tecnico_nombre || "",
-    // BUG-003: nombre de tienda para vista super_admin
-    distribuidorNombre: dbOrden.distribuidor_nombre || undefined,
   };
 }
 
@@ -198,8 +196,7 @@ export async function getOrdenesReparacionDetalladas(distribuidorId?: string): P
       `
       *,
       cliente:clientes(nombre, apellido, telefono),
-      tecnico:users!ordenes_reparacion_tecnico_id_fkey(name),
-      distribuidor:distribuidores(nombre)
+      tecnico:users!ordenes_reparacion_tecnico_id_fkey(name)
     `
     )
     .order("fecha_recepcion", { ascending: false });
@@ -220,7 +217,6 @@ export async function getOrdenesReparacionDetalladas(distribuidorId?: string): P
     cliente_apellido: dbOrden.cliente?.apellido || "",
     cliente_telefono: dbOrden.cliente?.telefono || "",
     tecnico_nombre: dbOrden.tecnico?.name || "",
-    distribuidor_nombre: dbOrden.distribuidor?.nombre || "",
   }));
 
   return mapOrdenesDetalladasFromDB(ordenesDetalladas);

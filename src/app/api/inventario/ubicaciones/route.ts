@@ -10,32 +10,27 @@ import type { NuevaUbicacionFormData } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId, isSuperAdmin, distribuidorId } = await getAuthContext();
+    const { userId } = await getAuthContext();
     if (!userId) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // super_admin con header X-Distribuidor-Id activo lo respeta; si no, ve todos
-    const headerDistId = request.headers.get("X-Distribuidor-Id");
-    const distribuidorFilter = isSuperAdmin
-      ? (headerDistId ?? undefined)
-      : (distribuidorId ?? undefined);
-
     const searchParams = request.nextUrl.searchParams;
+    const action = searchParams.get("action");
     const includeInactive = searchParams.get("includeInactive") === "true";
     const withCounts = searchParams.get("withCounts") === "true";
 
     if (withCounts) {
-      const ubicaciones = await getUbicacionesWithCounts(distribuidorFilter);
+      const ubicaciones = await getUbicacionesWithCounts();
       return NextResponse.json({ success: true, data: ubicaciones });
     }
 
     if (includeInactive) {
-      const ubicaciones = await getAllUbicaciones(distribuidorFilter);
+      const ubicaciones = await getAllUbicaciones();
       return NextResponse.json({ success: true, data: ubicaciones });
     }
 
-    const ubicaciones = await getUbicaciones(distribuidorFilter);
+    const ubicaciones = await getUbicaciones();
     return NextResponse.json({ success: true, data: ubicaciones });
   } catch (error: any) {
     console.error("Error in GET /api/inventario/ubicaciones:", error);
