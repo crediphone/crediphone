@@ -97,11 +97,12 @@ npm run lint       # corregir errores críticos
 1. Leer .claude/SESION-ACTIVA.md — ¿hay trabajo en progreso?
 2. Leer .claude/BUGS-ACTIVOS.md — si la tarea toca BD/auth/caja/reparaciones
 3. Implementar cambios
-4. npx tsc --noEmit → npm run lint
-5. git diff → revisar cambios antes de commitear
+4. node_modules/typescript/bin/tsc --noEmit → debe pasar limpio
+5. npm run lint → corregir errores críticos
 6. git add [archivos específicos] → NUNCA git add -A sin revisar
-7. git commit -m "FASE XX: descripción" o "fix: descripción"
-8. Actualizar .claude/SESION-ACTIVA.md con qué se hizo y qué sigue
+7. git commit -m "fix: descripción" o "feat: descripción"
+8. git push origin master → deploy automático (Trini autorizó push directo 2026-04-06)
+9. Actualizar .claude/SESION-ACTIVA.md con qué se hizo y qué sigue
 ```
 
 ---
