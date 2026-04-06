@@ -411,7 +411,7 @@ Control de Asistencia / Reloj Checador: tabla `asistencia_registros`, check-in/o
 4. **Sidebar:** Usar `var(--color-...)` CSS tokens, NUNCA clases Tailwind de color directo
 5. **Fuentes:** Geist (`--font-ui`), Geist Mono (`--font-data`), JetBrains Mono (`--font-mono`). NUNCA Inter
 6. **Números/IMEIs/folios:** SIEMPRE `font-mono` en el UI
-7. **Proxy/Middleware:** El archivo se llama `src/proxy.ts` (no `middleware.ts`) y la función se llama `proxy`
+7. **Middleware:** El archivo se llama `src/middleware.ts` y la función se llama `middleware` (Edge Runtime). NO existe `src/proxy.ts` — DOCBUG-001 confirmó que era documentación incorrecta.
 8. **Commits:** Formato `FASE XX: descripción concisa` o `fix: descripción`
 9. **Checklist antes de terminar sesión:** `npx tsc --noEmit` debe pasar limpio
 
