@@ -53,7 +53,9 @@
       "Bash(rm \"c:\\\\Users\\\\usuario 1\\\\crediphone\\\\.git\\\\HEAD.lock\")",
       "Bash(rm \"c:\\\\Users\\\\usuario 1\\\\crediphone\\\\.git\\\\index.lock\")",
       "Bash(Remove-Item \"C:\\\\Users\\\\usuario 1\\\\crediphone\\\\.git\\\\worktrees\\\\elated-kapitsa\\\\index.lock\" -Force)",
-      "Bash(powershell -Command \"Remove-Item -Path ''C:\\\\Users\\\\usuario 1\\\\crediphone\\\\.git\\\\worktrees\\\\elated-kapitsa\\\\index.lock'' -Force\")"
+      "Bash(powershell -Command \"Remove-Item -Path ''C:\\\\Users\\\\usuario 1\\\\crediphone\\\\.git\\\\worktrees\\\\elated-kapitsa\\\\index.lock'' -Force\")",
+      "Bash(winpty gh:*)",
+      "Bash(gh.exe --version)"
     ]
   }
 }
