@@ -15,7 +15,7 @@ import { DescuentoPOS } from "@/components/pos/DescuentoPOS";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Tag, Wrench, Package2 } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Tag, Wrench, Package2, UserCheck, Clock as ClockIn } from "lucide-react";
 import { generarReporteX, abrirReporte } from "@/lib/utils/reportes";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { OfflineBanner } from "@/components/pos/OfflineBanner";
@@ -77,6 +77,12 @@ export default function POSPage() {
   // FASE 31: Reporte X
   const [generandoReporteX, setGenerandoReporteX] = useState(false);
 
+  // Integración asistencia ↔ caja
+  // null = aún cargando, true = hay sesión activa, false = sin sesión
+  const [asistenciaActiva, setAsistenciaActiva] = useState<boolean | null>(null);
+  const [registrarEntradaConCaja, setRegistrarEntradaConCaja] = useState(true);
+  const [registrarSalidaConCaja, setRegistrarSalidaConCaja] = useState(true);
+
   // FASE 30: Cliente seleccionado, notas de venta, modal IMEI
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [busquedaCliente, setBusquedaCliente] = useState("");
@@ -130,6 +136,7 @@ export default function POSPage() {
     if (user) {
       fetchSesionActiva();
       fetchEstadisticas();
+      fetchAsistenciaActiva();
     }
   }, [user]);
 
@@ -172,6 +179,16 @@ export default function POSPage() {
     window.addEventListener("keydown", handleFKey);
     return () => window.removeEventListener("keydown", handleFKey);
   }, [posMode, showCerrarTurnoModal]);
+
+  const fetchAsistenciaActiva = async () => {
+    try {
+      const res = await fetch("/api/asistencia/activa");
+      const data = await res.json();
+      setAsistenciaActiva(data.success && !!data.data);
+    } catch {
+      setAsistenciaActiva(false);
+    }
+  };
 
   const fetchSesionActiva = async () => {
     try {
@@ -643,6 +660,15 @@ export default function POSPage() {
         setMontoFinalTurno("");
         setNotasCierreTurno("");
         fetchEstadisticas();
+
+        // Registrar salida de asistencia si el checkbox está activo y hay sesión activa
+        if (registrarSalidaConCaja && asistenciaActiva === true) {
+          try {
+            await fetch("/api/asistencia/checkout", { method: "POST" });
+            setAsistenciaActiva(false);
+          } catch { /* silencioso — no bloquear si falla */ }
+        }
+
         // FASE 31: Generar Reporte Z automáticamente al cerrar turno
         try {
           const rptResp = await fetch(`/api/pos/caja/${sesionIdCerrada}?action=reporte`);
@@ -764,6 +790,18 @@ export default function POSPage() {
         setNotasApertura("");
         setCajaOtroEmpleado(null);
         fetchEstadisticas();
+
+        // Registrar entrada de asistencia si el checkbox está activo y no hay sesión activa
+        if (registrarEntradaConCaja && asistenciaActiva === false) {
+          try {
+            const asistRes = await fetch("/api/asistencia", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ notas: "Entrada registrada al abrir turno de caja" }),
+            });
+            if (asistRes.ok) setAsistenciaActiva(true);
+          } catch { /* silencioso — no bloquear si falla */ }
+        }
       } else {
         alert(data.error || "Error al abrir turno");
       }
@@ -947,7 +985,7 @@ export default function POSPage() {
               </div>
 
               {/* Notas opcionales */}
-              <div className="mb-5">
+              <div className="mb-4">
                 <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
                   Notas (opcional)
                 </label>
@@ -965,6 +1003,40 @@ export default function POSPage() {
                   }}
                 />
               </div>
+
+              {/* Asistencia integrada */}
+              {asistenciaActiva === false && (
+                <label
+                  className="flex items-center gap-2.5 cursor-pointer mb-4 p-3 rounded-xl"
+                  style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-info)" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={registrarEntradaConCaja}
+                    onChange={(e) => setRegistrarEntradaConCaja(e.target.checked)}
+                    className="w-4 h-4 cursor-pointer shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "var(--color-info-text)" }}>
+                      Registrar entrada de asistencia
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--color-info-text)", opacity: 0.8 }}>
+                      No has checado entrada hoy
+                    </p>
+                  </div>
+                </label>
+              )}
+              {asistenciaActiva === true && (
+                <div
+                  className="flex items-center gap-2 mb-4 p-3 rounded-xl"
+                  style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
+                >
+                  <UserCheck className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
+                  <p className="text-xs" style={{ color: "var(--color-success-text)" }}>
+                    Asistencia ya registrada para hoy
+                  </p>
+                </div>
+              )}
 
               {/* Acciones */}
               <div className="flex gap-3">
@@ -1838,7 +1910,7 @@ export default function POSPage() {
               />
             </div>
 
-            <div className="mb-5">
+            <div className="mb-4">
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
                 Notas (opcional)
               </label>
@@ -1856,6 +1928,40 @@ export default function POSPage() {
                 }}
               />
             </div>
+
+            {/* Asistencia integrada */}
+            {asistenciaActiva === false && (
+              <label
+                className="flex items-center gap-2.5 cursor-pointer mb-4 p-3 rounded-xl"
+                style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-info)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={registrarEntradaConCaja}
+                  onChange={(e) => setRegistrarEntradaConCaja(e.target.checked)}
+                  className="w-4 h-4 cursor-pointer shrink-0"
+                />
+                <div>
+                  <p className="text-xs font-semibold" style={{ color: "var(--color-info-text)" }}>
+                    Registrar entrada de asistencia
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--color-info-text)", opacity: 0.8 }}>
+                    No has checado entrada hoy
+                  </p>
+                </div>
+              </label>
+            )}
+            {asistenciaActiva === true && (
+              <div
+                className="flex items-center gap-2 mb-4 p-3 rounded-xl"
+                style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
+              >
+                <UserCheck className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
+                <p className="text-xs" style={{ color: "var(--color-success-text)" }}>
+                  Asistencia ya registrada para hoy
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button
@@ -1960,7 +2066,7 @@ export default function POSPage() {
             </div>
 
             {/* Notas opcionales */}
-            <div className="mb-5">
+            <div className="mb-4">
               <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--color-text-secondary)" }}>
                 Notas (opcional)
               </label>
@@ -1978,6 +2084,29 @@ export default function POSPage() {
                 }}
               />
             </div>
+
+            {/* Asistencia integrada: salida */}
+            {asistenciaActiva === true && (
+              <label
+                className="flex items-center gap-2.5 cursor-pointer mb-4 p-3 rounded-xl"
+                style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={registrarSalidaConCaja}
+                  onChange={(e) => setRegistrarSalidaConCaja(e.target.checked)}
+                  className="w-4 h-4 cursor-pointer shrink-0"
+                />
+                <div>
+                  <p className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>
+                    Registrar salida de asistencia
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--color-warning-text)", opacity: 0.8 }}>
+                    Tienes una sesión de asistencia activa
+                  </p>
+                </div>
+              </label>
+            )}
 
             {/* Acciones */}
             <div className="flex gap-3">

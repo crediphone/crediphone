@@ -21,6 +21,7 @@ import {
   Coins,
   Wrench,
   ShieldAlert,
+  UserCheck,
 } from "lucide-react";
 import { generarReporteX, generarReporteZ, abrirReporte } from "@/lib/utils/reportes";
 import type { CajaSesion, CajaMovimiento, ConteoDenominaciones, AnticipoEnSesion } from "@/types";
@@ -108,6 +109,11 @@ export default function CajaPage() {
   const [processing, setProcessing] = useState(false);
   const [generandoReporte, setGenerandoReporte] = useState(false);
   const [sesionOtroEmpleado, setSesionOtroEmpleado] = useState<{ folio: string; nombre: string } | null>(null);
+
+  // Integración asistencia ↔ caja
+  const [asistenciaActiva, setAsistenciaActiva] = useState<boolean | null>(null);
+  const [registrarEntradaConCaja, setRegistrarEntradaConCaja] = useState(true);
+  const [registrarSalidaConCaja, setRegistrarSalidaConCaja] = useState(true);
 
   // ── Protección de ruta ──────────────────────────────────────────
   useEffect(() => {
@@ -198,14 +204,25 @@ export default function CajaPage() {
     }
   }, []);
 
+  const fetchAsistenciaActiva = useCallback(async () => {
+    try {
+      const res = await fetch("/api/asistencia/activa");
+      const data = await res.json();
+      setAsistenciaActiva(data.success && !!data.data);
+    } catch {
+      setAsistenciaActiva(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       fetchSesionActiva();
       fetchHistorialSesiones();
       fetchConfig();
+      fetchAsistenciaActiva();
       if (["admin", "super_admin"].includes(user.role)) fetchAnticiposSinSesion();
     }
-  }, [user, fetchSesionActiva, fetchHistorialSesiones, fetchConfig, fetchAnticiposSinSesion]);
+  }, [user, fetchSesionActiva, fetchHistorialSesiones, fetchConfig, fetchAsistenciaActiva, fetchAnticiposSinSesion]);
 
   useEffect(() => {
     if (sesionActiva) {
@@ -253,6 +270,18 @@ export default function CajaPage() {
         setMontoInicial("");
         setNotasApertura("");
         fetchHistorialSesiones();
+
+        // Registrar entrada de asistencia si el checkbox está activo y no hay sesión activa
+        if (registrarEntradaConCaja && asistenciaActiva === false) {
+          try {
+            const asistRes = await fetch("/api/asistencia", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ notas: "Entrada registrada al abrir caja" }),
+            });
+            if (asistRes.ok) setAsistenciaActiva(true);
+          } catch { /* silencioso */ }
+        }
       } else {
         alert(data.error || "Error al abrir caja");
       }
@@ -291,6 +320,15 @@ export default function CajaPage() {
         setAnticiposSesion([]);
         fetchHistorialSesiones();
         if (["admin", "super_admin"].includes(user?.role ?? "")) fetchAnticiposSinSesion();
+
+        // Registrar salida de asistencia si el checkbox está activo y hay sesión activa
+        if (registrarSalidaConCaja && asistenciaActiva === true) {
+          try {
+            await fetch("/api/asistencia/checkout", { method: "POST" });
+            setAsistenciaActiva(false);
+          } catch { /* silencioso */ }
+        }
+
         alert("Caja cerrada exitosamente");
       } else {
         alert(data.error || "Error al cerrar caja");
@@ -791,6 +829,40 @@ export default function CajaPage() {
                   placeholder="Ej: Turno matutino"
                 />
               </div>
+              {/* Asistencia integrada: entrada */}
+              {asistenciaActiva === false && (
+                <label
+                  className="flex items-center gap-2.5 cursor-pointer p-3 rounded-xl"
+                  style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-info)" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={registrarEntradaConCaja}
+                    onChange={(e) => setRegistrarEntradaConCaja(e.target.checked)}
+                    className="w-4 h-4 cursor-pointer shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "var(--color-info-text)" }}>
+                      Registrar entrada de asistencia
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--color-info-text)", opacity: 0.8 }}>
+                      No has checado entrada hoy
+                    </p>
+                  </div>
+                </label>
+              )}
+              {asistenciaActiva === true && (
+                <div
+                  className="flex items-center gap-2 p-3 rounded-xl"
+                  style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
+                >
+                  <UserCheck className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
+                  <p className="text-xs" style={{ color: "var(--color-success-text)" }}>
+                    Asistencia ya registrada para hoy
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <Button variant="secondary" onClick={() => setShowAbrirModal(false)} className="flex-1">
                   Cancelar
@@ -1076,6 +1148,29 @@ export default function CajaPage() {
                     </span>
                   </div>
                 </div>
+              )}
+
+              {/* Asistencia integrada: salida */}
+              {asistenciaActiva === true && (
+                <label
+                  className="flex items-center gap-2.5 cursor-pointer mb-3 p-3 rounded-xl"
+                  style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={registrarSalidaConCaja}
+                    onChange={(e) => setRegistrarSalidaConCaja(e.target.checked)}
+                    className="w-4 h-4 cursor-pointer shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>
+                      Registrar salida de asistencia
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--color-warning-text)", opacity: 0.8 }}>
+                      Tienes una sesión de asistencia activa
+                    </p>
+                  </div>
+                </label>
               )}
 
               <div className="flex gap-3">
