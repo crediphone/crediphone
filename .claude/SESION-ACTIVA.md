@@ -329,7 +329,24 @@ El efectivo entra directo a caja + notificación de quién lo recibió.
 
 ---
 
-## PRÓXIMO PASO
-Trini confirma el orden y arrancamos con Bloque 1.
+## ESTADO DE IMPLEMENTACIÓN — BLOQUE 1
+
+| Item | Estado | Commit |
+|------|--------|--------|
+| R1 — Simplificar flujo técnico → caja | ✅ COMPLETO | fix: simplifica flujo anticipo... |
+| R2 — Doble conteo cierre de caja | ✅ COMPLETO | fix: doble conteo... |
+| R3 — Anticipos sin sesión | ✅ COMPLETO | fix: auto-asociar anticipos... |
+| R4 — Cancelación desde POS + cargo | ✅ COMPLETO | feat(R4): cargo de cancelación... |
+| R5 — Validar transiciones estado | ✅ COMPLETO | fix(reparaciones): validar transiciones... |
+| R6 — Validar costo piezas vs BD | ✅ COMPLETO | fix(piezas): leer costo desde BD... |
+
+⚠️ **PENDIENTE CRÍTICO: Aplicar migración en Supabase**
+La columna `cargo_cancelacion` fue creada en el SQL pero NO aplicada aún en Supabase producción.
+Archivo: `supabase/migrations/fix-cargo-cancelacion-reparaciones.sql`
+Comando: ejecutar el SQL en el editor de Supabase (o vía MCP Supabase)
+
+## PRÓXIMO BLOQUE — Bloque 2 (PDF de la orden)
+
+P1 — Agregar al PDF: diagnóstico, técnico, piezas, presupuesto desglosado, anticipos, saldo, cargo cancelación, firma, garantía
 
 **Si pierdes contexto:** Di "Lee SESION-ACTIVA y continúa con el plan"
