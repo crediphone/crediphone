@@ -324,6 +324,9 @@ export function SelectorPiezasCotizacion({
           <p className="text-xs font-semibold" style={{ color: "var(--color-text-secondary)" }}>
             Cotización sin pieza en catálogo
           </p>
+          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            El precio capturado incluye la pieza, instalación y envío (precio all-in para el cliente).
+          </p>
           <div className="grid grid-cols-1 gap-2">
             <input
               type="text"
@@ -340,7 +343,7 @@ export function SelectorPiezasCotizacion({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs mb-1" style={{ color: "var(--color-text-muted)" }}>
-                  Precio unitario
+                  Precio all-in (pieza + instalación + envío)
                 </label>
                 <div className="relative">
                   <span

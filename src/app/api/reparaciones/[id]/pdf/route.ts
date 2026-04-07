@@ -753,6 +753,13 @@ export async function POST(
       doc.text(`$${totalPiezasReal.toFixed(2)}`, pzX[3], y + 3.5);
       y += 7;
 
+      // Nota aclaratoria: el precio incluye instalación y envío
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(6);
+      tc(doc, C.grayLight);
+      doc.text("* Los precios de piezas incluyen costo de instalación y envío.", ML, y);
+      y += 4;
+
       y = hLine(doc, y, false);
     }
 
