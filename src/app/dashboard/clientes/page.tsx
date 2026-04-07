@@ -13,7 +13,103 @@ import ImportPayjoyModal from "@/components/clientes/ImportPayjoyModal";
 import type { Cliente } from "@/types";
 import { ExportButton } from "@/components/ui/ExportButton";
 import type { ColumnaExport } from "@/hooks/useExportCSV";
-import { Zap, BarChart2, Camera } from "lucide-react";
+import { Zap, BarChart2, Camera, Pencil, Trash2, X } from "lucide-react";
+
+// ─── ClienteRow ────────────────────────────────────────────────────────────────
+// Definido FUERA del componente padre para evitar desmontaje en cada render.
+function ClienteRow({
+  cliente,
+  onEdit,
+  onDelete,
+  onVerScoring,
+}: {
+  cliente: Cliente;
+  onEdit: (c: Cliente) => void;
+  onDelete: (c: Cliente) => void;
+  onVerScoring: (c: Cliente) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [btnHover, setBtnHover] = useState<"scoring" | "edit" | "delete" | null>(null);
+
+  return (
+    <tr
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setHovered(false); setBtnHover(null); }}
+      onClick={() => onEdit(cliente)}
+      style={{
+        borderBottom: "1px solid var(--color-border-subtle)",
+        background: hovered ? "var(--color-bg-elevated)" : "transparent",
+        cursor: "pointer",
+        transition: "background 150ms ease",
+      }}
+    >
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>
+          {cliente.nombre} {cliente.apellido}
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+          INE: <span style={{ fontFamily: "var(--font-mono)" }}>{cliente.ine}</span>
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="text-sm" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-mono)" }}>{cliente.telefono}</div>
+        <div className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>{cliente.email}</div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <Badge variant="info">{cliente.curp}</Badge>
+      </td>
+      <td className="px-6 py-4">
+        <div className="text-sm max-w-xs truncate" style={{ color: "var(--color-text-primary)" }}>
+          {cliente.direccion}
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-right">
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); onVerScoring(cliente); }}
+            onMouseEnter={() => setBtnHover("scoring")}
+            onMouseLeave={() => setBtnHover(null)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+            style={{
+              color: "var(--color-accent)",
+              background: btnHover === "scoring" ? "var(--color-accent-light)" : "transparent",
+              transition: "background 150ms ease",
+            }}
+          >
+            <BarChart2 size={12} />Scoring
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(cliente); }}
+            onMouseEnter={() => setBtnHover("edit")}
+            onMouseLeave={() => setBtnHover(null)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+            style={{
+              color: "var(--color-info)",
+              background: btnHover === "edit" ? "var(--color-info-bg)" : "transparent",
+              transition: "background 150ms ease",
+            }}
+          >
+            <Pencil size={12} />Editar
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(cliente); }}
+            onMouseEnter={() => setBtnHover("delete")}
+            onMouseLeave={() => setBtnHover(null)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+            style={{
+              color: "var(--color-danger)",
+              background: btnHover === "delete" ? "var(--color-danger-bg)" : "transparent",
+              transition: "background 150ms ease",
+            }}
+          >
+            <Trash2 size={12} />Eliminar
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────────
 
 const COLUMNAS_CLIENTES_CSV: ColumnaExport<Cliente>[] = [
   { header: "ID", accessor: "id" },
@@ -197,19 +293,19 @@ export default function ClientesPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <Card>
+        <Card interactive>
           <div className="text-sm" style={{ color: "var(--color-text-secondary)" }}>Total Clientes</div>
           <div className="text-3xl font-bold mt-2" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
             {clientes.length}
           </div>
         </Card>
-        <Card>
+        <Card interactive>
           <div className="text-sm" style={{ color: "var(--color-text-secondary)" }}>Resultados</div>
           <div className="text-3xl font-bold mt-2" style={{ color: "var(--color-accent)", fontFamily: "var(--font-data)" }}>
             {filteredClientes.length}
           </div>
         </Card>
-        <Card>
+        <Card interactive>
           <div className="text-sm" style={{ color: "var(--color-text-secondary)" }}>Buscando</div>
           <div className="text-lg font-medium mt-2 truncate" style={{ color: "var(--color-text-primary)" }}>
             {searchQuery || "Todos"}
@@ -244,56 +340,13 @@ export default function ClientesPage() {
               </thead>
               <tbody>
                 {filteredClientes.map((cliente) => (
-                  <tr
+                  <ClienteRow
                     key={cliente.id}
-                    style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium" style={{ color: "var(--color-text-primary)" }}>
-                        {cliente.nombre} {cliente.apellido}
-                      </div>
-                      <div className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                        INE: {cliente.ine}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm" style={{ color: "var(--color-text-primary)" }}>{cliente.telefono}</div>
-                      <div className="text-sm" style={{ color: "var(--color-text-muted)" }}>{cliente.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant="info">{cliente.curp}</Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm max-w-xs truncate" style={{ color: "var(--color-text-primary)" }}>
-                        {cliente.direccion}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleVerScoring(cliente)}
-                        className="mr-4 transition-colors"
-                        style={{ color: "var(--color-accent)" }}
-                      >
-                        <BarChart2 size={13} className="inline-block mr-1 align-middle" />Scoring
-                      </button>
-                      <button
-                        onClick={() => handleEdit(cliente)}
-                        className="mr-4 transition-colors"
-                        style={{ color: "var(--color-info)" }}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(cliente)}
-                        className="transition-colors"
-                        style={{ color: "var(--color-danger)" }}
-                      >
-                        Eliminar
-                      </button>
-                    </td>
-                  </tr>
+                    cliente={cliente}
+                    onEdit={handleEdit}
+                    onDelete={handleDeleteClick}
+                    onVerScoring={handleVerScoring}
+                  />
                 ))}
               </tbody>
             </table>
