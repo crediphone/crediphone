@@ -213,12 +213,15 @@ export function ComponentePresupuesto({
           background: "var(--color-bg-surface)",
         }}
       >
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-1">
           <Wrench className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
           <label className="text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>
-            Mano de Obra
+            Mano de Obra (Diagnóstico / Trabajo General)
           </label>
         </div>
+        <p className="text-xs mb-3" style={{ color: "var(--color-text-muted)" }}>
+          Cargo por revisión, diagnóstico o trabajo que no está incluido en el precio de las piezas.
+        </p>
         <div className="relative">
           <span
             className="absolute left-3 top-1/2 -translate-y-1/2 font-bold"

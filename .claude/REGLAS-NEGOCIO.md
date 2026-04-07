@@ -93,6 +93,25 @@ Si al cierre de sesión el monto declarado ≠ monto calculado:
 - En ese momento se actualiza el costo real de piezas en la orden
 - **En el PDF:** si hay piezas registradas, el costo es definitivo (se muestra la tabla de piezas)
 
+### Precio de pieza — qué incluye (REGLA INTENCIONAL — NO CAMBIAR)
+El `precioUnitario` de cada pieza en la cotización incluye TODO:
+- Costo de la pieza/refacción
+- Costo de instalación (mano de obra específica para esa pieza)
+- Costo de envío si aplica
+
+**Por qué:** Es un servicio más limpio para el cliente — ve un precio all-in por pieza,
+sin tener que sumar conceptos. El empleado ya hace el cálculo al capturar el precio.
+
+**En el modal de cotización:** el campo "Precio unitario" de cada pieza dice
+"Incluye pieza + instalación + envío" — aclarado en el placeholder y en el tooltip.
+
+**En el PDF:** cada línea de pieza incluye nota "(incl. instalación y envío)".
+
+**Campo `manoDeObra` global en ComponentePresupuesto:**
+Este campo es para la mano de obra del DIAGNÓSTICO INICIAL o cualquier trabajo general
+que NO esté ligado a una pieza específica (ej: "diagnóstico de placa", "revisión general").
+NO es la mano de obra de instalación de piezas — esa ya está en el precio de cada pieza.
+
 ### Regla para el PDF
 - Si `reparacion_piezas` está VACÍO → el presupuesto es estimado → mostrar "COTIZACIÓN ESTIMADA — sujeta a cambio al confirmar piezas"
 - Si `reparacion_piezas` tiene registros → el costo es definitivo → mostrar la tabla de piezas como "PIEZAS UTILIZADAS"
