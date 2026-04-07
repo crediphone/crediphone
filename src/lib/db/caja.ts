@@ -120,6 +120,22 @@ export async function abrirCaja(
     throw new Error(`Error al abrir caja: ${error?.message || "Unknown error"}`);
   }
 
+  // Asociar anticipos pendientes del usuario que quedaron sin sesión
+  // (registrados cuando la caja estaba cerrada — se suman automáticamente al abrir)
+  try {
+    const nuevaSesionId = data.id;
+    await supabase
+      .from("anticipos_reparacion")
+      .update({ sesion_caja_id: nuevaSesionId })
+      .eq("recibido_por", usuarioId)
+      .is("sesion_caja_id", null)
+      .eq("tipo_pago", "efectivo")
+      .neq("estado", "devuelto");
+  } catch {
+    // No bloquear la apertura de caja si falla la asociación de anticipos
+    console.warn("[Caja] No se pudieron asociar anticipos pendientes al abrir sesión");
+  }
+
   return mapSesionFromDB(data);
 }
 
