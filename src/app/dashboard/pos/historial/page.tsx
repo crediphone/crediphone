@@ -82,6 +82,7 @@ function VentaRow({
   isAdmin: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [btnHover, setBtnHover] = useState<"ver" | "descargar" | "devolver" | "cancelar" | null>(null);
 
   return (
     <tr
@@ -148,22 +149,24 @@ function VentaRow({
         <div className="flex gap-2">
           <button
             onClick={() => onVerDetalle(venta.id)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--color-bg-elevated)")
-            }
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            style={{ padding: "4px", borderRadius: "0.375rem" }}
+            onMouseEnter={() => setBtnHover("ver")}
+            onMouseLeave={() => setBtnHover(null)}
+            style={{
+              padding: "4px", borderRadius: "0.375rem",
+              background: btnHover === "ver" ? "var(--color-bg-elevated)" : "transparent",
+            }}
             title="Ver detalles"
           >
             <Eye className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
           </button>
           <button
             onClick={() => onDescargar(venta.id, venta.folio)}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "var(--color-bg-elevated)")
-            }
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            style={{ padding: "4px", borderRadius: "0.375rem" }}
+            onMouseEnter={() => setBtnHover("descargar")}
+            onMouseLeave={() => setBtnHover(null)}
+            style={{
+              padding: "4px", borderRadius: "0.375rem",
+              background: btnHover === "descargar" ? "var(--color-bg-elevated)" : "transparent",
+            }}
             title="Descargar recibo"
           >
             <Download className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
@@ -173,22 +176,24 @@ function VentaRow({
               {/* FASE 33: Botón devolución */}
               <button
                 onClick={() => onDevolver(venta)}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "var(--color-warning-bg)")
-                }
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                style={{ padding: "4px", borderRadius: "0.375rem" }}
+                onMouseEnter={() => setBtnHover("devolver")}
+                onMouseLeave={() => setBtnHover(null)}
+                style={{
+                  padding: "4px", borderRadius: "0.375rem",
+                  background: btnHover === "devolver" ? "var(--color-warning-bg)" : "transparent",
+                }}
                 title="Procesar devolución"
               >
                 <RotateCcw className="w-4 h-4" style={{ color: "var(--color-warning)" }} />
               </button>
               <button
                 onClick={() => onCancelar(venta.id, venta.folio)}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "var(--color-danger-bg)")
-                }
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                style={{ padding: "4px", borderRadius: "0.375rem" }}
+                onMouseEnter={() => setBtnHover("cancelar")}
+                onMouseLeave={() => setBtnHover(null)}
+                style={{
+                  padding: "4px", borderRadius: "0.375rem",
+                  background: btnHover === "cancelar" ? "var(--color-danger-bg)" : "transparent",
+                }}
                 title="Cancelar venta"
               >
                 <XCircle className="w-4 h-4" style={{ color: "var(--color-danger)" }} />
@@ -457,7 +462,7 @@ export default function HistorialPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="p-4">
+        <Card interactive className="p-4">
           <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
             Total Ventas
           </p>
@@ -468,7 +473,7 @@ export default function HistorialPage() {
             {totalVentas}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card interactive className="p-4">
           <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
             Total Monto
           </p>
@@ -479,7 +484,7 @@ export default function HistorialPage() {
             ${totalMonto.toFixed(2)}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card interactive className="p-4">
           <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
             Efectivo
           </p>
@@ -490,7 +495,7 @@ export default function HistorialPage() {
             ${totalEfectivo.toFixed(2)}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card interactive className="p-4">
           <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
             Tarjeta/Transfer
           </p>

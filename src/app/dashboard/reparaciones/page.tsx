@@ -39,6 +39,26 @@ const COLUMNAS_REPARACIONES_CSV: ColumnaExport<OrdenReparacionDetallada>[] = [
 // Estados que requieren confirmación (abren ModalCambiarEstado)
 const ESTADOS_CRITICOS: EstadoOrdenReparacion[] = ["cancelado", "no_reparable"];
 
+function StatPill({ label, value, bg, color }: { label: string; value: number; bg: string; color: string }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      className="p-4 rounded-xl"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: bg,
+        boxShadow: hovered ? "var(--shadow-md)" : "var(--shadow-sm)",
+        transform: hovered ? "translateY(-1px)" : "none",
+        transition: "box-shadow 150ms, transform 150ms",
+      }}
+    >
+      <p className="text-xs font-medium" style={{ color }}>{label}</p>
+      <p className="text-2xl font-bold mt-0.5" style={{ color, fontFamily: "var(--font-data)" }}>{value}</p>
+    </div>
+  );
+}
+
 export default function ReparacionesPage() {
   const { user, loading: authLoading } = useAuth();
   const [ordenes, setOrdenes] = useState<OrdenReparacionDetallada[]>([]);
@@ -272,10 +292,7 @@ export default function ReparacionesPage() {
           { label: "Listas Entrega", value: stats.listasEntrega, bg: "var(--color-success-bg)", color: "var(--color-success-text)" },
           { label: "Garantías", value: stats.garantiasActivas, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)" },
         ].map(({ label, value, bg, color }) => (
-          <div key={label} className="p-4 rounded-xl" style={{ background: bg, boxShadow: "var(--shadow-sm)" }}>
-            <p className="text-xs font-medium" style={{ color }}>{label}</p>
-            <p className="text-2xl font-bold mt-0.5" style={{ color, fontFamily: "var(--font-data)" }}>{value}</p>
-          </div>
+          <StatPill key={label} label={label} value={value} bg={bg} color={color} />
         ))}
       </div>
 

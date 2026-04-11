@@ -260,7 +260,7 @@ export default function EmpleadosPage() {
           { rol: "cobrador",    Icon: null,   label: "Cobradores", value: stats?.porRol.cobrador || 0,  sub: undefined,                        color: "var(--color-warning)", bg: "var(--color-warning-bg)" },
           { rol: "tecnico",     Icon: null,   label: "Técnicos",   value: stats?.porRol.tecnico || 0,   sub: undefined,                        color: "var(--color-accent)",  bg: "var(--color-accent-light)" },
         ].map((s) => (
-          <Card key={s.label} style={{ background: s.bg }}>
+          <Card key={s.label} interactive style={{ background: s.bg }}>
             <div className="text-center">
               <p className="text-sm font-medium mb-1 flex items-center justify-center gap-1.5" style={{ color: s.color }}>
                 {s.rol
