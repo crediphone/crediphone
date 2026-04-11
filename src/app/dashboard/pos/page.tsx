@@ -27,6 +27,7 @@ import type {
   VentaDetallada,
   EstadisticasPOS,
   Cliente,
+  Promocion,
 } from "@/types";
 
 export default function POSPage() {
@@ -102,6 +103,9 @@ export default function POSPage() {
   // Estadísticas
   const [stats, setStats] = useState<EstadisticasPOS | null>(null);
 
+  // PO2: Promociones activas visibles en el POS
+  const [promociones, setPromociones] = useState<Promocion[]>([]);
+
   // FASE 36/41/61: Sección activa del panel izquierdo
   const [posSection, setPosSection] = useState<"productos" | "servicios" | "reparaciones" | "kits">("productos");
 
@@ -137,6 +141,22 @@ export default function POSPage() {
       fetchSesionActiva();
       fetchEstadisticas();
       fetchAsistenciaActiva();
+      // PO2: cargar promociones activas
+      const now = new Date();
+      fetch("/api/promociones")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success) {
+            const activas = (d.data as Promocion[]).filter((p) => {
+              if (!p.activa) return false;
+              if (p.fechaFin && new Date(p.fechaFin) < now) return false;
+              if (p.fechaInicio && new Date(p.fechaInicio) > now) return false;
+              return true;
+            });
+            setPromociones(activas);
+          }
+        })
+        .catch(() => {});
     }
   }, [user]);
 
@@ -370,6 +390,28 @@ export default function POSPage() {
       return;
     }
     setCartItems([...cartItems, kitItem]);
+  };
+
+  // PO2: Agregar una promoción al carrito como servicio
+  const handleAgregarPromocion = (promo: Promocion) => {
+    if (!promo.precioPromocion) return;
+    const cartKey = `promo_${promo.id}`;
+    const existingIdx = cartItems.findIndex((i) => i.esServicio && i.servicioId === cartKey);
+    if (existingIdx >= 0) {
+      const newItems = [...cartItems];
+      newItems[existingIdx].cantidad += 1;
+      newItems[existingIdx].subtotal = newItems[existingIdx].cantidad * newItems[existingIdx].precioUnitario;
+      setCartItems(newItems);
+      return;
+    }
+    setCartItems([...cartItems, {
+      esServicio: true,
+      servicioId: cartKey,
+      servicioNombre: `🏷️ ${promo.titulo}`,
+      cantidad: 1,
+      precioUnitario: promo.precioPromocion,
+      subtotal: promo.precioPromocion,
+    }]);
   };
 
   const handleClearCart = () => {
@@ -1316,6 +1358,57 @@ export default function POSPage() {
               </button>
             ))}
           </div>
+
+          {/* PO2: Banner de promociones activas */}
+          {promociones.length > 0 && (
+            <div className="overflow-x-auto pb-1">
+              <div className="flex gap-2" style={{ minWidth: "max-content" }}>
+                {promociones.map((promo) => (
+                  <div
+                    key={promo.id}
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl shrink-0"
+                    style={{
+                      background: "var(--color-warning-bg)",
+                      border: "1px solid var(--color-warning)",
+                      maxWidth: "260px",
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate" style={{ color: "var(--color-warning-text)" }}>
+                        🏷️ {promo.titulo}
+                      </p>
+                      {promo.precioPromocion ? (
+                        <p className="text-xs" style={{ color: "var(--color-warning-text)", fontFamily: "var(--font-data)" }}>
+                          {promo.precioNormal && (
+                            <span style={{ textDecoration: "line-through", opacity: 0.6, marginRight: "4px" }}>
+                              ${promo.precioNormal.toFixed(0)}
+                            </span>
+                          )}
+                          ${promo.precioPromocion.toFixed(0)}
+                        </p>
+                      ) : (
+                        <p className="text-xs truncate" style={{ color: "var(--color-warning-text)", opacity: 0.8 }}>
+                          {promo.descripcion ?? promo.categoria}
+                        </p>
+                      )}
+                    </div>
+                    {promo.precioPromocion && (
+                      <button
+                        onClick={() => handleAgregarPromocion(promo)}
+                        className="shrink-0 text-xs font-semibold px-2 py-1 rounded-lg transition-colors"
+                        style={{
+                          background: "var(--color-warning)",
+                          color: "#fff",
+                        }}
+                      >
+                        + Agregar
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {posSection === "productos" ? (
             <>
