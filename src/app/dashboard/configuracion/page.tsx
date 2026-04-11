@@ -1012,6 +1012,19 @@ export default function ConfiguracionPage() {
                   Días de garantía que aparecen en el ticket de entrega de reparaciones. Ej: 30 = 30 días de garantía
                 </p>
               </div>
+              <div>
+                <label style={labelSt}>Días Máximos en "Listo para Entrega" (PROFECO)</label>
+                <Input
+                  type="number" min="1" max="365"
+                  value={formData.diasListoEntregaMaximo ?? 30}
+                  onChange={(e) =>
+                    handleChange("diasListoEntregaMaximo", parseInt(e.target.value) || 30)
+                  }
+                />
+                <p style={hintSt}>
+                  Órdenes con más días en "listo_entrega" se marcan como vencidas en el dashboard. Por ley (PROFECO), el límite recomendado es 30 días.
+                </p>
+              </div>
             </div>
             <SaveButton saving={saving} onSave={handleSave} />
           </Card>

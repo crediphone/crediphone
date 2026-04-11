@@ -96,6 +96,9 @@ export async function updateConfiguracion(
     updateData.descuento_maximo_pct = config.descuentoMaximoPct;
   if (config.diasMaxDevolucion !== undefined)
     updateData.dias_max_devolucion = config.diasMaxDevolucion;
+  // PO3: Límite de tiempo órdenes sin recoger (PROFECO)
+  if (config.diasListoEntregaMaximo !== undefined)
+    updateData.dias_listo_entrega_maximo = config.diasListoEntregaMaximo;
   // FASE 33: Notificaciones avanzadas
   if (config.diasAnticipacionRecordatorio !== undefined)
     updateData.dias_anticipacion_recordatorio = config.diasAnticipacionRecordatorio;
@@ -202,6 +205,7 @@ function mapConfigFromDB(db: any): Configuracion {
     permitirVentasSinCliente: db.permitir_ventas_sin_cliente ?? true,
     descuentoMaximoPct: parseFloat(db.descuento_maximo_pct) || 100,
     diasMaxDevolucion: db.dias_max_devolucion ?? 30,
+    diasListoEntregaMaximo: db.dias_listo_entrega_maximo ?? 30,
     // FASE 33: Notificaciones avanzadas
     diasAnticipacionRecordatorio: db.dias_anticipacion_recordatorio ?? 3,
     mensajeRecordatorio: db.mensaje_recordatorio || "Hola {nombre}, te recordamos que tienes un pago de {monto} con vencimiento el {fecha}. ¡Evita cargos por mora!",
