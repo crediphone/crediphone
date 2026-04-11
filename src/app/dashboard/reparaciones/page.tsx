@@ -65,7 +65,8 @@ export default function ReparacionesPage() {
   const [filteredOrdenes, setFilteredOrdenes] = useState<OrdenReparacionDetallada[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterEstado, setFilterEstado] = useState<EstadoOrdenReparacion | "todas" | "garantias">("todas");
+  const [filterEstado, setFilterEstado] = useState<EstadoOrdenReparacion | "todas" | "garantias" | "vencidas">("todas");
+  const [diasListoEntregaMaximo, setDiasListoEntregaMaximo] = useState(30);
   const [stats, setStats] = useState({
     total: 0,
     activas: 0,
@@ -74,6 +75,7 @@ export default function ReparacionesPage() {
     enReparacion: 0,
     listasEntrega: 0,
     garantiasActivas: 0,
+    vencidas: 0,
   });
 
   // Modal states
@@ -96,6 +98,14 @@ export default function ReparacionesPage() {
   useEffect(() => {
     if (!authLoading && user) {
       fetchOrdenes();
+      fetch("/api/configuracion")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && d.data?.diasListoEntregaMaximo) {
+            setDiasListoEntregaMaximo(d.data.diasListoEntregaMaximo);
+          }
+        })
+        .catch(() => {});
     }
   }, [authLoading, user]);
 
@@ -104,10 +114,10 @@ export default function ReparacionesPage() {
     filterOrdenes();
   }, [ordenes, searchQuery, filterEstado]);
 
-  // Calcular stats cuando cambian las órdenes
+  // Calcular stats cuando cambian las órdenes o el límite de días
   useEffect(() => {
     calculateStats();
-  }, [ordenes]);
+  }, [ordenes, diasListoEntregaMaximo]);
 
   async function fetchOrdenes() {
     try {
@@ -128,6 +138,8 @@ export default function ReparacionesPage() {
   }
 
   function calculateStats() {
+    const now = Date.now();
+    const msPerDay = 86_400_000;
     const total = ordenes.length;
     const activas = ordenes.filter(
       (o) => !["entregado", "cancelado", "no_reparable"].includes(o.estado)
@@ -139,6 +151,11 @@ export default function ReparacionesPage() {
     const garantiasActivas = ordenes.filter(
       (o) => o.esGarantia && !["entregado", "cancelado"].includes(o.estado)
     ).length;
+    const vencidas = ordenes.filter((o) => {
+      if (o.estado !== "listo_entrega" || !o.fechaCompletado) return false;
+      const dias = (now - new Date(o.fechaCompletado).getTime()) / msPerDay;
+      return dias > diasListoEntregaMaximo;
+    }).length;
 
     setStats({
       total,
@@ -148,6 +165,7 @@ export default function ReparacionesPage() {
       enReparacion,
       listasEntrega,
       garantiasActivas,
+      vencidas,
     });
   }
 
@@ -173,6 +191,13 @@ export default function ReparacionesPage() {
       filtered = filtered.filter(
         (o) => o.esGarantia && !["entregado", "cancelado"].includes(o.estado)
       );
+    } else if (filterEstado === "vencidas") {
+      const now = Date.now();
+      const msPerDay = 86_400_000;
+      filtered = filtered.filter((o) => {
+        if (o.estado !== "listo_entrega" || !o.fechaCompletado) return false;
+        return (now - new Date(o.fechaCompletado).getTime()) / msPerDay > diasListoEntregaMaximo;
+      });
     } else if (filterEstado !== "todas") {
       filtered = filtered.filter((o) => o.estado === filterEstado);
     }
@@ -282,7 +307,7 @@ export default function ReparacionesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
         {[
           { label: "Total", value: stats.total, bg: "var(--color-bg-surface)", color: "var(--color-text-primary)" },
           { label: "Activas", value: stats.activas, bg: "var(--color-info-bg)", color: "var(--color-info-text)" },
@@ -294,6 +319,14 @@ export default function ReparacionesPage() {
         ].map(({ label, value, bg, color }) => (
           <StatPill key={label} label={label} value={value} bg={bg} color={color} />
         ))}
+        {stats.vencidas > 0 && (
+          <StatPill
+            label={`Vencidas (+${diasListoEntregaMaximo}d)`}
+            value={stats.vencidas}
+            bg="var(--color-danger-bg)"
+            color="var(--color-danger-text)"
+          />
+        )}
       </div>
 
       {/* Toolbar */}
@@ -313,7 +346,7 @@ export default function ReparacionesPage() {
         />
         <select
           value={filterEstado}
-          onChange={(e) => setFilterEstado(e.target.value as EstadoOrdenReparacion | "todas" | "garantias")}
+          onChange={(e) => setFilterEstado(e.target.value as EstadoOrdenReparacion | "todas" | "garantias" | "vencidas")}
           className="w-full md:w-52 px-4 py-2 rounded-xl text-sm"
           style={{
             background: "var(--color-bg-surface)",
@@ -324,6 +357,7 @@ export default function ReparacionesPage() {
         >
           <option value="todas">Todas las órdenes</option>
           <option value="garantias">Solo Garantías</option>
+          <option value="vencidas">Sin Recoger (vencidas)</option>
           <option value="recibido">Recibido</option>
           <option value="diagnostico">En Diagnóstico</option>
           <option value="presupuesto">Presupuesto Pendiente</option>

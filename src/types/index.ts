@@ -984,6 +984,8 @@ export interface Configuracion {
   /** FASE 37b: Categorías de servicios personalizadas por distribuidor */
   categoriasServicios?: CategoriaServicioConfig[];
   diasMaxDevolucion?: number;
+  /** PO3: Días máximos en listo_entrega antes de considerarse vencida (PROFECO). Default: 30 */
+  diasListoEntregaMaximo?: number;
   // FASE 33: Notificaciones avanzadas
   diasAnticipacionRecordatorio?: number;
   mensajeRecordatorio?: string;
