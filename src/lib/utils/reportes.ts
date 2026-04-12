@@ -801,11 +801,12 @@ export interface TicketRecepcionData {
 export function generarTicketRecepcionReparacion(data: TicketRecepcionData): string {
   const qrSection = data.qrDataUrl
     ? `<div class="sep"></div>
-       <div class="center sm bold">Escanea para ver el estado</div>
-       <img src="${data.qrDataUrl}" class="qr" alt="QR seguimiento"/>`
+       <div class="center sm bold">Escanea para consultar tu orden</div>
+       <div class="center sm" style="color:#555;margin-bottom:4px">Útil al recoger tu equipo — muéstralo al empleado</div>
+       <img src="${data.qrDataUrl}" class="qr" alt="QR orden de servicio"/>`
     : data.qrTrackingUrl
     ? `<div class="sep"></div>
-       <div class="center sm bold">Seguimiento en línea:</div>
+       <div class="center sm bold">Consulta tu orden en línea:</div>
        <div class="center sm" style="word-break:break-all">${data.qrTrackingUrl}</div>`
     : "";
 

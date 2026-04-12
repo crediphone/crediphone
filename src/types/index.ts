@@ -568,6 +568,8 @@ export interface OrdenReparacionDetallada extends OrdenReparacion {
   clienteApellido?: string;
   clienteTelefono: string;
   tecnicoNombre: string;
+  /** Suma de anticipos no devueltos — cargado en la lista para mostrar badge en tarjeta */
+  totalAnticipos?: number;
 }
 
 // ─── FASE 56: Multi-diagnóstico ─────────────────────────────────────────────

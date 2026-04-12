@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Phone, MessageCircle, Copy, ChevronDown, MoreVertical,
   Wrench, Clock, Image as ImageIcon, DollarSign, Shield, Circle,
+  Banknote,
 } from "lucide-react";
 import { EstadoBadge, PrioridadBadge } from "@/components/reparaciones/EstadoBadge";
 import { StepperReparacion } from "@/components/reparaciones/StepperReparacion";
@@ -14,7 +15,7 @@ import type { OrdenReparacionDetallada, EstadoOrdenReparacion } from "@/types";
 
 // ─── Mapa de transiciones válidas (espejo de ModalCambiarEstado) ──────────────
 const transicionesValidas: Record<EstadoOrdenReparacion, EstadoOrdenReparacion[]> = {
-  recibido:          ["diagnostico", "cancelado"],
+  recibido:          ["diagnostico", "no_reparable", "cancelado"],
   diagnostico:       ["esperando_piezas", "presupuesto", "aprobado", "no_reparable", "cancelado"],
   esperando_piezas:  ["en_reparacion", "aprobado", "cancelado"],
   presupuesto:       ["aprobado", "cancelado"],
@@ -306,9 +307,13 @@ export function OrdenCard({
         </div>
       </div>
 
-      {/* ── Stepper de progreso ── */}
+      {/* ── Stepper de progreso (clickeable para cambiar estado rápido) ── */}
       <div className="px-4 pb-3" onClick={(e) => e.stopPropagation()}>
-        <StepperReparacion estado={orden.estado} compact />
+        <StepperReparacion
+          estado={orden.estado}
+          compact
+          onCambiarEstado={!isTerminada && canEdit ? handleEstadoChange : undefined}
+        />
       </div>
 
       {/* ── Dispositivo ── */}
@@ -391,19 +396,44 @@ export function OrdenCard({
           </span>
         </div>
 
-        {/* Costo */}
-        {orden.costoTotal > 0 && (
-          <div className="flex items-center gap-1.5 ml-auto">
-            <DollarSign className="w-3.5 h-3.5" style={{ color: "var(--color-success)" }} />
-            <span
-              className="text-xs font-semibold"
-              style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}
-            >
-              {formatCurrency(orden.costoTotal)}
-            </span>
-          </div>
-        )}
+        {/* Precio: muestra costo real si existe, si no la cotización inicial */}
+        {(() => {
+          const costoReal = orden.costoTotal || 0;
+          const cotizacion = orden.presupuestoTotal || 0;
+          if (costoReal > 0) {
+            return (
+              <div className="flex items-center gap-1.5 ml-auto" title="Costo real del servicio">
+                <DollarSign className="w-3.5 h-3.5" style={{ color: "var(--color-success)" }} />
+                <span className="text-xs font-semibold" style={{ color: "var(--color-success)", fontFamily: "var(--font-data)" }}>
+                  {formatCurrency(costoReal)}
+                </span>
+              </div>
+            );
+          }
+          if (cotizacion > 0) {
+            return (
+              <div className="flex items-center gap-1.5 ml-auto" title="Cotización inicial (sin diagnóstico técnico aún)">
+                <DollarSign className="w-3.5 h-3.5" style={{ color: "var(--color-warning-text)" }} />
+                <span className="text-xs font-semibold" style={{ color: "var(--color-warning-text)", fontFamily: "var(--font-data)" }}>
+                  {formatCurrency(cotizacion)}
+                </span>
+                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>est.</span>
+              </div>
+            );
+          }
+          return null;
+        })()}
       </div>
+
+      {/* ── Badge de anticipo (si existe) ── */}
+      {(orden.totalAnticipos ?? 0) > 0 && (
+        <div className="px-4 pb-2 flex items-center gap-1.5">
+          <Banknote className="w-3.5 h-3.5" style={{ color: "var(--color-success)" }} />
+          <span className="text-xs font-medium" style={{ color: "var(--color-success)" }}>
+            Anticipo: {formatCurrency(orden.totalAnticipos ?? 0)}
+          </span>
+        </div>
+      )}
 
       {/* ── Footer con acciones contextuales ── */}
       {!isTerminada && (
