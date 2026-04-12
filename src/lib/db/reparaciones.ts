@@ -53,6 +53,10 @@ function mapOrdenFromDB(dbOrden: any): OrdenReparacion {
     costoReparacion: parseFloat(dbOrden.costo_reparacion || 0),
     costoPartes: parseFloat(dbOrden.costo_partes || 0),
     costoTotal: parseFloat(dbOrden.costo_total || 0),
+    // precio_total = cotización inicial capturada al crear la orden (Fase 8C)
+    presupuestoTotal: parseFloat(dbOrden.precio_total || 0),
+    presupuestoManoDeObra: parseFloat(dbOrden.precio_mano_obra || 0),
+    presupuestoPiezas: parseFloat(dbOrden.precio_piezas || 0),
     partesReemplazadas: dbOrden.partes_reemplazadas || [],
 
     fechaRecepcion: new Date(dbOrden.fecha_recepcion),
@@ -220,7 +224,30 @@ export async function getOrdenesReparacionDetalladas(distribuidorId?: string): P
     tecnico_nombre: dbOrden.tecnico?.name || "",
   }));
 
-  return mapOrdenesDetalladasFromDB(ordenesDetalladas);
+  const ordenesMapeadas = mapOrdenesDetalladasFromDB(ordenesDetalladas);
+
+  // Batch-fetch anticipos para todas las órdenes (una sola query)
+  if (ordenesMapeadas.length > 0) {
+    const ordenIds = ordenesMapeadas.map((o) => o.id);
+    const { data: anticipos } = await supabase
+      .from("anticipos_reparacion")
+      .select("orden_id, monto, estado")
+      .in("orden_id", ordenIds)
+      .neq("estado", "devuelto");
+
+    if (anticipos && anticipos.length > 0) {
+      // Agrupar por orden_id y sumar montos
+      const anticiposPorOrden: Record<string, number> = {};
+      anticipos.forEach((a: { orden_id: string; monto: unknown }) => {
+        anticiposPorOrden[a.orden_id] = (anticiposPorOrden[a.orden_id] || 0) + Number(a.monto || 0);
+      });
+      ordenesMapeadas.forEach((o) => {
+        o.totalAnticipos = anticiposPorOrden[o.id] || 0;
+      });
+    }
+  }
+
+  return ordenesMapeadas;
 }
 
 /**

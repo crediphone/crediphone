@@ -63,12 +63,23 @@ function getPasoIndex(estado: EstadoOrdenReparacion): number {
   return PASOS.findIndex((p) => p.estados.includes(estado));
 }
 
+// Mapa de paso → estado que activa al hacer clic (primer estado del paso)
+const PASO_A_ESTADO: Record<string, EstadoOrdenReparacion> = {
+  diagnostico: "diagnostico",
+  aprobado:    "aprobado",
+  reparacion:  "en_reparacion",
+  listo:       "listo_entrega",
+  entregado:   "entregado",
+};
+
 interface StepperReparacionProps {
   estado: EstadoOrdenReparacion;
   compact?: boolean; // modo compacto para la card (sin labels)
+  /** Si se pasa, los pasos futuros/anteriores son clickeables para cambiar estado */
+  onCambiarEstado?: (nuevoEstado: EstadoOrdenReparacion) => void;
 }
 
-export function StepperReparacion({ estado, compact = false }: StepperReparacionProps) {
+export function StepperReparacion({ estado, compact = false, onCambiarEstado }: StepperReparacionProps) {
   const isTerminal = estado === "cancelado" || estado === "no_reparable";
   const pasoActual = getPasoIndex(estado);
 
@@ -101,6 +112,9 @@ export function StepperReparacion({ estado, compact = false }: StepperReparacion
         const completado = idx < pasoActual;
         const activo = idx === pasoActual;
         const futuro = idx > pasoActual;
+        // El nodo es clickeable si hay handler Y el paso tiene estado asignable Y no es el actual
+        const estadoDestino = PASO_A_ESTADO[paso.key];
+        const clickeable = !!onCambiarEstado && !!estadoDestino && !activo;
 
         return (
           <div key={paso.key} className="flex items-center flex-1 min-w-0">
@@ -108,6 +122,8 @@ export function StepperReparacion({ estado, compact = false }: StepperReparacion
             <div className="flex flex-col items-center flex-shrink-0" style={{ minWidth: compact ? 24 : 32 }}>
               <div
                 className="flex items-center justify-center rounded-full transition-all"
+                title={clickeable ? `Cambiar a: ${paso.label}` : paso.label}
+                onClick={clickeable ? (e) => { e.stopPropagation(); onCambiarEstado!(estadoDestino); } : undefined}
                 style={{
                   width: compact ? 22 : 28,
                   height: compact ? 22 : 28,
@@ -122,6 +138,7 @@ export function StepperReparacion({ estado, compact = false }: StepperReparacion
                     ? "2px solid var(--color-accent)"
                     : "none",
                   boxShadow: activo ? "0 0 0 3px rgba(0,153,184,0.2)" : "none",
+                  cursor: clickeable ? "pointer" : "default",
                 }}
               >
                 {completado ? (

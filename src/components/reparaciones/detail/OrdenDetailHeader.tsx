@@ -62,25 +62,18 @@ export function OrdenDetailHeader({ orden, onEdit, onCancelar }: OrdenDetailHead
   const handleTicketRecepcion = async () => {
     setPrintingTicket(true);
     try {
-      // ── FIX BUG: la API espera JSON body { ordenId }, no query param ──
+      // ── QR apunta a la orden de servicio (útil para consulta y cobro al entregar) ──
+      // Usamos window.location.origin para obtener el host real (funciona en dev y prod)
       let qrDataUrl: string | undefined;
       let qrTrackingUrl: string | undefined;
       try {
-        const qrRes = await fetch(`/api/reparaciones/qr/generar`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ordenId: orden.id }),
-        });
-        if (qrRes.ok) {
-          const qrData = await qrRes.json();
-          // FIX: la respuesta está en qrData.sesion.url, no en qrData.url
-          const sesionUrl = qrData?.sesion?.url;
-          if (sesionUrl) {
-            qrTrackingUrl = sesionUrl;
-            const QRCode = (await import("qrcode")).default;
-            qrDataUrl = await QRCode.toDataURL(sesionUrl, { width: 110, margin: 1 });
-          }
-        }
+        const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+        // El QR apunta a /reparacion/{folio} — página pública de seguimiento por folio
+        // Al escanear en entrega: el empleado ve la orden de inmediato sin buscar por nombre
+        const ordenUrl = `${baseUrl}/reparacion/${orden.folio}`;
+        qrTrackingUrl = ordenUrl;
+        const QRCode = (await import("qrcode")).default;
+        qrDataUrl = await QRCode.toDataURL(ordenUrl, { width: 110, margin: 1 });
       } catch {
         // QR es opcional — si falla, se omite
       }

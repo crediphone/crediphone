@@ -148,7 +148,9 @@ function parseCondiciones(cond: unknown): {
   return { oks, fallas, alertas, extras };
 }
 
-// ── Términos legales condensados (sin títulos grandes) ────────────────────
+// ── Términos legales condensados ─────────────────────────────────────────
+// Versión compacta: máx. 4 cláusulas para que quepan en una hoja.
+// Los T&C completos están en el QR de "Términos y Condiciones".
 function buildTerms(cond: unknown, imei?: string): string[] {
   const obj = (cond && typeof cond === "object" && !Array.isArray(cond))
     ? cond as Record<string, unknown>
@@ -161,49 +163,42 @@ function buildTerms(cond: unknown, imei?: string): string[] {
     sensorHuella: "sensor de huella",
   };
 
+  // ── 4 cláusulas clave (concisas) ────────────────────────────────────────
   const terms: string[] = [
-    "El cliente declara ser propietario legítimo del equipo entregado —o contar con autorización expresa del propietario— y asume plena responsabilidad legal por dicha declaración (Art. 1794, Código Civil Federal).",
-    "CREDIPHONE no se hace responsable por pérdida de datos, archivos, aplicaciones o configuraciones durante el diagnóstico o la reparación. Se recomienda realizar un respaldo completo antes de entregar el equipo.",
-    `La reparación cuenta con garantía de 90 días naturales sobre la mano de obra realizada, conforme al Art. 76 bis de la Ley Federal de Protección al Consumidor (LFPC, vigente ${new Date().getFullYear()}). La garantía no aplica a daños posteriores por golpes, mal uso, contacto con líquidos u otras causas ajenas al servicio prestado.`,
+    "Propiedad y datos: El cliente declara ser propietario legítimo del equipo. CREDIPHONE no se responsabiliza por pérdida de datos; se recomienda respaldo previo.",
+    `Garantía: 90 días naturales sobre mano de obra (LFPC Art. 76 bis). No aplica por golpes, líquidos ni mal uso posteriores al servicio.`,
+    "Diagnóstico: Si el cliente rechaza el presupuesto, el equipo se devuelve en el estado recibido. Al aprobar, autoriza expresamente los trabajos y el costo indicado.",
+    "T&C completos disponibles en el código QR de este documento.",
   ];
 
-  // Condiciones especiales (un solo ítem agrupado)
-  const condExtras: string[] = [];
-  if (obj?.estaMojado)      condExtras.push("daño por humedad preexistente (NOM-024-SCFI-2013)");
-  if (obj?.bateriaHinchada) condExtras.push("batería con deformación física que representa riesgo potencial");
-  if (obj?.llegaApagado)    condExtras.push("equipo recibido sin encender, sin posibilidad de verificar funcionamiento previo");
-  if (condExtras.length > 0) {
-    terms.push(
-      `El equipo ingresa con las siguientes condiciones documentadas: ${condExtras.join("; ")}. Dichas condiciones son progresivas e impredecibles; CREDIPHONE no responde por fallas adicionales derivadas de ellas.`
-    );
-  }
+  // Condiciones especiales (solo si aplican)
+  const extras: string[] = [];
+  if (obj?.estaMojado)      extras.push("humedad preexistente");
+  if (obj?.bateriaHinchada) extras.push("batería deformada");
+  if (obj?.llegaApagado)    extras.push("ingresa sin encender");
 
-  // Preexistencias de componentes
   const fallas: string[] = [];
   if (obj) {
     Object.entries(compNombres).forEach(([k, v]) => {
       if (obj[k] === "falla") fallas.push(v);
     });
   }
-  if (fallas.length > 0) {
-    terms.push(
-      `El cliente declara conocer las siguientes fallas preexistentes al ingreso: ${fallas.join(", ")}. CREDIPHONE no es responsable por dichas preexistencias ni por su agravamiento durante la reparación de otro componente.`
-    );
+
+  // Fusionar condiciones especiales y fallas en una sola cláusula para no alargar el documento
+  const notas: string[] = [];
+  if (extras.length > 0) notas.push(`Condiciones documentadas: ${extras.join(", ")}`);
+  if (fallas.length > 0)  notas.push(`Fallas preexistentes: ${fallas.join(", ")}`);
+  if (notas.length > 0) {
+    // Insertar antes del último término (T&C QR)
+    terms.splice(terms.length - 1, 0, `${notas.join(". ")}. CREDIPHONE no responde por estas condiciones ni su agravamiento.`);
   }
 
-  terms.push(
-    "El diagnóstico tiene un costo de revisión. Si el cliente rechaza el presupuesto, el equipo se devuelve en el estado en que fue recibido, sin garantía de restitución al estado original. Al aprobar el presupuesto, el cliente autoriza expresamente los trabajos descritos.",
-    "El cliente acepta íntegramente los presentes términos al entregar el equipo. Para consultar los términos y condiciones completos, escanee el código QR ubicado al pie de este documento."
-  );
-
-  // Cláusula especial si no hay IMEI verificable
   const imeiVacio = !imei || !imei.trim() ||
     imei.trim().toLowerCase() === "na" ||
     imei.trim().toLowerCase() === "n/a";
-
   if (imeiVacio) {
-    terms.push(
-      "El equipo ingresa sin número IMEI verificable. CREDIPHONE no puede certificar la identidad única del dispositivo ni garantizar que no haya sido reportado como robado. El cliente asume plena responsabilidad por la legitimidad del equipo (Art. 1794, Código Civil Federal)."
+    terms.splice(terms.length - 1, 0,
+      "Sin IMEI verificable: el cliente asume plena responsabilidad por la legitimidad del equipo."
     );
   }
 
@@ -784,10 +779,10 @@ export async function POST(
     );
     y += 9;
 
-    // Ítems legales — 9pt para mantener legibilidad, con salto de página automático
+    // Ítems legales — 8pt compacto (T&C completos en QR), con salto de página automático
     const terms = buildTerms(orden.condiciones_funcionamiento, orden.imei ?? "");
-    const LINE_H = 4.3; // interlineado por renglón a 9pt
-    doc.setFontSize(9);
+    const LINE_H = 3.8; // interlineado a 8pt
+    doc.setFontSize(8);
 
     terms.forEach((term, i) => {
       // Estimar altura del término antes de dibujarlo
