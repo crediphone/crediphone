@@ -1942,7 +1942,7 @@ function EtiquetaModal({
   const nombreSize   = cfg.id === "50x30" ? "0.5rem" : cfg.id === "70x40" ? "0.625rem" : "0.8125rem";
   const marcaSize    = cfg.id === "50x30" ? "0.4rem"  : cfg.id === "70x40" ? "0.5rem"  : "0.625rem";
   const precioSize   = cfg.id === "50x30" ? "1.1rem"  : cfg.id === "70x40" ? "1.65rem" : "2rem";
-  const qrSize       = cfg.id === "50x30" ? 52        : cfg.id === "70x40" ? 64        : 84;
+  const qrSize       = cfg.id === "50x30" ? 68        : cfg.id === "70x40" ? 84        : 110;
 
   const EtiquetaEl = () => (
     <div style={etiquetaStyle}>
@@ -1966,7 +1966,7 @@ function EtiquetaModal({
         {/* Código de barras CODE128 — lector físico lo puede escanear */}
         {mostrarBarras && cfg.id !== "50x30" && (
           <div style={{ textAlign: "center" }}>
-            <Code128SVG value={codigo} width={cfg.id === "70x40" ? 162 : 222} height={cfg.id === "70x40" ? 34 : 44} showText={false} />
+            <Code128SVG value={codigo} width={cfg.id === "70x40" ? 210 : 300} height={cfg.id === "70x40" ? 40 : 52} showText={false} />
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
@@ -2150,7 +2150,7 @@ function EtiquetaModal({
               {/* CODE128 para lector físico */}
               {mostrarBarras && cfg.id !== "50x30" && (
                 <div style={{ textAlign: "center", marginBottom: "0.5mm" }}>
-                  <Code128SVG value={codigo} width={cfg.id === "70x40" ? 162 : 222} height={cfg.id === "70x40" ? 34 : 44} showText={false} />
+                  <Code128SVG value={codigo} width={cfg.id === "70x40" ? 210 : 300} height={cfg.id === "70x40" ? 40 : 52} showText={false} />
                 </div>
               )}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "2mm" }}>
@@ -2160,7 +2160,7 @@ function EtiquetaModal({
                   </div>
                 )}
                 <div style={{ textAlign: "center", flexShrink: 0 }}>
-                  <QRCodeSVG value={codigo} size={cfg.id === "50x30" ? 52 : cfg.id === "70x40" ? 64 : 84} level="M" />
+                  <QRCodeSVG value={codigo} size={cfg.id === "50x30" ? 68 : cfg.id === "70x40" ? 84 : 110} level="M" />
                   <div style={{ fontSize: "4pt", fontFamily: "monospace", letterSpacing: "0.3pt", color: "#555", marginTop: "0.5mm" }}>
                     {codigo.length > 14 ? codigo.slice(0, 14) + "…" : codigo}
                   </div>
@@ -2613,7 +2613,7 @@ function EtiquetasMasivasModal({
       const codigo = p.codigoBarras ?? p.id.slice(-8).toUpperCase();
       const precio = Number(p.precio ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
       const sub    = [p.marca, p.modelo].filter(Boolean).join(" · ");
-      const qrSize = mm.w <= 50 ? 90 : mm.w <= 70 ? 120 : 150;
+      const qrSize = mm.w <= 50 ? 120 : mm.w <= 70 ? 160 : 200;
       return `<div class="etiqueta">
   <div>
     <div class="nombre">${p.nombre ?? ""}</div>
@@ -2622,7 +2622,7 @@ function EtiquetasMasivasModal({
   <div class="bottom">
     ${mostrarPrecio ? `<div class="precio">$${precio}</div>` : ""}
     <div class="qr-wrap">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(codigo)}&margin=0" width="${mm.w <= 50 ? "12mm" : mm.w <= 70 ? "15mm" : "20mm"}" alt="QR" />
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(codigo)}&margin=0" width="${mm.w <= 50 ? "17mm" : mm.w <= 70 ? "22mm" : "28mm"}" alt="QR" />
       <div class="qr-code">${codigo}</div>
     </div>
   </div>
