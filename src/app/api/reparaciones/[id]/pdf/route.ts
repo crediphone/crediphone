@@ -601,10 +601,11 @@ export async function POST(
         y2 += 4;
       }
       // Línea subtotal solo si hay desglose
+      // Nota: y2 es la baseline del texto siguiente — la línea debe ir ANTES de la zona de ascendentes (~2.5mm)
       if (precioManoObra > 0 || precioPiezas > 0) {
         dc(doc, C.grayLine);
         doc.setLineWidth(0.15);
-        doc.line(c2, y2 - 1, c2 + colW, y2 - 1);
+        doc.line(c2, y2 - 3, c2 + colW, y2 - 3);
       }
       doc.setFont("helvetica", "bold");
       tc(doc, C.grayLight);
@@ -631,7 +632,7 @@ export async function POST(
       });
       dc(doc, C.grayLine);
       doc.setLineWidth(0.15);
-      doc.line(c2, y2 - 0.5, c2 + colW, y2 - 0.5);
+      doc.line(c2, y2 - 3, c2 + colW, y2 - 3);
     }
 
     // Cargo de cancelación (siempre visible)
