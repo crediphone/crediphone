@@ -15,7 +15,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   Package, PackageCheck, AlertTriangle, TrendingUp,
   Pencil, Trash2, Search, Plus, Upload, Smartphone, Tag, RefreshCw, QrCode,
-  History, ShoppingCart, Wrench, Warehouse, ChevronRight,
+  History, ShoppingCart, Wrench, Warehouse, ChevronRight, Layers,
   Printer, Minus as MinusIcon, Plus as PlusIcon, CheckSquare, Square, CheckCircle, Zap,
 } from "lucide-react";
 import type { CSSProperties } from "react";
@@ -45,6 +45,7 @@ const TIPOS_MAP = Object.fromEntries(TIPOS_PRODUCTO.map((t) => [t.value, t]));
 
 export default function ProductosPage() {
   const { user } = useAuth();
+  const { distribuidorActivo } = useDistribuidor();
   // admin y super_admin pueden crear productos; vendedores solo editan (por defecto)
   const canCrearProducto = user?.role === "admin" || user?.role === "super_admin";
 
@@ -66,8 +67,20 @@ export default function ProductosPage() {
   const [seleccionados, setSeleccionados]             = useState<Set<string>>(new Set());
   const [etiquetasMasivasOpen, setEtiquetasMasivasOpen] = useState(false);
   const [imprimirTodasOpen, setImprimirTodasOpen]     = useState(false);
+  const [categoriasPage, setCategoriasPage]           = useState<{ id: string; nombre: string }[]>([]);
+  const [filtroCategoriaId, setFiltroCategoriaId]     = useState("todos");
 
   useEffect(() => { fetchProductos(); }, []);
+
+  // Cargar categorías al nivel de página (para badge en tabla y filtro)
+  useEffect(() => {
+    const headers: HeadersInit = {};
+    if (distribuidorActivo?.id) headers["X-Distribuidor-Id"] = distribuidorActivo.id;
+    fetch("/api/categorias", { headers })
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setCategoriasPage(d.data ?? []); })
+      .catch(() => {});
+  }, [distribuidorActivo?.id]);
 
   useEffect(() => {
     let result = productos;
@@ -86,6 +99,9 @@ export default function ProductosPage() {
     } else if (filtroTipo !== "todos") {
       result = result.filter((p) => p.tipo === filtroTipo);
     }
+    if (filtroCategoriaId !== "todos") {
+      result = result.filter((p) => p.categoriaId === filtroCategoriaId);
+    }
     if (filtroStock === "en_stock") {
       result = result.filter((p) => p.stock > 0 && !(p.stockMinimo !== undefined && p.stock <= p.stockMinimo));
     } else if (filtroStock === "bajo") {
@@ -99,7 +115,7 @@ export default function ProductosPage() {
       result = [...result].sort((a, b) => b.stock - a.stock);
     }
     setFilteredProductos(result);
-  }, [searchQuery, filtroTipo, filtroStock, sortStock, productos]);
+  }, [searchQuery, filtroTipo, filtroCategoriaId, filtroStock, sortStock, productos]);
 
   const fetchProductos = async (): Promise<Producto[]> => {
     try {
@@ -284,6 +300,27 @@ export default function ProductosPage() {
           </button>
         </div>
 
+        {/* Filtro por categoría — solo si el distribuidor tiene categorías creadas */}
+        {categoriasPage.length > 0 && (
+          <div className="flex gap-2 flex-wrap items-center">
+            <Layers className="w-4 h-4 flex-shrink-0" style={{ color: "var(--color-text-muted)" }} />
+            <FilterBtn
+              label="Todas"
+              active={filtroCategoriaId === "todos"}
+              onClick={() => setFiltroCategoriaId("todos")}
+            />
+            {categoriasPage.map((c) => (
+              <FilterBtn
+                key={c.id}
+                label={c.nombre}
+                active={filtroCategoriaId === c.id}
+                count={productos.filter((p) => p.categoriaId === c.id).length}
+                onClick={() => setFiltroCategoriaId(filtroCategoriaId === c.id ? "todos" : c.id)}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Filtro por nivel de stock */}
         <div className="flex gap-2 flex-wrap items-center">
           <Warehouse className="w-4 h-4 flex-shrink-0" style={{ color: "var(--color-text-muted)" }} />
@@ -401,6 +438,7 @@ export default function ProductosPage() {
                       onDelete={() => handleDeleteClick(producto)}
                       onPrint={() => setEtiquetaProducto(producto)}
                       seleccionado={seleccionados.has(producto.id)}
+                      categoriaNombre={categoriasPage.find((c) => c.id === producto.categoriaId)?.nombre}
                       onToggleSeleccion={() => {
                         setSeleccionados((prev) => {
                           const next = new Set(prev);
@@ -467,7 +505,7 @@ export default function ProductosPage() {
                 )}
                 {filteredProductos.length !== productos.length && (
                   <button
-                    onClick={() => { setSearchQuery(""); setFiltroTipo("todos"); setFiltroStock("todos"); }}
+                    onClick={() => { setSearchQuery(""); setFiltroTipo("todos"); setFiltroCategoriaId("todos"); setFiltroStock("todos"); }}
                     style={{ color: "var(--color-accent)" }}
                     onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
                     onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
@@ -619,9 +657,9 @@ function StatCard({
 
 // ─── Producto Row ─────────────────────────────────────────────────────────────
 
-function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, onToggleSeleccion }: {
+function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, onToggleSeleccion, categoriaNombre }: {
   producto: Producto; fmt: (n: number) => string; onEdit: () => void; onDelete: () => void; onPrint: () => void;
-  seleccionado?: boolean; onToggleSeleccion?: () => void;
+  seleccionado?: boolean; onToggleSeleccion?: () => void; categoriaNombre?: string;
 }) {
   const [hovered, setHovered] = useState(false);
   const bajo = producto.stockMinimo !== undefined && producto.stock <= producto.stockMinimo && producto.stock > 0;
@@ -695,6 +733,14 @@ function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, o
             style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)", border: "1px solid var(--color-border)" }}
           >
             IMEI/Serie
+          </span>
+        )}
+        {categoriaNombre && (
+          <span
+            className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+            style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", border: "1px solid var(--color-border)" }}
+          >
+            {categoriaNombre}
           </span>
         )}
         {/* Indicador de código asignado o sin código */}
