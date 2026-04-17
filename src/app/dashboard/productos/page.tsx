@@ -69,16 +69,31 @@ export default function ProductosPage() {
   const [imprimirTodasOpen, setImprimirTodasOpen]     = useState(false);
   const [categoriasPage, setCategoriasPage]           = useState<{ id: string; nombre: string }[]>([]);
   const [filtroCategoriaId, setFiltroCategoriaId]     = useState("todos");
+  const [subcategoriasPage, setSubcategoriasPage]     = useState<{ id: string; nombre: string }[]>([]);
+  const [proveedoresPage, setProveedoresPage]         = useState<{ id: string; nombre: string }[]>([]);
+  const [ubicacionesPage, setUbicacionesPage]         = useState<{ id: string; nombre: string; codigo: string }[]>([]);
 
   useEffect(() => { fetchProductos(); }, []);
 
-  // Cargar categorías al nivel de página (para badge en tabla y filtro)
+  // Cargar categorías, subcategorías, proveedores y ubicaciones al nivel de página
   useEffect(() => {
     const headers: HeadersInit = {};
     if (distribuidorActivo?.id) headers["X-Distribuidor-Id"] = distribuidorActivo.id;
     fetch("/api/categorias", { headers })
       .then((r) => r.json())
       .then((d) => { if (d.success) setCategoriasPage(d.data ?? []); })
+      .catch(() => {});
+    fetch("/api/subcategorias", { headers })
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setSubcategoriasPage(d.data ?? []); })
+      .catch(() => {});
+    fetch("/api/proveedores", { headers })
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setProveedoresPage(d.data ?? []); })
+      .catch(() => {});
+    fetch("/api/inventario/ubicaciones", { headers })
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setUbicacionesPage(d.data ?? []); })
       .catch(() => {});
   }, [distribuidorActivo?.id]);
 
@@ -439,6 +454,9 @@ export default function ProductosPage() {
                       onPrint={() => setEtiquetaProducto(producto)}
                       seleccionado={seleccionados.has(producto.id)}
                       categoriaNombre={categoriasPage.find((c) => c.id === producto.categoriaId)?.nombre}
+                      subcategoriaNombre={subcategoriasPage.find((s) => s.id === producto.subcategoriaId)?.nombre}
+                      proveedorNombre={proveedoresPage.find((p) => p.id === producto.proveedorId)?.nombre}
+                      ubicacionNombre={ubicacionesPage.find((u) => u.id === producto.ubicacionId)?.nombre}
                       onToggleSeleccion={() => {
                         setSeleccionados((prev) => {
                           const next = new Set(prev);
@@ -657,9 +675,10 @@ function StatCard({
 
 // ─── Producto Row ─────────────────────────────────────────────────────────────
 
-function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, onToggleSeleccion, categoriaNombre }: {
+function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, onToggleSeleccion, categoriaNombre, subcategoriaNombre, proveedorNombre, ubicacionNombre }: {
   producto: Producto; fmt: (n: number) => string; onEdit: () => void; onDelete: () => void; onPrint: () => void;
   seleccionado?: boolean; onToggleSeleccion?: () => void; categoriaNombre?: string;
+  subcategoriaNombre?: string; proveedorNombre?: string; ubicacionNombre?: string;
 }) {
   const [hovered, setHovered] = useState(false);
   const bajo = producto.stockMinimo !== undefined && producto.stock <= producto.stockMinimo && producto.stock > 0;
@@ -722,9 +741,9 @@ function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, o
         <div className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
           {[producto.marca, producto.modelo].filter(Boolean).join(" · ")}
         </div>
-        {producto.ubicacionFisica && (
+        {(ubicacionNombre || producto.ubicacionFisica) && (
           <div className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-            📍 {producto.ubicacionFisica}
+            📍 {ubicacionNombre || producto.ubicacionFisica}
           </div>
         )}
         {producto.esSerializado && (
@@ -741,7 +760,21 @@ function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, o
             style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", border: "1px solid var(--color-border)" }}
           >
             {categoriaNombre}
+            {subcategoriaNombre && <span style={{ opacity: 0.7 }}> / {subcategoriaNombre}</span>}
           </span>
+        )}
+        {!categoriaNombre && subcategoriaNombre && (
+          <span
+            className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+            style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", border: "1px solid var(--color-border)" }}
+          >
+            {subcategoriaNombre}
+          </span>
+        )}
+        {proveedorNombre && (
+          <div className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+            🏭 {proveedorNombre}
+          </div>
         )}
         {/* Indicador de código asignado o sin código */}
         {(producto.codigoBarras || producto.sku) ? (
