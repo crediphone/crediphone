@@ -164,7 +164,8 @@ export async function PUT(
       ordenActualizada = await cambiarEstadoOrden(
         id,
         body.estado,
-        body.notas
+        body.notas,
+        body.aprobacionPresencial === true
       );
 
       // FASE 10: Notificar automáticamente al cambiar estado
@@ -190,13 +191,39 @@ export async function PUT(
       });
     }
 
+    // Caso 3: Actualizar campos sueltos (fechaEstimadaEntrega, requiereAprobacion)
+    if (body.fechaEstimadaEntrega !== undefined || body.requiereAprobacion !== undefined) {
+      const { userId } = await getAuthContext();
+      if (!userId) {
+        return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
+      }
+      const supabase = createAdminClient();
+      const patchData: Record<string, unknown> = {};
+      if (body.fechaEstimadaEntrega !== undefined) {
+        patchData.fecha_estimada_entrega = body.fechaEstimadaEntrega || null;
+      }
+      if (body.requiereAprobacion !== undefined) {
+        patchData.requiere_aprobacion = body.requiereAprobacion;
+      }
+      const { data, error } = await supabase
+        .from("ordenes_reparacion")
+        .update(patchData)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, data });
+    }
+
     // Si no hay cambios específicos, retornar error
     return NextResponse.json(
       {
         success: false,
         error: "Datos insuficientes",
         message:
-          "Debe proporcionar 'diagnostico' o 'estado' para actualizar la orden",
+          "Debe proporcionar 'diagnostico', 'estado', 'fechaEstimadaEntrega' o 'requiereAprobacion' para actualizar la orden",
       },
       { status: 400 }
     );

@@ -675,7 +675,8 @@ const TRANSICIONES_VALIDAS: Record<EstadoOrdenReparacion, EstadoOrdenReparacion[
 export async function cambiarEstadoOrden(
   ordenId: string,
   nuevoEstado: EstadoOrdenReparacion,
-  notas?: string
+  notas?: string,
+  aprobacionPresencial?: boolean
 ): Promise<OrdenReparacion> {
   const supabase = createAdminClient();
 
@@ -709,6 +710,8 @@ export async function cambiarEstadoOrden(
     updateData.fecha_completado = new Date().toISOString();
   } else if (nuevoEstado === "entregado") {
     updateData.fecha_entregado = new Date().toISOString();
+  } else if (nuevoEstado === "aprobado" && aprobacionPresencial) {
+    updateData.aprobado_por_cliente = true;
   }
 
   if (notas) {

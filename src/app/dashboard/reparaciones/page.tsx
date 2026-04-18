@@ -240,7 +240,8 @@ export default function ReparacionesPage() {
   // Desde la tarjeta: cambio inline de estado
   async function handleCambiarEstadoInline(
     orden: OrdenReparacionDetallada,
-    nuevoEstado: EstadoOrdenReparacion
+    nuevoEstado: EstadoOrdenReparacion,
+    extra?: { aprobacionPresencial?: boolean }
   ) {
     // Estados críticos → abrir modal con confirmación
     if (ESTADOS_CRITICOS.includes(nuevoEstado)) {
@@ -250,19 +251,22 @@ export default function ReparacionesPage() {
     }
     // Transición directa via API
     try {
-      const res = await fetch(`/api/reparaciones/${orden.id}/estado`, {
-        method: "PATCH",
+      const res = await fetch(`/api/reparaciones/${orden.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado: nuevoEstado }),
+        body: JSON.stringify({ estado: nuevoEstado, ...extra }),
       });
       const data = await res.json();
       if (data.success) {
         await fetchOrdenes();
+        return true;
       } else {
         alert(data.error || "Error al cambiar estado");
+        return false;
       }
     } catch {
       alert("Error al cambiar estado");
+      return false;
     }
   }
 

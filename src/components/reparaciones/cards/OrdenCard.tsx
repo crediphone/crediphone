@@ -195,7 +195,7 @@ export interface OrdenCardProps {
   userRole: string;
   onOpenDrawer: (orden: OrdenReparacionDetallada) => void;
   onDiagnostico: (orden: OrdenReparacionDetallada) => void;
-  onCambiarEstado: (orden: OrdenReparacionDetallada, nuevoEstado: EstadoOrdenReparacion) => void;
+  onCambiarEstado: (orden: OrdenReparacionDetallada, nuevoEstado: EstadoOrdenReparacion, extra?: { aprobacionPresencial?: boolean }) => Promise<boolean | undefined> | void;
   onEliminar?: (orden: OrdenReparacionDetallada) => void;
   onRefresh: () => void;
 }
@@ -231,11 +231,14 @@ export function OrdenCard({
   const canDelete = userRole === "super_admin";
   const isTerminada = ["entregado", "cancelado", "no_reparable"].includes(orden.estado);
 
-  // Llama al padre para cambiar estado Y abre modal WA de notificación
-  function handleEstadoChange(nuevoEstado: EstadoOrdenReparacion) {
-    onCambiarEstado(orden, nuevoEstado);
-    setNuevoEstadoWA(nuevoEstado);
-    setModalWAOpen(true);
+  // Llama al padre para cambiar estado; abre modal WA solo si el cambio fue exitoso
+  async function handleEstadoChange(nuevoEstado: EstadoOrdenReparacion, extra?: { aprobacionPresencial?: boolean }) {
+    const result = await onCambiarEstado(orden, nuevoEstado, extra);
+    // result === undefined significa que el padre no devuelve bool (ej. modal crítico)
+    if (result === undefined || result === true) {
+      setNuevoEstadoWA(nuevoEstado);
+      setModalWAOpen(true);
+    }
   }
 
   function formatCurrency(n: number) {

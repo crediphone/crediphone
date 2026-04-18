@@ -32,6 +32,7 @@ export interface AccionOrden {
   payload?: {
     estado?: EstadoOrdenReparacion;
     tab?: string;
+    aprobacionPresencial?: boolean;
   };
   variant: "primary" | "accent" | "success" | "warning" | "secondary" | "danger";
   soloAdmin?: boolean; // si true, solo admin/super_admin pueden verla
@@ -99,9 +100,8 @@ function getAcciones(
           label: "Cliente aprobó (presencial)",
           icon: CheckCircle2,
           tipo: "cambiar_estado",
-          payload: { estado: "aprobado" },
+          payload: { estado: "aprobado", aprobacionPresencial: true },
           variant: "success",
-          soloAdmin: true,
         },
         {
           id: "enviar_pres_wa",
@@ -111,7 +111,7 @@ function getAcciones(
           payload: { tab: "presupuesto" },
           variant: "warning",
         },
-      ].filter((a) => !a.soloAdmin || esAdmin) as AccionOrden[];
+      ] as AccionOrden[];
 
     case "aprobado":
       return [
@@ -287,7 +287,7 @@ function getButtonStyle(variant: AccionOrden["variant"]) {
 interface AccionesOrdenPanelProps {
   orden: OrdenReparacionDetallada;
   userRole: string;
-  onCambiarEstado: (estado: EstadoOrdenReparacion) => void;
+  onCambiarEstado: (estado: EstadoOrdenReparacion, extra?: { aprobacionPresencial?: boolean }) => void;
   onAbrirDiagnostico: () => void;
   onAbrirDrawerTab: (tab: string) => void;
   onNuevoDiagnostico: () => void;
@@ -317,7 +317,8 @@ export function AccionesOrdenPanel({
           // Interceptar: mostrar checklist QA antes de confirmar
           setMostrarQA(true);
         } else if (accion.payload?.estado) {
-          onCambiarEstado(accion.payload.estado);
+          const extra = accion.payload.aprobacionPresencial ? { aprobacionPresencial: true } : undefined;
+          onCambiarEstado(accion.payload.estado, extra);
         }
         break;
       case "abrir_diagnostico":

@@ -25,6 +25,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { TimelineEstados } from "@/components/reparaciones/TimelineEstados";
+import { BarraProgresoReparacion } from "@/components/tracking/BarraProgresoReparacion";
 import type { EstadoOrdenReparacion, ParteReemplazada } from "@/types";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -553,11 +554,10 @@ export default function TrackingPublicoPage() {
   const estadoInfo = getEstadoInfo(orden.estado);
   const StatusIcon = estadoInfo.icon;
 
-  const mostrarCosto =
-    orden.estado !== "presupuesto" &&
-    orden.estado !== "recibido" &&
-    orden.estado !== "diagnostico" &&
-    orden.costoTotal > 0;
+  // Costo: visible siempre que haya monto; estado "presupuesto" ya tiene su propio panel de autorización
+  const tieneCosto = orden.costoTotal > 0;
+  const costoEsEstimado = ["recibido", "diagnostico"].includes(orden.estado);
+  const mostrarCosto = tieneCosto && orden.estado !== "presupuesto";
 
   return (
     <div
@@ -691,6 +691,18 @@ export default function TrackingPublicoPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── Barra de progreso de 7 pasos ─────────────────── */}
+        <div
+          className="rounded-2xl overflow-hidden px-4"
+          style={{
+            background: "var(--color-bg-surface)",
+            border: "1px solid var(--color-border-subtle)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <BarraProgresoReparacion estado={orden.estado} />
         </div>
 
         {/* ── Información del dispositivo ───────────────────── */}
@@ -1155,17 +1167,27 @@ export default function TrackingPublicoPage() {
             </div>
           )}
 
-        {/* ── Costo total (estados post-presupuesto) ────────── */}
+        {/* ── Costo total ───────────────────────────────────── */}
         {mostrarCosto && (
           <SectionCard>
             <div className="flex items-center justify-between">
               <div>
-                <p
-                  className="text-xs font-semibold uppercase tracking-wide mb-0.5"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  Costo Total
-                </p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    Costo Total
+                  </p>
+                  {costoEsEstimado && (
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded font-medium"
+                      style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)" }}
+                    >
+                      estimado
+                    </span>
+                  )}
+                </div>
                 <p
                   className="text-3xl font-bold tabular-nums"
                   style={{
@@ -1175,15 +1197,40 @@ export default function TrackingPublicoPage() {
                 >
                   {formatCurrency(orden.costoTotal)}
                 </p>
+                {costoEsEstimado && (
+                  <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>
+                    El técnico está revisando tu equipo. El monto puede ajustarse.
+                  </p>
+                )}
               </div>
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ background: "var(--color-success-bg)" }}
+                style={{ background: costoEsEstimado ? "var(--color-warning-bg)" : "var(--color-success-bg)" }}
               >
                 <CheckCircle2
                   className="w-6 h-6"
-                  style={{ color: "var(--color-success)" }}
+                  style={{ color: costoEsEstimado ? "var(--color-warning)" : "var(--color-success)" }}
                 />
+              </div>
+            </div>
+          </SectionCard>
+        )}
+
+        {/* Sin costo aún — cuando no hay presupuesto y no hay costo */}
+        {!tieneCosto && !["presupuesto", "cancelado", "no_reparable"].includes(orden.estado) && (
+          <SectionCard>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: "var(--color-info-bg)" }}
+              >
+                <Search className="w-5 h-5" style={{ color: "var(--color-info)" }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Por cotizar</p>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  El técnico está revisando tu equipo. Recibirás el presupuesto pronto.
+                </p>
               </div>
             </div>
           </SectionCard>

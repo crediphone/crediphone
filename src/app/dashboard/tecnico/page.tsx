@@ -129,27 +129,31 @@ export default function PanelTecnicoPage() {
 
   async function handleCambiarEstadoInline(
     orden: OrdenReparacionDetallada,
-    nuevoEstado: EstadoOrdenReparacion
-  ) {
+    nuevoEstado: EstadoOrdenReparacion,
+    extra?: { aprobacionPresencial?: boolean }
+  ): Promise<boolean | undefined> {
     if (ESTADOS_CRITICOS.includes(nuevoEstado)) {
       setOrdenParaEstado(orden);
       setModalCambiarEstadoOpen(true);
       return;
     }
     try {
-      const res = await fetch(`/api/reparaciones/${orden.id}/estado`, {
-        method: "PATCH",
+      const res = await fetch(`/api/reparaciones/${orden.id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado: nuevoEstado }),
+        body: JSON.stringify({ estado: nuevoEstado, ...extra }),
       });
       const data = await res.json();
       if (data.success) {
         await cargarOrdenes();
+        return true;
       } else {
         alert(data.error || "Error al cambiar estado");
+        return false;
       }
     } catch {
       alert("Error al cambiar estado");
+      return false;
     }
   }
 

@@ -72,6 +72,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [modalPresupuestoOpen, setModalPresupuestoOpen] = useState(false);
   const [modalCambiarEstadoOpen, setModalCambiarEstadoOpen] = useState(false);
   const [estadoInicialModal, setEstadoInicialModal] = useState<import("@/types").EstadoOrdenReparacion | undefined>(undefined);
+  const [editingFecha, setEditingFecha] = useState(false);
+  const [nuevaFecha, setNuevaFecha] = useState("");
+  const [savingFecha, setSavingFecha] = useState(false);
+  const [savingAprobacion, setSavingAprobacion] = useState(false);
 
   /** Abre el modal de cambio de estado, opcionalmente pre-seleccionando un destino */
   function abrirCambiarEstado(estadoDestino?: import("@/types").EstadoOrdenReparacion) {
@@ -132,6 +136,41 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   function handleSuccess() {
     fetchOrden();
     onRefresh();
+  }
+
+  async function guardarFechaEstimada() {
+    if (!orden) return;
+    setSavingFecha(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fechaEstimadaEntrega: nuevaFecha || null }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditingFecha(false);
+        fetchOrden();
+      }
+    } finally {
+      setSavingFecha(false);
+    }
+  }
+
+  async function toggleRequiereAprobacion() {
+    if (!orden) return;
+    setSavingAprobacion(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requiereAprobacion: !orden.requiereAprobacion }),
+      });
+      const data = await res.json();
+      if (data.success) fetchOrden();
+    } finally {
+      setSavingAprobacion(false);
+    }
   }
 
   const formatFecha = (fecha: Date | string | null | undefined) => {
@@ -281,6 +320,30 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
               ))}
           </div>
         </Card>
+
+        {/* Toggle requiereAprobacion — solo relevante antes de aprobar */}
+        {["recibido", "diagnostico", "presupuesto"].includes(orden.estado) && (
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border-subtle)" }}>
+            <div>
+              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>Requiere aprobación del cliente</p>
+              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Si está activo, la reparación no avanza sin que el cliente apruebe</p>
+            </div>
+            <button
+              onClick={toggleRequiereAprobacion}
+              disabled={savingAprobacion}
+              className="w-11 h-6 rounded-full transition-colors flex-shrink-0 ml-3"
+              style={{
+                background: orden.requiereAprobacion ? "var(--color-accent)" : "var(--color-border-strong)",
+                position: "relative",
+              }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                style={{ transform: orden.requiereAprobacion ? "translateX(20px)" : "translateX(2px)" }}
+              />
+            </button>
+          </div>
+        )}
 
         {orden.cuentasDispositivo && Array.isArray(orden.cuentasDispositivo) && orden.cuentasDispositivo.length > 0 && (
           <Card title="Cuentas del Dispositivo">
@@ -637,10 +700,37 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
 
             {/* Fecha estimada / vencida */}
             <div className="text-right flex-shrink-0">
-              {overdueAlert ? (
+              {editingFecha ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={nuevaFecha}
+                    onChange={(e) => setNuevaFecha(e.target.value)}
+                    className="text-xs rounded px-1.5 py-1"
+                    style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)" }}
+                  />
+                  <button
+                    onClick={guardarFechaEstimada}
+                    disabled={savingFecha}
+                    className="text-xs px-2 py-1 rounded font-semibold"
+                    style={{ background: "var(--color-accent)", color: "#fff" }}
+                  >
+                    {savingFecha ? "..." : "OK"}
+                  </button>
+                  <button
+                    onClick={() => setEditingFecha(false)}
+                    className="text-xs px-1.5 py-1 rounded"
+                    style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : overdueAlert ? (
                 <div
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg cursor-pointer"
                   style={{ background: "var(--color-danger-bg)", border: "1px solid var(--color-danger)" }}
+                  onClick={() => { setNuevaFecha(orden.fechaEstimadaEntrega ? new Date(orden.fechaEstimadaEntrega).toISOString().split("T")[0] : ""); setEditingFecha(true); }}
+                  title="Cambiar fecha estimada"
                 >
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-danger)" }} />
                   <div>
@@ -651,23 +741,82 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                   </div>
                 </div>
               ) : orden.fechaEstimadaEntrega ? (
-                <div>
-                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Entrega est.</p>
-                  <p className="text-xs font-medium" style={{ color: "var(--color-accent)" }}>
-                    {formatFecha(orden.fechaEstimadaEntrega)}
-                  </p>
+                <div
+                  className="flex items-center gap-1 cursor-pointer"
+                  onClick={() => { setNuevaFecha(new Date(orden.fechaEstimadaEntrega!).toISOString().split("T")[0]); setEditingFecha(true); }}
+                  title="Cambiar fecha estimada"
+                >
+                  <div>
+                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Entrega est.</p>
+                    <p className="text-xs font-medium" style={{ color: "var(--color-accent)" }}>
+                      {formatFecha(orden.fechaEstimadaEntrega)}
+                    </p>
+                  </div>
+                  <Edit className="w-3 h-3" style={{ color: "var(--color-text-muted)" }} />
                 </div>
               ) : (
-                <div>
-                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Recibido</p>
-                  <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
-                    {formatFecha(orden.fechaRecepcion)}
-                  </p>
+                <div
+                  className="flex items-center gap-1 cursor-pointer"
+                  onClick={() => { setNuevaFecha(""); setEditingFecha(true); }}
+                  title="Agregar fecha estimada"
+                >
+                  <div>
+                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Recibido</p>
+                    <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                      {formatFecha(orden.fechaRecepcion)}
+                    </p>
+                  </div>
+                  <Edit className="w-3 h-3" style={{ color: "var(--color-text-muted)" }} />
                 </div>
               )}
             </div>
           </div>
         )}
+
+        {/* ── Financial summary strip ── */}
+        {orden && (() => {
+          const total = orden.costoTotal ?? orden.presupuestoTotal ?? 0;
+          const anticipos = orden.totalAnticipos ?? 0;
+          const saldo = total - anticipos;
+          const tieneDatos = total > 0 || anticipos > 0;
+          if (!tieneDatos) return null;
+          const fmt = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
+          return (
+            <div
+              className="px-4 py-2 flex items-center gap-4 flex-shrink-0 flex-wrap"
+              style={{
+                background: saldo > 0 ? "var(--color-warning-bg)" : "var(--color-bg-surface)",
+                borderBottom: "1px solid var(--color-border-subtle)",
+              }}
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <DollarSign className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-text-muted)" }} />
+                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>Total:</span>
+                <span className="text-xs font-bold font-mono" style={{ color: "var(--color-text-primary)" }}>{fmt(total)}</span>
+                {!orden.costoTotal && orden.presupuestoTotal && (
+                  <span className="text-xs px-1 rounded" style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)" }}>est.</span>
+                )}
+              </div>
+              {anticipos > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>Anticipo:</span>
+                  <span className="text-xs font-mono" style={{ color: "var(--color-success)" }}>−{fmt(anticipos)}</span>
+                </div>
+              )}
+              {saldo > 0 && (
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>Saldo:</span>
+                  <span className="text-sm font-bold font-mono" style={{ color: "var(--color-warning-text)" }}>{fmt(saldo)}</span>
+                </div>
+              )}
+              {saldo <= 0 && anticipos > 0 && (
+                <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                  Pagado ✓
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Overdue + listo_entrega: WhatsApp promotion banner ── */}
         {overdueAlert && orden.clienteTelefono && orden.estado === "listo_entrega" && (
