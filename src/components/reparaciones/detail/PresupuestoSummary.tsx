@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/Card";
-import type { OrdenReparacionDetallada, ParteReemplazada } from "@/types";
+import type { OrdenReparacionDetallada } from "@/types";
 
 interface PresupuestoSummaryProps {
   orden: OrdenReparacionDetallada;
@@ -26,6 +26,45 @@ export function PresupuestoSummary({ orden }: PresupuestoSummaryProps) {
 
   return (
     <div className="space-y-6">
+      {/* Cotización inicial (piezas al crear la orden) */}
+      {orden.piezasCotizacion && orden.piezasCotizacion.length > 0 && (
+        <Card>
+          <div className="flex items-center gap-2 mb-3">
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: "var(--color-warning-bg, #fffbeb)", color: "var(--color-warning, #92400e)", border: "1px solid var(--color-warning-border, #fde68a)" }}
+            >
+              Cotización de apertura
+            </span>
+            {orden.partesReemplazadas && orden.partesReemplazadas.length > 0 && (
+              <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                (referencia — ver piezas instaladas abajo)
+              </span>
+            )}
+          </div>
+          <table className="min-w-full">
+            <thead>
+              <tr>
+                <th className="pb-1 text-left text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Pieza</th>
+                <th className="pb-1 text-left text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Cant.</th>
+                <th className="pb-1 text-right text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Precio unit.</th>
+                <th className="pb-1 text-right text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orden.piezasCotizacion.map((p, i) => (
+                <tr key={i} style={{ borderTop: "1px solid var(--color-border-subtle)" }}>
+                  <td className="py-1.5 text-sm pr-2" style={{ color: "var(--color-text-primary)" }}>{p.nombre}</td>
+                  <td className="py-1.5 text-sm" style={{ color: "var(--color-text-secondary)" }}>{p.cantidad}</td>
+                  <td className="py-1.5 text-sm text-right" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-data)" }}>{formatCurrency(p.precioUnitario)}</td>
+                  <td className="py-1.5 text-sm text-right font-medium" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>{formatCurrency(p.precioTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
       {/* Partes Reemplazadas */}
       {orden.partesReemplazadas && orden.partesReemplazadas.length > 0 && (
         <Card title="Partes a Reemplazar">

@@ -8,6 +8,7 @@ import { ProductCategoryGrid } from "@/components/pos/ProductCategoryGrid";
 import { ShoppingCart, CartItem } from "@/components/pos/ShoppingCart";
 import { ServiciosPOSPanel, ServicioPOSItem } from "@/components/pos/ServiciosPOSPanel";
 import { ReparacionesPOSPanel } from "@/components/pos/ReparacionesPOSPanel";
+import { BolsaVirtualPanel } from "@/components/pos/BolsaVirtualPanel";
 import { KitsPOSPanel } from "@/components/pos/KitsPOSPanel";
 import { PaymentMethodSelector } from "@/components/pos/PaymentMethodSelector";
 import { ReciboModal } from "@/components/pos/ReciboModal";
@@ -15,7 +16,7 @@ import { DescuentoPOS } from "@/components/pos/DescuentoPOS";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Tag, Wrench, Package2, UserCheck, Clock as ClockIn } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Tag, Wrench, Package2, UserCheck, Clock as ClockIn, ShoppingBag } from "lucide-react";
 import { generarReporteX, abrirReporte } from "@/lib/utils/reportes";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { OfflineBanner } from "@/components/pos/OfflineBanner";
@@ -109,6 +110,10 @@ export default function POSPage() {
   // FASE 36/41/61: Sección activa del panel izquierdo
   const [posSection, setPosSection] = useState<"productos" | "servicios" | "reparaciones" | "kits">("productos");
 
+  // Bolsa Virtual
+  const [showBolsaVirtual, setShowBolsaVirtual] = useState(false);
+  const [bolsaTotal, setBolsaTotal] = useState(0);
+
   // Panel extras compacto: qué sección está expandida (null = todas cerradas)
   const [extrasPanel, setExtrasPanel] = useState<"descuento" | "cliente" | "notas" | null>(null);
   const toggleExtras = (panel: "descuento" | "cliente" | "notas") =>
@@ -141,6 +146,12 @@ export default function POSPage() {
       fetchSesionActiva();
       fetchEstadisticas();
       fetchAsistenciaActiva();
+      // Cargar total bolsa virtual para badge
+      fetch("/api/pos/reparaciones-activas?resumen=true")
+        .then((r) => r.json())
+        .then((d) => { if (d.success) setBolsaTotal(d.data.totalBolsa || 0); })
+        .catch(() => {});
+
       // PO2: cargar promociones activas
       const now = new Date();
       fetch("/api/promociones")
@@ -1224,6 +1235,25 @@ export default function POSPage() {
                 Abrir Turno
               </Button>
             )}
+            {/* Bolsa Virtual — anticipos de reparaciones */}
+            <button
+              onClick={() => setShowBolsaVirtual(true)}
+              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium"
+              style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}
+              title="Bolsa Virtual de Reparaciones"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span className="hidden sm:inline">Bolsa</span>
+              {bolsaTotal > 0 && (
+                <span
+                  className="absolute -top-1.5 -right-1.5 text-xs font-bold px-1.5 py-0.5 rounded-full leading-none"
+                  style={{ background: "var(--color-accent)", color: "#fff", fontSize: "0.65rem" }}
+                >
+                  {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(bolsaTotal)}
+                </span>
+              )}
+            </button>
+
             <Button
               variant="secondary"
               onClick={() => router.push("/dashboard/pos/historial")}
@@ -1752,6 +1782,19 @@ export default function POSPage() {
           )}
         </div>
       </div>
+
+      {/* Bolsa Virtual — panel lateral */}
+      {showBolsaVirtual && (
+        <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setShowBolsaVirtual(false)}>
+          <div
+            className="w-full max-w-sm h-full overflow-hidden flex flex-col"
+            style={{ background: "var(--color-bg-surface)", boxShadow: "var(--shadow-xl)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <BolsaVirtualPanel onClose={() => setShowBolsaVirtual(false)} />
+          </div>
+        </div>
+      )}
 
       {/* Recibo Modal */}
       {ventaCompletada && (

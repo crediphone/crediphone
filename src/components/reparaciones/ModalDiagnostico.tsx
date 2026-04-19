@@ -31,8 +31,14 @@ export function ModalDiagnostico({
   const [diagnosticoGuardado, setDiagnosticoGuardado] = useState(false);
   const [ordenActualizada, setOrdenActualizada] = useState<OrdenReparacionDetallada | null>(null);
   const [cotizacionPreCargada, setCotizacionPreCargada] = useState(false);
+  const [cotizacionPiezasPreCargadas, setCotizacionPiezasPreCargadas] = useState(false);
   const [mostrarNuevoProblema, setMostrarNuevoProblema] = useState(false);
+  const [mostrarFormRefaccion, setMostrarFormRefaccion] = useState(false);
+  const [nuevaRefaccionNombre, setNuevaRefaccionNombre] = useState("");
+  const [nuevaRefaccionPrecio, setNuevaRefaccionPrecio] = useState("");
+  const [creandoRefaccion, setCreandoRefaccion] = useState(false);
   const preloadedRef = useRef(false);
+  const piezasPreloadRef = useRef(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -78,6 +84,27 @@ export function ModalDiagnostico({
         requiereAprobacion: false,
       }));
     }
+  }, [isOpen, orden]);
+
+  // Pre-cargar piezas cotizadas como partes editables (si no hay diagnóstico previo)
+  useEffect(() => {
+    if (!isOpen || piezasPreloadRef.current) return;
+    // Si ya hay partes reales guardadas, no sobrescribir
+    if (orden?.partesReemplazadas && orden.partesReemplazadas.length > 0) {
+      piezasPreloadRef.current = true;
+      return;
+    }
+    const piezasCot = orden?.piezasCotizacion;
+    if (piezasCot && piezasCot.length > 0) {
+      piezasPreloadRef.current = true;
+      setPartes(piezasCot.map((p) => ({
+        parte: p.nombre,
+        costo: p.precioUnitario,
+        cantidad: p.cantidad,
+      })));
+      setCotizacionPiezasPreCargadas(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, orden]);
 
   // Cargar sugerencias de piezas/servicios cuando se abre el modal
@@ -191,6 +218,36 @@ export function ModalDiagnostico({
     }
   }
 
+  async function handleCrearRefaccion() {
+    const nombre = nuevaRefaccionNombre.trim();
+    const precio = parseFloat(nuevaRefaccionPrecio) || 0;
+    if (!nombre) return;
+    try {
+      setCreandoRefaccion(true);
+      const res = await fetch("/api/productos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre, precio, tipo: "pieza_reparacion", stock: 0 }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPartes((prev) => [
+          ...prev.filter((p) => p.parte.trim() !== "" || p.costo > 0),
+          { parte: nombre, costo: precio, cantidad: 1, productoId: data.data?.id },
+        ]);
+        setMostrarFormRefaccion(false);
+        setNuevaRefaccionNombre("");
+        setNuevaRefaccionPrecio("");
+      } else {
+        alert(`Error al crear refacción: ${data.error || "Desconocido"}`);
+      }
+    } catch {
+      alert("Error de conexión al crear refacción");
+    } finally {
+      setCreandoRefaccion(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -271,8 +328,13 @@ export function ModalDiagnostico({
 
   function resetForm() {
     preloadedRef.current = false;
+    piezasPreloadRef.current = false;
     setCotizacionPreCargada(false);
+    setCotizacionPiezasPreCargadas(false);
     setMostrarNuevoProblema(false);
+    setMostrarFormRefaccion(false);
+    setNuevaRefaccionNombre("");
+    setNuevaRefaccionPrecio("");
     setFormData({
       diagnosticoTecnico: "",
       costoReparacion: 0,
@@ -360,6 +422,19 @@ export function ModalDiagnostico({
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Banner: piezas de cotización pre-cargadas */}
+        {cotizacionPiezasPreCargadas && !diagnosticoGuardado && (
+          <div className="rounded-lg px-4 py-3 flex items-center gap-2" style={{ background: "var(--color-warning-bg, #fffbeb)", border: "1px solid var(--color-warning, #d97706)" }}>
+            <span className="text-sm">📋</span>
+            <span className="text-sm font-semibold" style={{ color: "var(--color-warning-text, #92400e)" }}>
+              Piezas pre-cargadas desde la cotización inicial
+            </span>
+            <span className="text-xs" style={{ color: "var(--color-warning, #d97706)" }}>
+              — edítalas si cambió algo
+            </span>
           </div>
         )}
 
@@ -603,6 +678,68 @@ export function ModalDiagnostico({
               </div>
             ))}
           </div>
+
+          {/* Botón / form inline para crear nueva refacción al catálogo */}
+          {!diagnosticoGuardado && (
+            <div className="mt-2">
+              {!mostrarFormRefaccion ? (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs font-medium"
+                  style={{ color: "var(--color-accent)" }}
+                  onClick={() => setMostrarFormRefaccion(true)}
+                >
+                  <Plus className="w-3 h-3" />
+                  Nueva refacción al catálogo
+                </button>
+              ) : (
+                <div className="rounded-lg p-3 space-y-2" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                  <p className="text-xs font-semibold" style={{ color: "var(--color-text-secondary)" }}>Crear nueva refacción en catálogo</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <input
+                      type="text"
+                      placeholder="Nombre de la pieza"
+                      value={nuevaRefaccionNombre}
+                      onChange={(e) => setNuevaRefaccionNombre(e.target.value)}
+                      className="flex-1 px-2 py-1.5 rounded text-xs focus:outline-none"
+                      style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)", minWidth: "140px" }}
+                    />
+                    <div className="relative">
+                      <span className="absolute left-2 top-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
+                      <input
+                        type="number"
+                        placeholder="Precio"
+                        value={nuevaRefaccionPrecio}
+                        onChange={(e) => setNuevaRefaccionPrecio(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        min="0"
+                        step="0.01"
+                        className="w-24 pl-5 pr-2 py-1.5 rounded text-xs focus:outline-none"
+                        style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={creandoRefaccion || !nuevaRefaccionNombre.trim()}
+                      onClick={handleCrearRefaccion}
+                      className="px-3 py-1.5 rounded text-xs font-medium"
+                      style={{ background: "var(--color-accent)", color: "white", opacity: (!nuevaRefaccionNombre.trim() || creandoRefaccion) ? "0.6" : "1" }}
+                    >
+                      {creandoRefaccion ? "..." : "Guardar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMostrarFormRefaccion(false); setNuevaRefaccionNombre(""); setNuevaRefaccionPrecio(""); }}
+                      className="px-2 py-1.5 rounded text-xs"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Total de partes */}
           <div className="mt-3 flex justify-end">

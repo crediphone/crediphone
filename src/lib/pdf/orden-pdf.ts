@@ -334,7 +334,7 @@ export async function generarOrdenPDF(
   }
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.5);
+  doc.setFontSize(6.5);
   tc(doc, C.grayLight);
   doc.text(
     "CREDIPHONE SOLUTIONS S.A. DE C.V.  ·  Prol. Gral. Francisco Villa 218A, Durango, Dgo.  ·  Tel: 618 124 5391 / 618 324 0200  ·  RFC: CAVT870614Q13  ·  RESICO",
@@ -342,8 +342,7 @@ export async function generarOrdenPDF(
   );
 
   tc(doc, C.gray);
-  y += 46;
-  y = hLine(doc, y, true);
+  y += 44;
 
   /* ── 2. CLIENTE | DISPOSITIVO ─────────────────────────────────────────── */
   const colW = CW / 2 - 2;
@@ -747,7 +746,7 @@ export async function generarOrdenPDF(
   y = hLine(doc, y, true);
 
   /* ── 6. FIRMAS ───────────────────────────────────────────────────────── */
-  y = maybeBreak(doc, y, 60);
+  y = maybeBreak(doc, y, 38);
   y += 1;
 
   doc.setFont("helvetica", "bold");

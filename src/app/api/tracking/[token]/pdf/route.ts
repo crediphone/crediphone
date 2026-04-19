@@ -65,7 +65,7 @@ export async function GET(
       .single();
     const folio = orden?.folio ?? trackingData.orden_id;
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="Orden-${folio}.pdf"`,
