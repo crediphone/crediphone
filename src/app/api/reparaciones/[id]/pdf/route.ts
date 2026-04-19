@@ -12,13 +12,12 @@ import QRCode from "qrcode";
 
 const PW = 216;
 const PH = 279;
-const ML = 11;
-const MR = 11;
-const CW = PW - ML - MR; // 194 mm
+const ML = 5;
+const MR = 5;
+const CW = PW - ML - MR; // 206 mm
 
-// Zona segura de contenido (footer solo texto = 20 mm)
-const FOOTER_H    = 20;
-const CONTENT_MAX = PH - FOOTER_H; // ≈ 259 mm
+// Zona segura de contenido (sin footer — info de empresa en header)
+const CONTENT_MAX = PH - 5; // ≈ 274 mm
 
 /** Si el contenido siguiente no cabe, añade página nueva y reinicia Y */
 function maybeBreak(doc: jsPDF, y: number, needed: number): number {
@@ -372,9 +371,18 @@ export async function POST(
       doc.text("★ EN GARANTÍA", infoX, infoY);
     }
 
+    // Línea de empresa compacta (reemplaza al footer)
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5.5);
+    tc(doc, C.grayLight);
+    doc.text(
+      "CREDIPHONE SOLUTIONS S.A. DE C.V.  ·  Prol. Gral. Francisco Villa 218A, Durango, Dgo.  ·  Tel: 618 124 5391 / 618 324 0200  ·  RFC: CAVT870614Q13  ·  RESICO",
+      ML + 5, infoY + 5, { maxWidth: hdrContentW }
+    );
+
     tc(doc, C.gray);
-    // y avanza lo suficiente para cubrir el QR grande (30mm) + sus etiquetas (8mm) + margen
-    y += 40;
+    // y avanza lo suficiente para cubrir el QR grande (30mm) + sus etiquetas (8mm) + info empresa + margen
+    y += 46;
     y = hLine(doc, y, true);
 
     /* ╔══════════════════════════════════════════════════╗
@@ -482,208 +490,189 @@ export async function POST(
     y = Math.max(y1, y2) + 1;
     y = hLine(doc, y);
 
-    /* ╔══════════════════════════════════════════════════╗
-       ║  3B. DIAGNÓSTICO TÉCNICO | TÉCNICO ASIGNADO      ║
-       ╚══════════════════════════════════════════════════╝ */
+    /* ╔══════════════════════════════════════════════════════════════════════╗
+       ║  3B+4. TÉCNICO · DIAGNÓSTICO · ESTADO FÍSICO | PRESUPUESTO         ║
+       ╚══════════════════════════════════════════════════════════════════════╝ */
     {
       const tec = orden.tecnico as Record<string, string> | null;
       const tecNombre = tec ? (tec.name || "").trim() : "";
       const diagTexto = (orden.diagnostico_tecnico || "").trim();
+      const efTexto = renderEstadoFisico(orden.estado_fisico_dispositivo);
 
-      if (diagTexto || tecNombre) {
-        y = maybeBreak(doc, y, 22);
-        y1 = y + 1; y2 = y + 1;
+      y = maybeBreak(doc, y, 22);
+      y1 = y + 1; y2 = y + 1;
 
-        if (diagTexto) {
-          y1 = sectionLabel(doc, "Diagnóstico Técnico", c1, y1);
+      // ── Izquierda: Técnico ────────────────────────────────────────────────
+      if (tecNombre) {
+        y1 = sectionLabel(doc, "Técnico Responsable", c1, y1);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        tc(doc, C.gray);
+        doc.text(tecNombre, c1, y1);
+        y1 += 5;
+
+        if (garantiaRecord) {
+          const gVenc = garantiaRecord.fecha_vencimiento
+            ? new Date(garantiaRecord.fecha_vencimiento).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })
+            : "";
           doc.setFont("helvetica", "normal");
-          doc.setFontSize(7.5);
-          tc(doc, C.gray);
-          const diagLines = doc.splitTextToSize(diagTexto, colW);
-          doc.text(diagLines, c1, y1);
-          y1 += diagLines.length * 4 + 1;
+          doc.setFontSize(7);
+          tc(doc, C.green);
+          doc.text(`Garantía ${garantiaRecord.dias_garantia ?? 90} días — vence: ${gVenc}`, c1, y1);
+          y1 += 4;
         }
-
-        if (tecNombre) {
-          y2 = sectionLabel(doc, "Técnico Responsable", c2, y2);
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(8);
-          tc(doc, C.gray);
-          doc.text(tecNombre, c2, y2);
-          y2 += 5;
-
-          // Garantía vigente (si existe)
-          if (garantiaRecord) {
-            const gVenc = garantiaRecord.fecha_vencimiento
-              ? new Date(garantiaRecord.fecha_vencimiento).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })
-              : "";
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(7);
-            tc(doc, C.green);
-            doc.text(`Garantía ${garantiaRecord.dias_garantia ?? 90} días — vence: ${gVenc}`, c2, y2);
-            y2 += 4;
-          }
-        }
-
-        tc(doc, C.gray);
-        doc.setFont("helvetica", "normal");
-        y = Math.max(y1, y2) + 1;
-        y = hLine(doc, y);
       }
-    }
 
-    /* ╔══════════════════════════════════════════════════╗
-       ║  4. ESTADO FÍSICO | ACCESO + PRESUPUESTO         ║
-       ╚══════════════════════════════════════════════════╝ */
-    y1 = y + 1; y2 = y + 1;
+      // ── Izquierda: Diagnóstico ────────────────────────────────────────────
+      if (diagTexto) {
+        y1 = sectionLabel(doc, "Diagnóstico Técnico", c1, y1);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        tc(doc, C.gray);
+        const diagLines = doc.splitTextToSize(diagTexto, colW);
+        doc.text(diagLines, c1, y1);
+        y1 += diagLines.length * 4 + 1;
+      }
 
-    // Estado físico — izquierda (fix del [object Object])
-    const efTexto = renderEstadoFisico(orden.estado_fisico_dispositivo);
-    if (efTexto) {
-      y1 = sectionLabel(doc, "Estado Físico del Dispositivo", c1, y1);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      tc(doc, C.gray);
-      const efLines = doc.splitTextToSize(efTexto, colW);
-      doc.text(efLines, c1, y1);
-      y1 += efLines.length * 3.8 + 1;
-    }
+      // ── Izquierda: Estado Físico ──────────────────────────────────────────
+      if (efTexto) {
+        y1 = sectionLabel(doc, "Estado Físico del Dispositivo", c1, y1);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        tc(doc, C.gray);
+        const efLines = doc.splitTextToSize(efTexto, colW);
+        doc.text(efLines, c1, y1);
+        y1 += efLines.length * 3.8 + 1;
+      }
 
-    // Acceso al dispositivo
-    if (orden.patron_desbloqueo || orden.password_dispositivo) {
-      y1 = sectionLabel(doc, "Acceso al Dispositivo", c1, y1);
-      if (orden.patron_desbloqueo)    y1 = dataRow(doc, "Patrón:",     orden.patron_desbloqueo,    c1, y1, colW);
-      if (orden.password_dispositivo) y1 = dataRow(doc, "Contraseña:", orden.password_dispositivo, c1, y1, colW);
-    }
+      // ── Izquierda: Acceso al Dispositivo ─────────────────────────────────
+      if (orden.patron_desbloqueo || orden.password_dispositivo) {
+        y1 = sectionLabel(doc, "Acceso al Dispositivo", c1, y1);
+        if (orden.patron_desbloqueo)    y1 = dataRow(doc, "Patrón:",     orden.patron_desbloqueo,    c1, y1, colW);
+        if (orden.password_dispositivo) y1 = dataRow(doc, "Contraseña:", orden.password_dispositivo, c1, y1, colW);
+      }
 
-    // Presupuesto — derecha
-    // Determinar si el presupuesto es estimado (sin piezas reales) o definitivo (con piezas)
-    const tienepiézasReales = piezas && piezas.length > 0;
-    const labelPresupuesto = tienepiézasReales ? "Presupuesto / Anticipos" : "Cotización Estimada / Anticipos";
-    y2 = sectionLabel(doc, labelPresupuesto, c2, y2);
+      // ── Derecha: Presupuesto ──────────────────────────────────────────────
+      // Determinar si el presupuesto es estimado (sin piezas reales) o definitivo (con piezas)
+      const tienepiézasReales = piezas && piezas.length > 0;
+      const labelPresupuesto = tienepiézasReales ? "Presupuesto / Anticipos" : "Cotización Estimada / Anticipos";
+      y2 = sectionLabel(doc, labelPresupuesto, c2, y2);
 
-    if (!tienepiézasReales && precioTotal > 0) {
-      // Aviso de estimado
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(6.5);
-      tc(doc, C.amber);
-      doc.text("* Presupuesto estimado — sujeto a cambio al confirmar piezas", c2, y2);
-      doc.setFont("helvetica", "normal");
+      if (!tienepiézasReales && precioTotal > 0) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(6.5);
+        tc(doc, C.amber);
+        doc.text("* Presupuesto estimado — sujeto a cambio al confirmar piezas", c2, y2);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        tc(doc, C.gray);
+        y2 += 4.5;
+      }
+
       doc.setFontSize(7.5);
-      tc(doc, C.gray);
-      y2 += 4.5;
-    }
 
-    doc.setFontSize(7.5);
+      const metodoPagoLabel: Record<string, string> = {
+        efectivo: "Efectivo", tarjeta: "Tarjeta", transferencia: "Transf.",
+        deposito: "Depósito", mixto: "Mixto",
+      };
 
-    const metodoPagoLabel: Record<string, string> = {
-      efectivo: "Efectivo", tarjeta: "Tarjeta", transferencia: "Transf.",
-      deposito: "Depósito", mixto: "Mixto",
-    };
-
-    if (precioTotal > 0) {
-      // Desglose: mano de obra + piezas + total
-      if (precioManoObra > 0) {
-        doc.setFont("helvetica", "normal");
+      if (precioTotal > 0) {
+        if (precioManoObra > 0) {
+          doc.setFont("helvetica", "normal");
+          tc(doc, C.grayLight);
+          doc.text("Mano de obra:", c2, y2);
+          tc(doc, C.gray);
+          doc.text(`$${precioManoObra.toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
+          y2 += 4;
+        }
+        if (precioPiezas > 0) {
+          doc.setFont("helvetica", "normal");
+          tc(doc, C.grayLight);
+          doc.text(tienepiézasReales ? "Piezas:" : "Piezas (est.):", c2, y2);
+          tc(doc, C.gray);
+          doc.text(`$${precioPiezas.toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
+          y2 += 4;
+        }
+        if (precioManoObra > 0 || precioPiezas > 0) {
+          dc(doc, C.grayLine);
+          doc.setLineWidth(0.15);
+          doc.line(c2, y2 - 3, c2 + colW, y2 - 3);
+        }
+        doc.setFont("helvetica", "bold");
         tc(doc, C.grayLight);
-        doc.text("Mano de obra:", c2, y2);
+        doc.text(tienepiézasReales ? "Total reparación:" : "Total estimado:", c2, y2);
         tc(doc, C.gray);
-        doc.text(`$${precioManoObra.toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
-        y2 += 4;
-      }
-      if (precioPiezas > 0) {
+        doc.text(`$${precioTotal.toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
         doc.setFont("helvetica", "normal");
-        tc(doc, C.grayLight);
-        // Etiqueta según si ya hay piezas reales o es estimado
-        doc.text(tienepiézasReales ? "Piezas:" : "Piezas (est.):", c2, y2);
-        tc(doc, C.gray);
-        doc.text(`$${precioPiezas.toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
-        y2 += 4;
+        y2 += 4.5;
       }
-      // Línea subtotal solo si hay desglose
-      // Nota: y2 es la baseline del texto siguiente — la línea debe ir ANTES de la zona de ascendentes (~2.5mm)
-      if (precioManoObra > 0 || precioPiezas > 0) {
+
+      if (anticipos && anticipos.length > 0) {
+        (anticipos as Array<{ fecha_anticipo: string; monto: unknown; tipo_pago?: string }>).forEach((a) => {
+          const fd = new Date(a.fecha_anticipo).toLocaleDateString("es-MX", {
+            day: "2-digit", month: "short",
+          });
+          const metodo = metodoPagoLabel[a.tipo_pago || ""] || (a.tipo_pago || "");
+          tc(doc, C.grayLight);
+          doc.text(`Anticipo ${fd}${metodo ? ` (${metodo})` : ""}:`, c2, y2);
+          doc.setFont("helvetica", "bold");
+          tc(doc, C.gray);
+          doc.text(`-$${Number(a.monto).toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
+          doc.setFont("helvetica", "normal");
+          y2 += 4;
+        });
         dc(doc, C.grayLine);
         doc.setLineWidth(0.15);
         doc.line(c2, y2 - 3, c2 + colW, y2 - 3);
       }
-      doc.setFont("helvetica", "bold");
-      tc(doc, C.grayLight);
-      doc.text(tienepiézasReales ? "Total reparación:" : "Total estimado:", c2, y2);
-      tc(doc, C.gray);
-      doc.text(`$${precioTotal.toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
-      doc.setFont("helvetica", "normal");
-      y2 += 4.5;
-    }
 
-    if (anticipos && anticipos.length > 0) {
-      (anticipos as Array<{ fecha_anticipo: string; monto: unknown; tipo_pago?: string }>).forEach((a) => {
-        const fd = new Date(a.fecha_anticipo).toLocaleDateString("es-MX", {
-          day: "2-digit", month: "short",
-        });
-        const metodo = metodoPagoLabel[a.tipo_pago || ""] || (a.tipo_pago || "");
+      if (cargoCancelacion > 0) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(6.5);
         tc(doc, C.grayLight);
-        doc.text(`Anticipo ${fd}${metodo ? ` (${metodo})` : ""}:`, c2, y2);
-        doc.setFont("helvetica", "bold");
-        tc(doc, C.gray);
-        doc.text(`-$${Number(a.monto).toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
+        doc.text(`Cargo cancelación: $${cargoCancelacion.toFixed(2)}`, c2, y2);
         doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
         y2 += 4;
-      });
-      dc(doc, C.grayLine);
-      doc.setLineWidth(0.15);
-      doc.line(c2, y2 - 3, c2 + colW, y2 - 3);
-    }
-
-    // Cargo de cancelación (siempre visible)
-    if (cargoCancelacion > 0) {
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(6.5);
-      tc(doc, C.grayLight);
-      doc.text(`Cargo cancelación: $${cargoCancelacion.toFixed(2)}`, c2, y2);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      y2 += 4;
-    }
-
-    if (precioTotal > 0) {
-      const saldo = precioTotal - totalAnticipos;
-      if (saldo > 0.01) {
-        // Caja roja: saldo pendiente
-        fc(doc, C.bgRed);
-        dc(doc, C.red);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(c2 - 1, y2 - 0.5, colW + 2, 7.5, 0.6, 0.6, "FD");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.5);
-        tc(doc, C.red);
-        doc.text("SALDO AL RECOGER:", c2 + 1, y2 + 4.5);
-        doc.text(`$${saldo.toFixed(2)}`, c2 + colW - 2, y2 + 4.5, { align: "right" });
-        y2 += 9;
-      } else {
-        // Caja verde: pagado
-        fc(doc, C.bgGreen);
-        dc(doc, C.green);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(c2 - 1, y2 - 0.5, colW + 2, 7.5, 0.6, 0.6, "FD");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7.5);
-        tc(doc, C.green);
-        doc.text("✓ PAGADO COMPLETO", c2 + colW / 2, y2 + 4.5, { align: "center" });
-        y2 += 9;
       }
-    } else {
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(7);
-      tc(doc, C.grayLight);
-      doc.text("Presupuesto pendiente de diagnóstico", c2, y2);
-      y2 += 4;
-    }
 
-    tc(doc, C.gray);
-    doc.setFont("helvetica", "normal");
-    y = Math.max(y1, y2) + 1;
-    y = hLine(doc, y, true);
+      if (precioTotal > 0) {
+        const saldo = precioTotal - totalAnticipos;
+        if (saldo > 0.01) {
+          fc(doc, C.bgRed);
+          dc(doc, C.red);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(c2 - 1, y2 - 0.5, colW + 2, 7.5, 0.6, 0.6, "FD");
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.5);
+          tc(doc, C.red);
+          doc.text("SALDO AL RECOGER:", c2 + 1, y2 + 4.5);
+          doc.text(`$${saldo.toFixed(2)}`, c2 + colW - 2, y2 + 4.5, { align: "right" });
+          y2 += 9;
+        } else {
+          fc(doc, C.bgGreen);
+          dc(doc, C.green);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(c2 - 1, y2 - 0.5, colW + 2, 7.5, 0.6, 0.6, "FD");
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.5);
+          tc(doc, C.green);
+          doc.text("✓ PAGADO COMPLETO", c2 + colW / 2, y2 + 4.5, { align: "center" });
+          y2 += 9;
+        }
+      } else {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(7);
+        tc(doc, C.grayLight);
+        doc.text("Presupuesto pendiente de diagnóstico", c2, y2);
+        y2 += 4;
+      }
+
+      tc(doc, C.gray);
+      doc.setFont("helvetica", "normal");
+      y = Math.max(y1, y2) + 1;
+      y = hLine(doc, y, true);
+    } // fin sección 3B+4
 
     /* ╔══════════════════════════════════════════════════╗
        ║  4B. PIEZAS UTILIZADAS                           ║
@@ -872,36 +861,6 @@ export async function POST(
     doc.text(`Folio: ${orden.folio}`, sx + 31, sy + 20, { align: "center" });
 
     y += 28;
-
-    /* ╔══════════════════════════════════════════════════╗
-       ║  7. FOOTER — fijo al pie de la hoja (solo texto) ║
-       ╚══════════════════════════════════════════════════╝ */
-    // Posición fija: independiente de dónde terminó el contenido
-    const footerY = PH - FOOTER_H + 1;  // ≈ 260 mm
-
-    // Línea separadora a ancho completo
-    dc(doc, C.grayLine);
-    doc.setLineWidth(0.18);
-    doc.line(ML, footerY, PW - MR, footerY);
-
-    // Nombre de empresa
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    tc(doc, C.brandDark);
-    doc.text("CREDIPHONE SOLUTIONS S.A. DE C.V.", ML, footerY + 5);
-
-    // Datos de contacto y legales a ancho completo
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    tc(doc, C.grayLight);
-    doc.text(
-      "Prol. Gral. Francisco Villa 218A, Col. 5 de Mayo, Durango, Dgo.  C.P. 34304  ·  Tel: 618 124 5391 / 618 324 0200  ·  RFC: CAVT870614Q13  ·  RESICO",
-      ML, footerY + 10, { maxWidth: CW }
-    );
-    doc.text(
-      `Folio: ${orden.folio}   ·   Emisión: ${new Date().toLocaleDateString("es-MX")}   ·   LFPC Art. 76 bis  ·  NOM-024-SCFI-2013${trackingUrl ? `   ·   ${trackingUrl}` : ""}`,
-      ML, footerY + 14.5, { maxWidth: CW }
-    );
 
     /* ── Generar buffer y responder ──────────────────────────── */
     const buffer = Buffer.from(doc.output("arraybuffer"));
