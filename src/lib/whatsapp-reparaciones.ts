@@ -242,7 +242,8 @@ function obtenerEstadoLegible(
  * Genera mensaje de "listo para entrega"
  */
 export function generarMensajeListoEntrega(
-  orden: OrdenReparacion | OrdenReparacionDetallada
+  orden: OrdenReparacion | OrdenReparacionDetallada,
+  pdfUrl?: string
 ): string {
   const nombreCliente = "clienteNombre" in orden
     ? `${orden.clienteNombre} ${orden.clienteApellido || ""}`.trim()
@@ -269,7 +270,7 @@ CREDIPHONE - Durango, México
 Horario: Lunes a Sábado, 9:00 AM - 7:00 PM
 
 ⚠️ *Importante:* Por favor recoge tu equipo dentro de los próximos 15 días.
-
+${pdfUrl ? `\n📄 *Contrato / Comprobante:*\n${pdfUrl}\n` : ""}
 ¡Te esperamos!
 📱 CREDIPHONE
 `.trim();

@@ -1739,6 +1739,52 @@ export default function TrackingPublicoPage() {
           </div>
         </div>
 
+        {/* ── Descargar contrato PDF ───────────────────────── */}
+        <div
+          className="rounded-2xl p-5 flex flex-col items-center gap-3 text-center"
+          style={{
+            background: "var(--color-bg-surface)",
+            border: "1px solid var(--color-border-subtle)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div>
+            <p
+              className="text-sm font-medium mb-0.5"
+              style={{ color: "var(--color-text-primary)" }}
+            >
+              Contrato / Comprobante de servicio
+            </p>
+            <p
+              className="text-xs"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              Descarga tu orden de reparación en PDF
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              window.open(`/api/tracking/${token}/pdf`, "_blank")
+            }
+            className="flex items-center gap-2 py-2.5 px-5 rounded-xl text-sm font-semibold"
+            style={{
+              background: "var(--color-accent)",
+              color: "#fff",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "var(--font-ui)",
+            }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLElement).style.opacity = "0.85")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLElement).style.opacity = "1")
+            }
+          >
+            📄 Descargar PDF
+          </button>
+        </div>
+
         {/* ── Contacto WhatsApp ─────────────────────────────── */}
         <div
           className="rounded-2xl p-5 flex flex-col items-center gap-4 text-center"

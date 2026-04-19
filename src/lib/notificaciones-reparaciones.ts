@@ -17,6 +17,7 @@ import {
   generarMensajeNoReparable,
   generarMensajeCancelacion,
 } from "@/lib/whatsapp-reparaciones";
+
 import { sendWhatsApp, generarLinkWa } from "@/lib/whatsapp-api";
 import { getAdminIdsParaNotificar } from "@/lib/db/notificaciones";
 
@@ -58,6 +59,12 @@ export async function notificarCambioEstado(
       trackingUrlPresupuesto = await crearTrackingToken(orden.id);
     }
 
+    // Para estado "listo_entrega": obtener token existente y armar URL del PDF
+    let pdfUrlListoEntrega: string | undefined;
+    if (nuevoEstado === "listo_entrega") {
+      pdfUrlListoEntrega = await obtenerPdfUrlParaOrden(orden.id);
+    }
+
     // Resolver IDs de admin del distribuidor (una sola vez, reutilizado en el loop)
     let adminIds: string[] = [];
     const necesitaAdmin = config.destinos.some((d) => d.tipo === "admin");
@@ -67,9 +74,12 @@ export async function notificarCambioEstado(
 
     for (const destino of config.destinos) {
       try {
-        const mensaje = nuevoEstado === "presupuesto" && trackingUrlPresupuesto
-          ? generarMensajePresupuesto(orden, trackingUrlPresupuesto)
-          : config.generarMensaje(orden, notas);
+        const mensaje =
+          nuevoEstado === "presupuesto" && trackingUrlPresupuesto
+            ? generarMensajePresupuesto(orden, trackingUrlPresupuesto)
+            : nuevoEstado === "listo_entrega"
+            ? generarMensajeListoEntrega(orden, pdfUrlListoEntrega)
+            : config.generarMensaje(orden, notas);
 
         if (destino.tipo === "admin" && adminIds.length > 0) {
           // BUG FIX: Antes destinatarioId era undefined para admins → notif se perdía.
@@ -333,6 +343,33 @@ async function crearNotificacionReparacion(data: {
   } catch (error) {
     console.error("Error en crearNotificacionReparacion:", error);
     return null;
+  }
+}
+
+/**
+ * Obtiene la URL pública del PDF de una orden a partir del token de tracking
+ * más reciente. Devuelve undefined si no existe token.
+ */
+async function obtenerPdfUrlParaOrden(
+  ordenId: string
+): Promise<string | undefined> {
+  try {
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("tracking_tokens")
+      .select("token")
+      .eq("orden_id", ordenId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!data?.token) return undefined;
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone-one.vercel.app";
+    return `${baseUrl}/api/tracking/${data.token}/pdf`;
+  } catch {
+    return undefined;
   }
 }
 
