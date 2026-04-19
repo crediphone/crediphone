@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   X, ExternalLink, Edit, Loader2, Wrench, Clock, AlertCircle,
   MessageSquare, Package, Timer, FileText, Image as ImageIcon,
-  DollarSign, Phone, CheckCircle, GitBranch, Printer
+  DollarSign, Phone, CheckCircle, GitBranch, Printer, Plus, PackageCheck, PackagePlus
 } from "lucide-react";
 import { EstadoBadge, PrioridadBadge } from "@/components/reparaciones/EstadoBadge";
 import { PresupuestoSummary } from "@/components/reparaciones/detail/PresupuestoSummary";
@@ -21,6 +21,7 @@ import { CentroMensajesPanel } from "@/components/reparaciones/mensajeria/Centro
 import { BitacoraTiempoPanel } from "@/components/reparaciones/BitacoraTiempoPanel";
 import { Card } from "@/components/ui/Card";
 import type { OrdenReparacionDetallada } from "@/types";
+import { generarMensajePromocion, generarLinkWhatsApp } from "@/lib/whatsapp-reparaciones";
 
 interface OrdenDrawerProps {
   ordenId: string | null;
@@ -76,6 +77,23 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [savingFecha, setSavingFecha] = useState(false);
   const [savingAprobacion, setSavingAprobacion] = useState(false);
+
+  // Promociones al momento de entrega
+  const [clienteAceptaPromos, setClienteAceptaPromos] = useState<boolean | null>(null);
+
+  // Pedidos de pieza
+  interface PedidoPieza {
+    id: string; nombrePieza: string; costoEstimado: number; costoEnvio: number;
+    estado: "pendiente" | "recibida" | "cancelada"; createdAt: string;
+    fechaRecibida: string | null; creadoPorNombre: string | null; recibidoPorNombre: string | null;
+  }
+  const [pedidosPieza, setPedidosPieza] = useState<PedidoPieza[]>([]);
+  const [mostrarFormPedido, setMostrarFormPedido] = useState(false);
+  const [nuevaPiezaNombre, setNuevaPiezaNombre] = useState("");
+  const [nuevaPiezaCosto, setNuevaPiezaCosto] = useState("");
+  const [recibirInmediatamente, setRecibirInmediatamente] = useState(false);
+  const [guardandoPedido, setGuardandoPedido] = useState(false);
+  const [recibiendoPedido, setRecibiendoPedido] = useState<string | null>(null);
 
   /** Abre el modal de cambio de estado, opcionalmente pre-seleccionando un destino */
   function abrirCambiarEstado(estadoDestino?: import("@/types").EstadoOrdenReparacion) {
@@ -136,6 +154,81 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   function handleSuccess() {
     fetchOrden();
     onRefresh();
+  }
+
+  // Fetch cliente promo preference when order is listo_entrega
+  useEffect(() => {
+    if (orden?.estado === "listo_entrega" && orden.clienteId) {
+      fetch(`/api/clientes/${orden.clienteId}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success) setClienteAceptaPromos(d.data?.acepta_promociones_whatsapp ?? false);
+        })
+        .catch(() => {});
+    }
+  }, [orden?.estado, orden?.clienteId]);
+
+  const fetchPedidosPieza = useCallback(async () => {
+    if (!ordenId) return;
+    try {
+      const res = await fetch(`/api/reparaciones/${ordenId}/pedidos-pieza`);
+      const data = await res.json();
+      if (data.success) setPedidosPieza(data.data);
+    } catch { /* silencioso */ }
+  }, [ordenId]);
+
+  useEffect(() => {
+    if (activeTab === "diagnostico" && ordenId) fetchPedidosPieza();
+  }, [activeTab, ordenId, fetchPedidosPieza]);
+
+  async function handleGuardarPedido() {
+    if (!orden || !nuevaPiezaNombre.trim()) return;
+    setGuardandoPedido(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombrePieza: nuevaPiezaNombre.trim(),
+          costoEstimado: parseFloat(nuevaPiezaCosto) || 0,
+          recibirInmediatamente,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMostrarFormPedido(false);
+        setNuevaPiezaNombre("");
+        setNuevaPiezaCosto("");
+        setRecibirInmediatamente(false);
+        fetchPedidosPieza();
+        if (recibirInmediatamente) fetchOrden();
+      } else {
+        alert(data.error || "Error al guardar pedido");
+      }
+    } finally {
+      setGuardandoPedido(false);
+    }
+  }
+
+  async function handleRecibirPedido(pedidoId: string) {
+    if (!orden) return;
+    setRecibiendoPedido(pedidoId);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza/${pedidoId}/recibir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchPedidosPieza();
+        fetchOrden();
+      } else {
+        alert(data.error || "Error al recibir pieza");
+      }
+    } finally {
+      setRecibiendoPedido(null);
+    }
   }
 
   async function guardarFechaEstimada() {
@@ -454,6 +547,106 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             </div>
           </Card>
         )}
+
+        {/* Piezas pedidas externamente */}
+        <Card title="Piezas pedidas">
+          <div className="space-y-2">
+            {pedidosPieza.length === 0 && !mostrarFormPedido && (
+              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Sin piezas pedidas</p>
+            )}
+            {pedidosPieza.map((p) => (
+              <div key={p.id} className="flex items-start justify-between gap-2 py-2 border-b last:border-b-0" style={{ borderColor: "var(--color-border-subtle)" }}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {p.estado === "recibida"
+                      ? <PackageCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-success)" }} />
+                      : <PackagePlus className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-warning, #d97706)" }} />
+                    }
+                    <p className="text-sm truncate" style={{ color: "var(--color-text-primary)" }}>{p.nombrePieza}</p>
+                  </div>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                    {p.estado === "recibida" ? `Recibida ${p.recibidoPorNombre ? `· ${p.recibidoPorNombre}` : ""}` : "⏳ En camino"}
+                    {p.costoEstimado > 0 && ` · $${p.costoEstimado.toFixed(2)}`}
+                  </p>
+                </div>
+                {p.estado === "pendiente" && (
+                  <button
+                    onClick={() => handleRecibirPedido(p.id)}
+                    disabled={recibiendoPedido === p.id}
+                    className="flex-shrink-0 text-xs px-2 py-1 rounded-lg font-medium"
+                    style={{ background: "var(--color-success)", color: "#fff", opacity: recibiendoPedido === p.id ? 0.7 : 1 }}
+                  >
+                    {recibiendoPedido === p.id ? "..." : "Recibida ✓"}
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {mostrarFormPedido ? (
+              <div className="space-y-2 pt-2">
+                <input
+                  type="text"
+                  placeholder="Nombre de la pieza"
+                  value={nuevaPiezaNombre}
+                  onChange={(e) => setNuevaPiezaNombre(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                  style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-2 top-2 text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
+                    <input
+                      type="number"
+                      placeholder="Costo estimado"
+                      value={nuevaPiezaCosto}
+                      onChange={(e) => setNuevaPiezaCosto(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      min="0"
+                      step="0.01"
+                      className="w-full pl-5 pr-3 py-2 rounded-lg text-sm focus:outline-none"
+                      style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                    />
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--color-text-secondary)" }}>
+                  <input
+                    type="checkbox"
+                    checked={recibirInmediatamente}
+                    onChange={(e) => setRecibirInmediatamente(e.target.checked)}
+                    className="rounded"
+                  />
+                  Ya la tengo — marcar como recibida ahora
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setMostrarFormPedido(false); setNuevaPiezaNombre(""); setNuevaPiezaCosto(""); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs"
+                    style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleGuardarPedido}
+                    disabled={guardandoPedido || !nuevaPiezaNombre.trim()}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: "var(--color-accent)", color: "#fff", opacity: (!nuevaPiezaNombre.trim() || guardandoPedido) ? 0.7 : 1 }}
+                  >
+                    {guardandoPedido ? "..." : "Guardar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setMostrarFormPedido(true)}
+                className="flex items-center gap-1 text-xs font-medium mt-1"
+                style={{ color: "var(--color-accent)" }}
+              >
+                <Plus className="w-3 h-3" />
+                Agregar pieza pedida
+              </button>
+            )}
+          </div>
+        </Card>
       </div>
     );
   }
@@ -477,6 +670,34 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           >
             <Edit className="w-4 h-4" /> Editar presupuesto
           </button>
+        )}
+
+        {/* Promociones al momento de entrega */}
+        {orden.estado === "listo_entrega" && clienteAceptaPromos === true && (
+          <Card title="🎁 Sugerencias para el cliente">
+            <p className="text-xs mb-3" style={{ color: "var(--color-text-muted)" }}>
+              El cliente acepta promociones. Envíale una sugerencia por WhatsApp antes de que recoja.
+            </p>
+            <div className="flex flex-col gap-2">
+              {(["accesorio", "combo", "celular"] as const).map((tipo) => {
+                const labels: Record<string, string> = { accesorio: "🛡️ Accesorios / Funda", combo: "📦 Combo especial", celular: "📱 Nuevo equipo" };
+                const msg = generarMensajePromocion(orden, tipo);
+                const link = generarLinkWhatsApp(orden.clienteTelefono, msg);
+                return (
+                  <a
+                    key={tipo}
+                    href={link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium"
+                    style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)", textDecoration: "none" }}
+                  >
+                    {labels[tipo]}
+                  </a>
+                );
+              })}
+            </div>
+          </Card>
         )}
       </div>
     );
