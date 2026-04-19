@@ -1352,35 +1352,6 @@ export default function TrackingPublicoPage() {
           </SectionCard>
         )}
 
-        {/* ── Historial de estados ──────────────────────────── */}
-        {historial && historial.length > 0 && (
-          <SectionCard title="Historial de Cambios" icon={Clock}>
-            <TimelineEstados historial={historial} />
-          </SectionCard>
-        )}
-
-        {/* ── Fechas ───────────────────────────────────────── */}
-        <SectionCard title="Fechas" icon={CalendarDays}>
-          <div className="divide-y" style={{ borderColor: "var(--color-border-subtle)" }}>
-            <InfoRow
-              label="Recepción"
-              value={formatFecha(orden.fechaRecepcion)}
-            />
-            {orden.fechaEstimadaEntrega && (
-              <InfoRow
-                label="Entrega estimada"
-                value={formatFecha(orden.fechaEstimadaEntrega)}
-              />
-            )}
-            {orden.fechaCompletado && (
-              <InfoRow
-                label="Completado"
-                value={formatFecha(orden.fechaCompletado)}
-              />
-            )}
-          </div>
-        </SectionCard>
-
         {/* ── Consentimiento de Promociones ────────────────── */}
         <div
           className="rounded-2xl overflow-hidden"
@@ -1565,39 +1536,6 @@ export default function TrackingPublicoPage() {
           </div>
         </div>
 
-        {/* ── Técnico asignado ─────────────────────────────── */}
-        <div
-          className="flex items-center gap-3 rounded-xl px-4 py-3"
-          style={{
-            background: "var(--color-bg-surface)",
-            border: "1px solid var(--color-border-subtle)",
-          }}
-        >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: "var(--color-bg-elevated)" }}
-          >
-            <User
-              className="w-4 h-4"
-              style={{ color: "var(--color-text-muted)" }}
-            />
-          </div>
-          <div>
-            <p
-              className="text-xs"
-              style={{ color: "var(--color-text-muted)" }}
-            >
-              Técnico asignado
-            </p>
-            <p
-              className="text-sm font-semibold"
-              style={{ color: "var(--color-text-primary)" }}
-            >
-              {tecnico.nombre}
-            </p>
-          </div>
-        </div>
-
         {/* ── Promociones reales (FASE 35) ────────────────────── */}
         {data.cliente.aceptaPromociones && promosReales.length > 0 && (() => {
           const numero = process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE || "526181245391";
@@ -1738,6 +1676,68 @@ export default function TrackingPublicoPage() {
             </div>
           );
         })()}
+
+        {/* ── Historial de estados ──────────────────────────── */}
+        {historial && historial.length > 0 && (
+          <SectionCard title="Historial de Cambios" icon={Clock}>
+            <TimelineEstados historial={historial} />
+          </SectionCard>
+        )}
+
+        {/* ── Fechas ───────────────────────────────────────── */}
+        <SectionCard title="Fechas" icon={CalendarDays}>
+          <div className="divide-y" style={{ borderColor: "var(--color-border-subtle)" }}>
+            <InfoRow
+              label="Recepción"
+              value={formatFecha(orden.fechaRecepcion)}
+            />
+            {orden.fechaEstimadaEntrega && (
+              <InfoRow
+                label="Entrega estimada"
+                value={formatFecha(orden.fechaEstimadaEntrega)}
+              />
+            )}
+            {orden.fechaCompletado && (
+              <InfoRow
+                label="Completado"
+                value={formatFecha(orden.fechaCompletado)}
+              />
+            )}
+          </div>
+        </SectionCard>
+
+        {/* ── Técnico asignado ─────────────────────────────── */}
+        <div
+          className="flex items-center gap-3 rounded-xl px-4 py-3"
+          style={{
+            background: "var(--color-bg-surface)",
+            border: "1px solid var(--color-border-subtle)",
+          }}
+        >
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "var(--color-bg-elevated)" }}
+          >
+            <User
+              className="w-4 h-4"
+              style={{ color: "var(--color-text-muted)" }}
+            />
+          </div>
+          <div>
+            <p
+              className="text-xs"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              Técnico asignado
+            </p>
+            <p
+              className="text-sm font-semibold"
+              style={{ color: "var(--color-text-primary)" }}
+            >
+              {tecnico.nombre}
+            </p>
+          </div>
+        </div>
 
         {/* ── Contacto WhatsApp ─────────────────────────────── */}
         <div
