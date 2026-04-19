@@ -232,9 +232,25 @@
 | P2-5 | `notificaciones-reparaciones.ts` — para `listo_entrega`: busca token existente → `/api/tracking/{token}/pdf` | `lib/notificaciones-reparaciones.ts` |
 | P2-6 | Tracking page: botón "Descargar PDF" apunta a `/api/tracking/{token}/pdf` | `tracking/[token]/page.tsx` |
 
+## SESIÓN 2026-04-19 — Plan completo ejecutado ✅
+
+| Bloque | Descripción | Estado |
+|--------|-------------|--------|
+| Bloque A | PDF fix: firma en 1a hoja (maybeBreak 60→38, sin divisor, empresa 6.5pt) | ✅ |
+| Bloque B1 | PresupuestoSummary: sección "Cotización de apertura" con piezasCotizacion | ✅ |
+| Bloque B2 | ModalDiagnostico: pre-carga piezasCotizacion como partes editables + botón "Nueva refacción al catálogo" | ✅ |
+| Bloque C1 | GET /api/pos/reparaciones-activas — órdenes con anticipos, independiente de caja | ✅ |
+| Bloque C2 | BolsaVirtualPanel — panel lateral POS con total bolsa, progreso, anticipos por empleado | ✅ |
+| Bloque C3 | POS header: icono bolsa con badge $$ | ✅ |
+| Bloque D1 | Tabla pedidos_pieza_reparacion en Supabase (migración aplicada) | ✅ |
+| Bloque D2 | GET/POST /api/reparaciones/[id]/pedidos-pieza + POST recibir | ✅ |
+| Bloque D3/D4/D5 | OrdenDrawer tab diagnóstico: sección "Piezas pedidas" con formulario + recibir un clic | ✅ |
+| Bloque D6 | Promociones WA en tab presupuesto cuando listo_entrega + cliente acepta | ✅ |
+
 ## PENDIENTE (siguiente sesión si Trini lo pide)
 
 - **PO1** — Sistema de Puntos / Loyalty (esfuerzo grande, diseñar desde cero)
+- **Bloque C4** — ReparacionesPOSPanel mejorado (anticipo/saldo columns) — puede hacerse cuando lo pida
 - **SECURITY-003** — wa_access_token encryption (no urgente)
 
 ---
