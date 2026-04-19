@@ -161,6 +161,7 @@ export async function GET(
           costoPartes: orden.costoPartes,
           costoTotal: orden.costoTotal,
           partesReemplazadas: orden.partesReemplazadas,
+          piezasCotizacion: orden.piezasCotizacion || [],
           fechaRecepcion: orden.fechaRecepcion,
           fechaEstimadaEntrega: orden.fechaEstimadaEntrega,
           fechaCompletado: orden.fechaCompletado,

@@ -182,6 +182,8 @@ export async function POST(request: Request) {
         catalogoServicioId: body.catalogoServicioId || undefined,
         // Cargo de cancelación: monto que se retiene si el cliente cancela antes de instalar piezas
         cargoCancelacion: typeof body.cargoCancelacion === "number" ? body.cargoCancelacion : 100,
+        // Piezas cotizadas (libres + catálogo) — se persisten en la orden para tracking y PDF
+        piezasCotizacion: body.piezasCotizacion || undefined,
       },
       userId,                             // ← userId real del usuario autenticado
       filterDistribuidorId,               // ← distribuidor del usuario

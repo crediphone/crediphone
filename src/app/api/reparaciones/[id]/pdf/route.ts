@@ -253,6 +253,9 @@ export async function POST(
       (s: number, a: { monto?: unknown }) => s + Number(a.monto || 0), 0
     );
     const precioTotal = Number(orden.precio_total || orden.presupuesto_total || orden.costo_total || 0);
+    // Piezas cotizadas al crear la orden (libres + catálogo) — solo se muestran si no hay piezas reales aún
+    const piezasCotizacion: Array<{ nombre: string; cantidad: number; precioUnitario: number; precioTotal: number }> =
+      Array.isArray(orden.piezas_cotizacion) ? orden.piezas_cotizacion : [];
     const precioManoObra = Number(orden.precio_mano_obra || orden.costo_reparacion || 0);
     const precioPiezas  = Number(orden.precio_piezas  || orden.costo_partes || 0);
     const cargoCancelacion = Number(orden.cargo_cancelacion ?? 100);
@@ -567,6 +570,32 @@ export async function POST(
         doc.setFontSize(7.5);
         tc(doc, C.gray);
         y2 += 4.5;
+      }
+
+      // Detalle de piezas cotizadas (solo cuando no hay piezas reales instaladas aún)
+      if (!tienepiézasReales && piezasCotizacion.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        tc(doc, C.brandMid);
+        doc.text("PIEZAS COTIZADAS:", c2, y2);
+        y2 += 4;
+
+        piezasCotizacion.forEach((p) => {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.8);
+          tc(doc, C.grayLight);
+          const nombreLines = doc.splitTextToSize(`${p.nombre}${p.cantidad > 1 ? ` ×${p.cantidad}` : ""}`, colW - 22);
+          doc.text(nombreLines, c2, y2);
+          tc(doc, C.gray);
+          doc.text(`$${Number(p.precioTotal || 0).toFixed(2)}`, c2 + colW - 2, y2, { align: "right" });
+          y2 += nombreLines.length * 3.5;
+        });
+
+        // Separador antes del total
+        dc(doc, C.grayLine);
+        doc.setLineWidth(0.12);
+        doc.line(c2, y2, c2 + colW, y2);
+        y2 += 3;
       }
 
       doc.setFontSize(7.5);

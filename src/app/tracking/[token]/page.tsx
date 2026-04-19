@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { TimelineEstados } from "@/components/reparaciones/TimelineEstados";
 import { BarraProgresoReparacion } from "@/components/tracking/BarraProgresoReparacion";
-import type { EstadoOrdenReparacion, ParteReemplazada } from "@/types";
+import type { EstadoOrdenReparacion, ParteReemplazada, PiezaCotizacion } from "@/types";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -43,6 +43,7 @@ interface OrdenTracking {
   costoPartes: number;
   costoTotal: number;
   partesReemplazadas: ParteReemplazada[];
+  piezasCotizacion: PiezaCotizacion[];
   fechaRecepcion: Date;
   fechaEstimadaEntrega?: Date;
   fechaCompletado?: Date;
@@ -1007,6 +1008,33 @@ export default function TrackingPublicoPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Detalle de piezas cotizadas */}
+                {orden.piezasCotizacion && orden.piezasCotizacion.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#64748B" }}>
+                      Detalle de piezas
+                    </p>
+                    <div className="rounded-xl overflow-hidden divide-y" style={{ border: "1px solid #E2E8F0" }}>
+                      {orden.piezasCotizacion.map((p, i) => (
+                        <div key={i} className="flex justify-between items-center px-4 py-2.5">
+                          <div>
+                            <span className="text-sm" style={{ color: "#0F172A" }}>{p.nombre}</span>
+                            {p.cantidad > 1 && (
+                              <span className="text-xs ml-1.5" style={{ color: "#94A3B8" }}>× {p.cantidad}</span>
+                            )}
+                          </div>
+                          <span
+                            className="text-sm tabular-nums"
+                            style={{ color: "#64748B", fontFamily: "var(--font-data)" }}
+                          >
+                            {formatCurrency(p.precioTotal)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Total prominente — fondo negro */}
                 <div

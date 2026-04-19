@@ -110,6 +110,7 @@ function mapOrdenFromDB(dbOrden: any): OrdenReparacion {
     descuentoRapidoOfrecido: dbOrden.descuento_rapido_ofrecido ?? false,
     descuentoRapidoPorcentaje: dbOrden.descuento_rapido_porcentaje ?? undefined,
     cargoCancelacion: parseFloat(dbOrden.cargo_cancelacion ?? 100),
+    piezasCotizacion: dbOrden.piezas_cotizacion || [],
   };
 }
 
@@ -519,6 +520,11 @@ export async function createOrdenReparacion(
     insertData.cargo_cancelacion = typeof (ordenData as any).cargoCancelacion === "number"
       ? (ordenData as any).cargoCancelacion
       : 100;
+
+    // Piezas cotizadas al crear la orden (libres + catálogo) — persisten en DB para tracking y PDF
+    if (ordenData.piezasCotizacion && ordenData.piezasCotizacion.length > 0) {
+      insertData.piezas_cotizacion = ordenData.piezasCotizacion;
+    }
 
     const { data, error } = await supabase
       .from("ordenes_reparacion")

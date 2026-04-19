@@ -533,6 +533,8 @@ export interface OrdenReparacion {
   catalogoServicioId?: string;
   /** Cargo mínimo que se retiene si el cliente cancela antes de instalar piezas (default $100 MXN) */
   cargoCancelacion?: number;
+  /** Piezas/refacciones cotizadas al crear la orden (guardadas en DB, visibles en tracking y PDF) */
+  piezasCotizacion?: PiezaCotizacion[];
 
   // Auditoría
   creadoPor?: string;
