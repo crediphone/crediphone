@@ -1,8 +1,8 @@
 # Sesión Activa — CREDIPHONE
 
-## Estado: SISTEMA COMPLETO ✅ — Deployado en Cloudflare Workers
+## Estado: AUDITORÍA CRÍTICA COMPLETA ✅ — Deployado en Cloudflare Workers
 
-**Última sesión:** 2026-04-19 — Plan "PDF fix + Bolsa Virtual + Flujo de piezas" ejecutado completamente.
+**Última sesión:** 2026-04-22 — Auditoría integral: 5 hallazgos críticos implementados y deployados.
 **Historial:** `ARCHIVO/HISTORIAL-SESIONES.md`
 
 ---
@@ -13,12 +13,14 @@
 |--------|--------|-------|
 | Reparaciones (órdenes, drawer, stepper) | ✅ | F1-A/B/C corregidos |
 | PDF de orden (firma en 1a hoja) | ✅ | maybeBreak 38mm |
+| PDF versionado | ✅ | v1 al crear, v2+ en aprobaciones y entrega |
 | Tracking cliente (barra progreso, costo, PDF) | ✅ | Token 64-char hex |
-| Bolsa Virtual en POS | ✅ | Independiente de caja |
-| Pedidos de piezas (pedidos_pieza_reparacion) | ✅ | Un clic recibir |
-| Cotización en tarjetas (presupuestoTotal) | ✅ | Amarillo "est." |
-| Sugerencias piezas/servicios por marca+modelo | ✅ | SelectorPiezasCotizacion |
-| POS + Caja | ✅ | Bolsa virtual integrada |
+| Bolsa Virtual en POS | ✅ | Flujo de dinero completo |
+| Movimientos bolsa virtual | ✅ | gasto_pieza / devolucion_cliente / ingreso_caja |
+| Pedidos de piezas (auto + manual) | ✅ | Auto al crear orden; vendedor completa costo real |
+| Cargo cancelación automático | ✅ | Lee cargo de la orden; piezas llegadas → retener |
+| Control de precio (aprobación admin) | ✅ | Vendedor propone → admin aprueba/rechaza |
+| POS + Caja | ✅ | Bolsa virtual con costos piezas y saldo real |
 
 ---
 
@@ -27,6 +29,19 @@
 - **C4** — ReparacionesPOSPanel: columnas anticipo/saldo (puede hacerse cuando lo pida)
 - **PO1** — Sistema de puntos / loyalty
 - **SECURITY-003** — Encriptar wa_access_token en BD
+- **UI pendiente de auditoría** — Badge "precio pendiente" en OrdenDrawer (BE listo, falta badge visual)
+- **UI pendiente de auditoría** — Lista versiones PDF en OrdenDrawer (BE listo, falta sección visual)
+- **UI pendiente de auditoría** — Panel vendedor: lista piezas pendientes de pedir (todas las órdenes)
+
+---
+
+## Tablas nuevas en Supabase (migradas 2026-04-22)
+
+- `movimientos_bolsa_virtual` — gastos, devoluciones, ingresos de caja por orden
+- `versiones_pdf_reparacion` — historial de PDFs versionados con URL en R2
+- `solicitudes_cambio_precio` — solicitudes de vendedores esperando aprobación de admin
+- Columnas: `pedidos_pieza_reparacion.{foto_comprobante_url, financiado_por, monto_de_caja}`
+- Columnas: `ordenes_reparacion.precio_pendiente_aprobacion`
 
 ---
 
@@ -34,14 +49,11 @@
 
 - Precio all-in: `precioUnitario` incluye pieza + instalación + envío, no se desglosa
 - Bolsa Virtual: anticipos independientes de caja (`sesion_caja_id` puede ser null)
+- Ingreso neto: `precio_total - sum(costo_pieza + costo_envio)` — solo ESO va a caja al entregar
+- Cancelación + pieza llegó: costo de pieza SE RETIENE del anticipo (entra al inventario)
+- Cancelación + pieza no llegó: se devuelve TODO el anticipo al cliente
 - Ticket QR → `/reparacion/{folio}` (no a subir fotos)
 - NUNCA eliminar funcionalidades existentes — solo agregar
-
----
-
-## Si pierdes contexto
-
-Di: **"Continúa donde quedamos"** → Claude lee este archivo y sigue.
 
 ---
 
