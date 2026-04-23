@@ -27,11 +27,16 @@
 
 ---
 
+| C4 — Columnas anticipo/saldo en POS | ✅ | Lista "Listos para cobrar" con anticipo + saldo por fila |
+| SECURITY-003 — Cifrado wa_access_token | ✅ | AES-256-GCM, llave en CF secret WA_ENCRYPTION_KEY |
+| PO1 — Sistema de puntos / loyalty | ✅ | $50=1pt, 1pt=$1 descuento, reseteo anual, visible en tracking |
+
+---
+
 ## Pendiente (no urgente — esperar instrucción de Trini)
 
-- **C4** — ReparacionesPOSPanel: columnas anticipo/saldo (puede hacerse cuando lo pida)
-- **PO1** — Sistema de puntos / loyalty
-- **SECURITY-003** — Encriptar wa_access_token en BD
+- **PO1-UI** — Redemption UI en POS (canjear puntos al momento de cobrar)
+- **PO1-ADMIN** — Panel admin: ver puntos por cliente, historial
 
 ---
 
