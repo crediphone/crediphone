@@ -6,6 +6,20 @@ import {
 } from "lucide-react";
 import type { OrdenReparacionDetallada, TipoPago } from "@/types";
 
+interface OrdenListaCobro {
+  ordenId: string;
+  folio: string;
+  estado: string;
+  clienteNombre: string;
+  clienteTelefono: string | null;
+  marcaDispositivo: string;
+  modeloDispositivo: string;
+  presupuestoTotal: number;
+  totalAnticipos: number;
+  costosPiezas: number;
+  saldoPendiente: number;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtPrecio(n: number) {
@@ -405,16 +419,19 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
   const [totalAnticipos, setTotalAnticipos] = useState(0);
 
   // C3: Lista de órdenes listas para cobrar (listo_entrega)
-  const [listasParaCobrar, setListasParaCobrar] = useState<OrdenReparacionDetallada[]>([]);
+  const [listasParaCobrar, setListasParaCobrar] = useState<OrdenListaCobro[]>([]);
   const [loadingListos, setLoadingListos] = useState(false);
 
   const fetchListosParaCobrar = useCallback(async () => {
     setLoadingListos(true);
     try {
-      const res = await fetch("/api/reparaciones?estado=listo_entrega&detalladas=true");
+      const res = await fetch("/api/pos/reparaciones-activas");
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        setListasParaCobrar(data.data);
+        // Filtrar solo las que están listas para entrega
+        setListasParaCobrar(
+          (data.data as OrdenListaCobro[]).filter((o) => o.estado === "listo_entrega")
+        );
       }
     } catch {
       // silencioso — no bloquear el panel
@@ -870,18 +887,29 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
             )}
 
             {!loadingListos && listasParaCobrar.map((o) => {
-              const anticipos = (o as any).totalAnticipos ?? 0;
-              const saldo = Math.max(0, o.costoTotal - anticipos);
+              const saldo = o.saldoPendiente;
+              const anticipos = o.totalAnticipos;
               return (
                 <button
-                  key={o.id}
+                  key={o.ordenId}
                   type="button"
                   onClick={() => {
-                    setOrden(o);
+                    // Construir objeto compatible con OrdenReparacionDetallada para el panel de detalle
+                    setOrden({
+                      id: o.ordenId,
+                      folio: o.folio,
+                      estado: o.estado as any,
+                      clienteNombre: o.clienteNombre,
+                      clienteApellido: "",
+                      clienteTelefono: o.clienteTelefono ?? undefined,
+                      marcaDispositivo: o.marcaDispositivo,
+                      modeloDispositivo: o.modeloDispositivo,
+                      costoTotal: o.presupuestoTotal,
+                    } as any);
                     setTotalAnticipos(anticipos);
                     setError("");
                   }}
-                  className="w-full text-left rounded-xl px-3 py-2.5 mb-2 flex items-center justify-between gap-2 transition-all"
+                  className="w-full text-left rounded-xl px-3 py-2.5 mb-2 transition-all"
                   style={{
                     background: "var(--color-bg-surface)",
                     border: "1px solid var(--color-border-subtle)",
@@ -890,24 +918,32 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
                   onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--color-success)")}
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--color-border-subtle)")}
                 >
-                  <div className="min-w-0">
-                    <p className="text-xs font-mono font-bold leading-tight" style={{ color: "var(--color-text-primary)" }}>
+                  {/* Fila superior: folio + saldo pendiente */}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-mono font-bold" style={{ color: "var(--color-text-primary)" }}>
                       {o.folio}
                     </p>
-                    <p className="text-xs truncate mt-0.5" style={{ color: "var(--color-text-secondary)" }}>
-                      {o.clienteNombre}{o.clienteApellido ? ` ${o.clienteApellido}` : ""} · {o.marcaDispositivo} {o.modeloDispositivo}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
                     <p
-                      className="text-sm font-mono font-bold"
+                      className="text-sm font-mono font-bold shrink-0"
                       style={{ color: saldo > 0 ? "var(--color-warning)" : "var(--color-success)" }}
                     >
                       {fmtPrecio(saldo)}
                     </p>
-                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                      {saldo > 0 ? "pendiente" : "pagado"}
+                  </div>
+                  {/* Fila inferior: cliente+device + anticipo pagado */}
+                  <div className="flex items-center justify-between gap-2 mt-0.5">
+                    <p className="text-xs truncate" style={{ color: "var(--color-text-secondary)" }}>
+                      {o.clienteNombre} · {o.marcaDispositivo} {o.modeloDispositivo}
                     </p>
+                    {anticipos > 0 ? (
+                      <p className="text-xs font-mono shrink-0" style={{ color: "var(--color-success)" }}>
+                        +{fmtPrecio(anticipos)} anticipo
+                      </p>
+                    ) : (
+                      <p className="text-xs shrink-0" style={{ color: "var(--color-text-muted)" }}>
+                        sin anticipo
+                      </p>
+                    )}
                   </div>
                 </button>
               );
