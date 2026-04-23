@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const soloResumen = url.searchParams.get("resumen") === "true";
+    const estadoFiltro = url.searchParams.get("estado") ?? undefined;
     const filterDistribuidorId = isSuperAdmin ? undefined : (distribuidorId ?? undefined);
 
     const supabase = createAdminClient();
@@ -35,6 +36,10 @@ export async function GET(request: NextRequest) {
       `)
       .not("estado", "in", `(${ESTADOS_INACTIVOS.map((e) => `"${e}"`).join(",")})`)
       .order("created_at", { ascending: false });
+
+    if (estadoFiltro) {
+      ordenQuery = ordenQuery.eq("estado", estadoFiltro);
+    }
 
     if (filterDistribuidorId) {
       ordenQuery = ordenQuery.eq("distribuidor_id", filterDistribuidorId);

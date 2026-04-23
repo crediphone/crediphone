@@ -142,20 +142,13 @@ export async function acumularPuntos(opts: {
   const anio = añoActual();
 
   try {
-    // Upsert en puntos_cliente
-    const { error: upsertError } = await supabase.rpc("incrementar_puntos_cliente", {
+    await supabase.rpc("incrementar_puntos_cliente", {
       p_cliente_id:      opts.clienteId,
       p_distribuidor_id: opts.distribuidorId ?? null,
-      p_anio:             anio,
-      p_puntos:          puntos,
+      p_anio:            anio,
+      p_ganados:         puntos,
     });
 
-    if (upsertError) {
-      // Fallback manual si el RPC no existe aún
-      await upsertPuntosManual(supabase, opts.clienteId, opts.distribuidorId, anio, puntos, 0);
-    }
-
-    // Registrar movimiento
     await supabase.from("movimientos_puntos").insert({
       cliente_id:       opts.clienteId,
       distribuidor_id:  opts.distribuidorId ?? null,
@@ -207,7 +200,13 @@ export async function canjearPuntos(opts: {
   }
 
   try {
-    await upsertPuntosManual(supabase, opts.clienteId, opts.distribuidorId, anio, 0, opts.puntos);
+    await supabase.rpc("incrementar_puntos_cliente", {
+      p_cliente_id:      opts.clienteId,
+      p_distribuidor_id: opts.distribuidorId ?? null,
+      p_anio:            anio,
+      p_ganados:         0,
+      p_canjeados:       opts.puntos,
+    });
 
     await supabase.from("movimientos_puntos").insert({
       cliente_id:       opts.clienteId,
@@ -232,49 +231,3 @@ export async function canjearPuntos(opts: {
   }
 }
 
-// ─── Helpers internos ─────────────────────────────────────────────────────────
-
-async function upsertPuntosManual(
-  supabase: ReturnType<typeof createAdminClient>,
-  clienteId: string,
-  distribuidorId: string | undefined,
-  anio: number,
-  puntosGanados: number,
-  puntosCanjeados: number
-) {
-  // Buscar fila existente
-  let q = supabase
-    .from("puntos_cliente")
-    .select("id, saldo_disponible, total_ganado, total_canjeado")
-    .eq("cliente_id", clienteId)
-    .eq("anio", anio);
-
-  if (distribuidorId) {
-    q = q.eq("distribuidor_id", distribuidorId);
-  } else {
-    q = q.is("distribuidor_id", null);
-  }
-
-  const { data: existing } = await q.maybeSingle();
-
-  if (existing) {
-    await supabase
-      .from("puntos_cliente")
-      .update({
-        saldo_disponible: existing.saldo_disponible + puntosGanados - puntosCanjeados,
-        total_ganado:     existing.total_ganado + puntosGanados,
-        total_canjeado:   existing.total_canjeado + puntosCanjeados,
-        updated_at:       new Date().toISOString(),
-      })
-      .eq("id", existing.id);
-  } else {
-    await supabase.from("puntos_cliente").insert({
-      cliente_id:       clienteId,
-      distribuidor_id:  distribuidorId ?? null,
-      anio,
-      saldo_disponible: puntosGanados - puntosCanjeados,
-      total_ganado:     puntosGanados,
-      total_canjeado:   puntosCanjeados,
-    });
-  }
-}

@@ -425,13 +425,10 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
   const fetchListosParaCobrar = useCallback(async () => {
     setLoadingListos(true);
     try {
-      const res = await fetch("/api/pos/reparaciones-activas");
+      const res = await fetch("/api/pos/reparaciones-activas?estado=listo_entrega");
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        // Filtrar solo las que están listas para entrega
-        setListasParaCobrar(
-          (data.data as OrdenListaCobro[]).filter((o) => o.estado === "listo_entrega")
-        );
+        setListasParaCobrar(data.data as OrdenListaCobro[]);
       }
     } catch {
       // silencioso — no bloquear el panel
