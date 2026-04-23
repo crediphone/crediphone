@@ -42,8 +42,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const { decryptWAToken } = await import("@/lib/crypto");
     const phoneNumberId: string = cfg.wa_phone_number_id ?? "";
-    const accessToken: string   = cfg.wa_access_token   ?? "";
+    const accessToken: string   = await decryptWAToken(cfg.wa_access_token ?? "");
     const resolvedApiVersion    = apiVersion || cfg.wa_api_version || "v20.0";
 
     if (!phoneNumberId || !accessToken) {

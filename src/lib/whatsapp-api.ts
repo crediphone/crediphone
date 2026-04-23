@@ -84,10 +84,11 @@ export async function getWAConfig(distribuidorId?: string): Promise<WAConfig | n
   const { data, error } = await query.maybeSingle();
   if (error || !data) return null;
 
+  const { decryptWAToken } = await import("@/lib/crypto");
   return {
     enabled: data.wa_enabled ?? false,
     phoneNumberId: data.wa_phone_number_id ?? "",
-    accessToken: data.wa_access_token ?? "",
+    accessToken: await decryptWAToken(data.wa_access_token ?? ""),
     apiVersion: data.wa_api_version ?? "v20.0",
     logMensajes: data.wa_log_mensajes ?? true,
     distribuidorId: data.distribuidor_id,

@@ -37,6 +37,10 @@
   // NEXT_PUBLIC_R2_PUBLIC_URL = https://pub-XXXX.r2.dev
   //   → Habilitar en: Cloudflare Dashboard > R2 > crediphone-storage > Settings > Public Access
   //   → O usar dominio propio: https://storage.crediphone.com.mx
+  //
+  // SECURITY — Secrets (agregar en Cloudflare Dashboard > Settings > Secrets, NO en vars):
+  // WA_ENCRYPTION_KEY = <base64 de 32 bytes> — generado con: openssl rand -base64 32
+  //   → Cifra wa_access_token en la BD. Sin esta key los tokens se guardan en texto plano (fallback).
 
   // Variables de entorno (plain text — no sensibles)
   "vars": {
