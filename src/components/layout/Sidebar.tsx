@@ -47,6 +47,7 @@ import {
   Upload,           // Importar Excel (Plantilla masiva)
   TrendingUp,       // Rentabilidad por categoría (FASE 63)
   Smartphone,       // Reporte de equipos
+  Star,             // Programa de puntos / loyalty
 } from "lucide-react";
 
 /* ── Tipos de navegación ────────────────────────────────────── */
@@ -128,6 +129,7 @@ const navGroups: NavGroup[] = [
     label: "CLIENTES",
     items: [
       { href: "/dashboard/clientes", label: "Clientes", icon: Users, roles: ["admin", "vendedor", "cobrador", "super_admin"], moduleKey: "clientes" },
+      { href: "/dashboard/clientes/loyalty", label: "Programa de Puntos", icon: Star, roles: ["admin", "super_admin"], moduleKey: "clientes" },
     ],
   },
 

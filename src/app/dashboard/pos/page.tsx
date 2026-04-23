@@ -16,7 +16,7 @@ import { DescuentoPOS } from "@/components/pos/DescuentoPOS";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Tag, Wrench, Package2, UserCheck, Clock as ClockIn, ShoppingBag } from "lucide-react";
+import { ShoppingCart as CartIcon, DollarSign, Receipt, LogOut as CloseIcon, X, LayoutGrid, Search as SearchIcon, User, ScanLine, FileText, Tag, Wrench, Package2, UserCheck, Clock as ClockIn, ShoppingBag, Star } from "lucide-react";
 import { generarReporteX, abrirReporte } from "@/lib/utils/reportes";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { OfflineBanner } from "@/components/pos/OfflineBanner";
@@ -115,9 +115,13 @@ export default function POSPage() {
   const [bolsaTotal, setBolsaTotal] = useState(0);
 
   // Panel extras compacto: qué sección está expandida (null = todas cerradas)
-  const [extrasPanel, setExtrasPanel] = useState<"descuento" | "cliente" | "notas" | null>(null);
-  const toggleExtras = (panel: "descuento" | "cliente" | "notas") =>
+  const [extrasPanel, setExtrasPanel] = useState<"descuento" | "cliente" | "notas" | "puntos" | null>(null);
+  const toggleExtras = (panel: "descuento" | "cliente" | "notas" | "puntos") =>
     setExtrasPanel((prev) => (prev === panel ? null : panel));
+
+  // Loyalty: puntos del cliente seleccionado
+  const [saldoPuntos, setSaldoPuntos] = useState<{ saldoDisponible: number; totalGanado: number } | null>(null);
+  const [puntosACanjear, setPuntosACanjear] = useState(0);
 
   // FASE 29: modo dual Standard / Visual
   const [posMode, setPosMode] = useState<"standard" | "visual">(() => {
@@ -495,7 +499,7 @@ export default function POSPage() {
       const ventaFormData: NuevaVentaFormData = {
         clienteId: clienteSeleccionado?.id,
         items: itemsExpandidos,
-        descuento,
+        descuento: descuento + descuentoPuntos, // incluye descuento manual + puntos canjeados
         propina: propina > 0 ? propina : undefined,
         metodoPago: paymentData.metodoPago,
         desgloseMixto: paymentData.desgloseMixto,
@@ -528,11 +532,26 @@ export default function POSPage() {
       if (data.success) {
         setVentaCompletada(data.data);
         setShowReciboModal(true);
+        // Canjear puntos si se usaron
+        if (clienteSeleccionado && descuentoPuntos > 0) {
+          fetch(`/api/clientes/${clienteSeleccionado.id}/puntos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              puntos: descuentoPuntos,
+              referenciaId: data.data.id,
+              referenciaTipo: "venta_pos",
+              descripcion: `Canje en venta POS — ${descuentoPuntos} pts`,
+            }),
+          }).catch(() => {});
+        }
         // Limpiar carrito y datos
         setCartItems([]);
         setDescuento(0);
         setPropina(0);
         setResumenCliente(null);
+        setSaldoPuntos(null);
+        setPuntosACanjear(0);
         // Actualizar estadísticas
         fetchEstadisticas();
       } else {
@@ -756,6 +775,8 @@ export default function POSPage() {
     setBusquedaCliente("");
     setNotasVenta("");
     setResumenCliente(null);
+    setSaldoPuntos(null);
+    setPuntosACanjear(0);
   };
 
   // Feature 5: Cargar resumen del cliente cuando se selecciona
@@ -764,6 +785,15 @@ export default function POSPage() {
       const res = await fetch(`/api/clientes/${clienteId}/resumen-pos`);
       const data = await res.json();
       if (data.success) setResumenCliente(data.data);
+    } catch { /* silencioso */ }
+  };
+
+  // Loyalty: cargar puntos cuando se selecciona cliente
+  const fetchPuntosCliente = async (clienteId: string) => {
+    try {
+      const res = await fetch(`/api/clientes/${clienteId}/puntos`);
+      const data = await res.json();
+      if (data.success) setSaldoPuntos(data.data.saldo);
     } catch { /* silencioso */ }
   };
 
@@ -878,7 +908,10 @@ export default function POSPage() {
   }
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const total = subtotal - descuento + propina;
+  const descuentoPuntos = clienteSeleccionado && saldoPuntos
+    ? Math.min(puntosACanjear, saldoPuntos.saldoDisponible)
+    : 0;
+  const total = Math.max(0, subtotal - descuento - descuentoPuntos + propina);
 
   // Verificando sesión
   if (loadingSesion) {
@@ -1481,7 +1514,7 @@ export default function POSPage() {
           {/* Carrito */}
           <ShoppingCart
             items={cartItems}
-            descuento={descuento}
+            descuento={descuento + descuentoPuntos}
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveItem}
             onClear={handleClearCart}
@@ -1550,10 +1583,29 @@ export default function POSPage() {
                       : notasVenta
                       ? "var(--color-info)"
                       : "var(--color-text-secondary)",
+                    borderRight: "1px solid var(--color-border-subtle)",
                   }}
                 >
                   <FileText className="w-3.5 h-3.5" />
                   {notasVenta ? "Con nota" : "Notas"}
+                </button>
+
+                {/* Puntos — visible solo si hay cliente seleccionado */}
+                <button
+                  onClick={() => toggleExtras("puntos")}
+                  disabled={!clienteSeleccionado}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors disabled:opacity-40"
+                  style={{
+                    background: extrasPanel === "puntos" ? "var(--color-accent-light)" : "transparent",
+                    color: extrasPanel === "puntos"
+                      ? "var(--color-accent)"
+                      : descuentoPuntos > 0
+                      ? "var(--color-warning)"
+                      : "var(--color-text-secondary)",
+                  }}
+                >
+                  <Star className="w-3.5 h-3.5" />
+                  {descuentoPuntos > 0 ? `-$${descuentoPuntos}` : "Puntos"}
                 </button>
               </div>
 
@@ -1595,7 +1647,7 @@ export default function POSPage() {
                           </span>
                         </div>
                         <button
-                          onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); setResumenCliente(null); }}
+                          onClick={() => { setClienteSeleccionado(null); setBusquedaCliente(""); setResumenCliente(null); setSaldoPuntos(null); setPuntosACanjear(0); }}
                           className="p-0.5 rounded ml-2 shrink-0"
                           style={{ color: "var(--color-text-muted)" }}
                         >
@@ -1710,7 +1762,10 @@ export default function POSPage() {
                                 setShowClienteDropdown(false);
                                 setExtrasPanel(null);
                                 setResumenCliente(null);
+                                setSaldoPuntos(null);
+                                setPuntosACanjear(0);
                                 fetchResumenCliente(c.id);
+                                fetchPuntosCliente(c.id);
                               }}
                               className="w-full px-3 py-2.5 text-left text-sm hover:opacity-80 flex items-center gap-2"
                               style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
@@ -1748,6 +1803,68 @@ export default function POSPage() {
                       outline: "none",
                     }}
                   />
+                </div>
+              )}
+
+              {/* Panel expandible — Puntos loyalty */}
+              {extrasPanel === "puntos" && clienteSeleccionado && (
+                <div className="p-3 space-y-2">
+                  {saldoPuntos === null ? (
+                    <p className="text-xs text-center py-2" style={{ color: "var(--color-text-muted)" }}>
+                      Cargando puntos...
+                    </p>
+                  ) : saldoPuntos.saldoDisponible === 0 ? (
+                    <p className="text-xs text-center py-2" style={{ color: "var(--color-text-muted)" }}>
+                      {clienteSeleccionado.nombre} no tiene puntos disponibles este año.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between text-xs">
+                        <span style={{ color: "var(--color-text-secondary)" }}>
+                          Saldo disponible
+                        </span>
+                        <span className="font-bold" style={{ color: "var(--color-success)", fontFamily: "var(--font-data)" }}>
+                          {saldoPuntos.saldoDisponible} pts = ${saldoPuntos.saldoDisponible} MXN
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          max={saldoPuntos.saldoDisponible}
+                          value={puntosACanjear || ""}
+                          onChange={(e) => {
+                            const v = Math.min(
+                              Math.max(0, parseInt(e.target.value) || 0),
+                              saldoPuntos.saldoDisponible
+                            );
+                            setPuntosACanjear(v);
+                          }}
+                          placeholder="0"
+                          className="flex-1 px-3 py-1.5 rounded-lg text-sm text-right font-mono"
+                          style={{
+                            background: "var(--color-bg-sunken)",
+                            border: "1px solid var(--color-border)",
+                            color: "var(--color-text-primary)",
+                            outline: "none",
+                          }}
+                        />
+                        <span className="text-xs shrink-0" style={{ color: "var(--color-text-muted)" }}>pts</span>
+                        <button
+                          onClick={() => setPuntosACanjear(saldoPuntos.saldoDisponible)}
+                          className="text-xs px-2 py-1.5 rounded-lg font-medium shrink-0"
+                          style={{ background: "var(--color-accent-light)", color: "var(--color-accent)" }}
+                        >
+                          Todo
+                        </button>
+                      </div>
+                      {puntosACanjear > 0 && (
+                        <p className="text-xs font-semibold" style={{ color: "var(--color-warning)" }}>
+                          −${puntosACanjear} MXN aplicados al total
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
