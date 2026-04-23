@@ -47,7 +47,7 @@ export async function POST(
     // 1. Obtener la orden
     const { data: orden, error: ordenError } = await supabase
       .from("ordenes_reparacion")
-      .select("id, folio, estado, precio_total, presupuesto_total, distribuidor_id")
+      .select("id, folio, estado, precio_total, presupuesto_total, distribuidor_id, cliente_id")
       .eq("id", id)
       .single();
 
@@ -159,7 +159,21 @@ export async function POST(
       userId
     ).catch(() => {});
 
-    // 8. Registrar historial
+    // 8. Acumular puntos de loyalty (fire-and-forget)
+    if (orden.cliente_id && precioTotal > 0) {
+      import("@/lib/db/puntos").then(({ acumularPuntos }) =>
+        acumularPuntos({
+          clienteId:      orden.cliente_id,
+          distribuidorId: orden.distribuidor_id ?? undefined,
+          monto:          precioTotal,
+          referenciaId:   id,
+          referenciaTipo: "reparacion",
+          descripcion:    `Reparación ${orden.folio} — $${precioTotal.toFixed(2)}`,
+        })
+      ).catch(() => {});
+    }
+
+    // 9. Registrar historial
     await supabase.from("historial_estado_orden").insert({
       orden_id: id,
       estado_anterior: orden.estado,

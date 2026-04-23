@@ -350,7 +350,21 @@ export async function createVenta(
     throw new Error(`Error al crear items de venta: ${itemsError.message}`);
   }
 
-  // 3. Retornar venta completa
+  // 3. Acumular puntos si hay cliente (fire-and-forget)
+  if (formData.clienteId && total > 0) {
+    import("@/lib/db/puntos").then(({ acumularPuntos }) =>
+      acumularPuntos({
+        clienteId:      formData.clienteId!,
+        distribuidorId,
+        monto:          total,
+        referenciaId:   ventaData.id,
+        referenciaTipo: "venta_pos",
+        descripcion:    `Venta POS — ${total > 0 ? `$${total.toFixed(2)}` : ""}`,
+      })
+    ).catch(() => {});
+  }
+
+  // 4. Retornar venta completa
   const ventaCompleta = await getVentaById(ventaData.id, distribuidorId);
   if (!ventaCompleta) {
     throw new Error("Error al recuperar venta creada");

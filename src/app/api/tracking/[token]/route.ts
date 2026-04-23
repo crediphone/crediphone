@@ -146,6 +146,22 @@ export async function GET(
       }
     }
 
+    // Puntos de loyalty (solo si la orden ya está entregada)
+    let puntosData: { saldoDisponible: number; totalGanado: number; puntosUltimaReparacion: number } | null = null;
+    if (orden.estado === "entregado" && orden.clienteId) {
+      try {
+        const { getSaldoPuntos, calcularPuntos } = await import("@/lib/db/puntos");
+        const saldo = await getSaldoPuntos(orden.clienteId, orden.distribuidorId ?? undefined);
+        puntosData = {
+          saldoDisponible:          saldo.saldoDisponible,
+          totalGanado:              saldo.totalGanado,
+          puntosUltimaReparacion:   calcularPuntos(orden.costoTotal),
+        };
+      } catch {
+        // no crítico — no bloquear el tracking
+      }
+    }
+
     // Retornar solo información pública (sin datos sensibles)
     return NextResponse.json({
       success: true,
@@ -187,6 +203,7 @@ export async function GET(
         historial,
         anticipos: anticipos || [],
         fotos,
+        puntos: puntosData,
       },
     });
   } catch (error) {

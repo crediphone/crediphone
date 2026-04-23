@@ -91,6 +91,11 @@ interface TrackingData {
   historial: HistorialEstado[];
   anticipos: Anticipo[];
   fotos: FotoEquipo[];
+  puntos: {
+    saldoDisponible: number;
+    totalGanado: number;
+    puntosUltimaReparacion: number;
+  } | null;
 }
 
 /* ── Estado visual mapping ──────────────────────────────────── */
@@ -1350,6 +1355,54 @@ export default function TrackingPublicoPage() {
               )}
             </div>
           </SectionCard>
+        )}
+
+        {/* ── Puntos de Loyalty ────────────────────────────── */}
+        {data.puntos && orden.estado === "entregado" && (
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, #0a1628 0%, #0f2040 100%)",
+              border: "1px solid rgba(255,200,0,0.25)",
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            <div className="px-5 py-4 flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl"
+                style={{ background: "rgba(255,200,0,0.15)" }}
+              >
+                ⭐
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold" style={{ color: "#ffd700" }}>
+                  ¡Ganaste {data.puntos.puntosUltimaReparacion} punto{data.puntos.puntosUltimaReparacion !== 1 ? "s" : ""}!
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  Por esta reparación · cada 50 pesos = 1 punto
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-2xl font-bold" style={{ color: "#ffd700", fontFamily: "var(--font-data)" }}>
+                  {data.puntos.saldoDisponible}
+                </p>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  pts disponibles
+                </p>
+              </div>
+            </div>
+            {data.puntos.saldoDisponible > 0 && (
+              <div
+                className="px-5 py-3 text-xs"
+                style={{
+                  borderTop: "1px solid rgba(255,200,0,0.15)",
+                  color: "rgba(255,255,255,0.55)",
+                }}
+              >
+                💡 Tienes <span style={{ color: "#ffd700", fontWeight: 700 }}>${data.puntos.saldoDisponible} MXN</span> disponibles para canjear en tu próxima visita
+              </div>
+            )}
+          </div>
         )}
 
         {/* ── Consentimiento de Promociones ────────────────── */}
