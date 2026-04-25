@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       .from("ordenes_reparacion")
       .select(`
         id, folio, estado, marca_dispositivo, modelo_dispositivo,
-        presupuesto_total, costo_total, precio_total,
+        costo_total, precio_total,
         created_at,
         clientes:cliente_id (nombre, apellido, telefono)
       `)
