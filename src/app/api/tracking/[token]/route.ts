@@ -149,15 +149,22 @@ export async function GET(
     // Piezas en camino — visibles al cliente para dar seguimiento
     const { data: piezasEnCaminoDb } = await supabase
       .from("pedidos_pieza_reparacion")
-      .select("nombre_pieza, estado, fecha_estimada_llegada")
+      .select("nombre_pieza, estado, fecha_estimada_llegada, notas")
       .eq("orden_id", trackingData.orden_id)
       .in("estado", ["pendiente", "en_camino"]);
 
-    const piezasEnCamino = (piezasEnCaminoDb ?? []).map((p: any) => ({
-      nombre: p.nombre_pieza,
-      estado: p.estado,
-      fechaEstimadaLlegada: p.fecha_estimada_llegada ?? null,
-    }));
+    const piezasEnCamino = (piezasEnCaminoDb ?? []).map((p: any) => {
+      // Extraer el motivo de retraso más reciente de las notas (línea con "Retraso:")
+      const notas: string = p.notas ?? "";
+      const retrasoMatch = notas.split("\n").reverse().find((l: string) => l.includes("Retraso:"));
+      const motivoRetraso = retrasoMatch ? retrasoMatch.replace(/^\[.*?\]\s*Retraso:\s*/, "").trim() : null;
+      return {
+        nombre: p.nombre_pieza,
+        estado: p.estado,
+        fechaEstimadaLlegada: p.fecha_estimada_llegada ?? null,
+        motivoRetraso,
+      };
+    });
 
     // Puntos de loyalty (solo si la orden ya está entregada)
     let puntosData: { saldoDisponible: number; totalGanado: number; puntosUltimaReparacion: number } | null = null;

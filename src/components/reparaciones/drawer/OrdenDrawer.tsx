@@ -102,6 +102,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [verificandoPedido, setVerificandoPedido] = useState<string | null>(null);
   const [verifFormPedidoId, setVerifFormPedidoId] = useState<string | null>(null);
   const [motivoDefectoInput, setMotivoDefectoInput] = useState("");
+  const [retrasoFormPedidoId, setRetrasoFormPedidoId] = useState<string | null>(null);
+  const [retrasoFecha, setRetrasoFecha] = useState("");
+  const [retrasoMotivo, setRetrasoMotivo] = useState("");
+  const [guardandoRetraso, setGuardandoRetraso] = useState(false);
 
   // Solicitudes de cambio de precio
   interface SolicitudPrecio {
@@ -353,6 +357,32 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       }
     } finally {
       setVerificandoPedido(null);
+    }
+  }
+
+  async function handleReportarRetraso(pedidoId: string) {
+    if (!orden || (!retrasoFecha && !retrasoMotivo.trim())) return;
+    setGuardandoRetraso(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fechaEstimadaLlegada: retrasoFecha || undefined,
+          motivoRetraso: retrasoMotivo.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRetrasoFormPedidoId(null);
+        setRetrasoFecha("");
+        setRetrasoMotivo("");
+        fetchPedidosPieza();
+      } else {
+        alert(data.error || "Error al reportar retraso");
+      }
+    } finally {
+      setGuardandoRetraso(false);
     }
   }
 
@@ -736,14 +766,31 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                         </div>
                       )}
                       {p.estado === "en_camino" && (
-                        <button
-                          onClick={() => handleRecibirPedido(p.id)}
-                          disabled={recibiendoPedido === p.id}
-                          className="text-xs px-2 py-1 rounded-lg font-medium"
-                          style={{ background: "var(--color-success)", color: "#fff", opacity: recibiendoPedido === p.id ? 0.7 : 1 }}
-                        >
-                          {recibiendoPedido === p.id ? "..." : "Recibida ✓"}
-                        </button>
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => handleRecibirPedido(p.id)}
+                            disabled={recibiendoPedido === p.id}
+                            className="text-xs px-2 py-1 rounded-lg font-medium"
+                            style={{ background: "var(--color-success)", color: "#fff", opacity: recibiendoPedido === p.id ? 0.7 : 1 }}
+                          >
+                            {recibiendoPedido === p.id ? "..." : "Recibida ✓"}
+                          </button>
+                          {retrasoFormPedidoId !== p.id && (
+                            <button
+                              onClick={() => {
+                                setRetrasoFormPedidoId(p.id);
+                                setRetrasoFecha(p.fechaEstimadaLlegada
+                                  ? new Date(p.fechaEstimadaLlegada).toISOString().split("T")[0]
+                                  : "");
+                                setRetrasoMotivo("");
+                              }}
+                              className="text-xs px-2 py-1 rounded-lg font-medium"
+                              style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)", border: "1px solid var(--color-warning)" }}
+                            >
+                              ⏳ Reportar retraso
+                            </button>
+                          )}
+                        </div>
                       )}
                       {p.estado === "recibida" && !isVerifOpen && (
                         <button
@@ -756,6 +803,54 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                       )}
                     </div>
                   </div>
+
+                  {/* Formulario de retraso inline */}
+                  {retrasoFormPedidoId === p.id && (
+                    <div className="ml-5 p-3 rounded-lg space-y-2" style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}>
+                      <p className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>Reportar retraso de pieza</p>
+                      <div className="space-y-1.5">
+                        <input
+                          type="date"
+                          value={retrasoFecha}
+                          onChange={(e) => setRetrasoFecha(e.target.value)}
+                          min={new Date().toISOString().split("T")[0]}
+                          className="w-full px-2 py-1.5 rounded-lg text-xs"
+                          style={{ border: "1px solid var(--color-warning)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)" }}
+                          placeholder="Nueva fecha estimada"
+                        />
+                        <input
+                          type="text"
+                          value={retrasoMotivo}
+                          onChange={(e) => setRetrasoMotivo(e.target.value)}
+                          placeholder="Motivo del retraso (ej: agotado, flete)"
+                          className="w-full px-2 py-1.5 rounded-lg text-xs"
+                          style={{ border: "1px solid var(--color-warning)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)" }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleReportarRetraso(p.id)}
+                          disabled={guardandoRetraso || (!retrasoFecha && !retrasoMotivo.trim())}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-semibold"
+                          style={{ background: "var(--color-warning-text)", color: "#fff", opacity: (guardandoRetraso || (!retrasoFecha && !retrasoMotivo.trim())) ? 0.6 : 1 }}
+                        >
+                          {guardandoRetraso ? "..." : "Guardar"}
+                        </button>
+                        <button
+                          onClick={() => setRetrasoFormPedidoId(null)}
+                          className="px-3 py-1.5 rounded-lg text-xs"
+                          style={{ color: "var(--color-text-muted)", background: "var(--color-bg-elevated)" }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                      {orden?.clienteTelefono && (
+                        <p className="text-xs" style={{ color: "var(--color-warning-text)", opacity: 0.8 }}>
+                          Después de guardar, ve a Mensajería para notificar al cliente del retraso.
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* "En camino" — optional fecha estimada before confirming */}
                   {p.estado === "pendiente" && (
