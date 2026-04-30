@@ -65,45 +65,51 @@ ${linkSeguimiento}
  */
 function generarDesgloseCostos(orden: OrdenReparacion): string {
   const lineas: string[] = [];
+  const fmt = (n: number) => `$${n.toFixed(2)}`;
 
-  // Mano de obra
-  const costoManoObra = orden.costoReparacion || 0;
-  if (costoManoObra > 0) {
-    lineas.push(`• Mano de obra: $${costoManoObra.toFixed(2)}`);
-  }
-
-  // Partes reemplazadas
-  const costoPiezas = orden.costoPartes || 0;
-  if (
-    orden.partesReemplazadas &&
-    Array.isArray(orden.partesReemplazadas) &&
-    orden.partesReemplazadas.length > 0
-  ) {
-    lineas.push(`• Partes y refacciones:`);
-    orden.partesReemplazadas.forEach((parte: any) => {
-      const subtotal = (parte.costo || 0) * (parte.cantidad || 1);
-      lineas.push(
-        `  - ${parte.nombre || "Parte"}: $${subtotal.toFixed(2)} (${
-          parte.cantidad || 1
-        }x $${(parte.costo || 0).toFixed(2)})`
-      );
+  // ── Servicios cotizados (piezasCotizacion tiene prioridad)
+  const piezasCot = (orden as any).piezasCotizacion as { nombre: string; cantidad: number; precioUnitario: number; precioTotal?: number }[] | undefined;
+  if (piezasCot && piezasCot.length > 0) {
+    lineas.push(`📋 *Servicios cotizados:*`);
+    piezasCot.forEach((p) => {
+      const sub = p.precioTotal ?? p.precioUnitario * (p.cantidad ?? 1);
+      const cantLabel = (p.cantidad ?? 1) > 1 ? ` ×${p.cantidad}` : "";
+      lineas.push(`  • ${p.nombre}${cantLabel}: ${fmt(sub)}`);
     });
-  } else if (costoPiezas > 0) {
-    // Si no hay desglose pero sí hay costo de piezas
-    lineas.push(`• Partes y refacciones: $${costoPiezas.toFixed(2)}`);
+  } else {
+    // Fallback: mano de obra y partes reemplazadas por el técnico
+    const manoDeObra = (orden as any).presupuestoManoDeObra ?? orden.costoReparacion ?? 0;
+    if (manoDeObra > 0) {
+      lineas.push(`• Mano de obra: ${fmt(manoDeObra)}`);
+    }
+
+    const partes = orden.partesReemplazadas;
+    const costoPiezas = (orden as any).presupuestoPiezas ?? orden.costoPartes ?? 0;
+    if (partes && Array.isArray(partes) && partes.length > 0) {
+      lineas.push(`• Partes y refacciones:`);
+      partes.forEach((parte: any) => {
+        const subtotal = (parte.costo || 0) * (parte.cantidad || 1);
+        const cantLabel = (parte.cantidad ?? 1) > 1 ? ` ×${parte.cantidad}` : "";
+        lineas.push(`  - ${parte.parte || parte.nombre || "Parte"}${cantLabel}: ${fmt(subtotal)}`);
+      });
+    } else if (costoPiezas > 0) {
+      lineas.push(`• Partes y refacciones: ${fmt(costoPiezas)}`);
+    }
   }
 
-  // Total
-  const total = orden.costoTotal || orden.presupuestoTotal || 0;
-  if (total > 0) {
-    lineas.push(`\n💵 *TOTAL: $${total.toFixed(2)}*`);
+  // ── Total
+  const manoDeObraFallback = (orden as any).presupuestoManoDeObra ?? orden.costoReparacion ?? 0;
+  const piezasFallback = (orden as any).presupuestoPiezas ?? orden.costoPartes ?? 0;
+  const computedTotal = manoDeObraFallback + piezasFallback;
+  const total = (orden as any).presupuestoTotal ?? orden.costoTotal ?? computedTotal;
 
-    // Anticipos si existen (calcular desde anticiposData si existe)
+  if (total > 0) {
+    lineas.push(`\n💵 *TOTAL: ${fmt(total)}*`);
     const totalAnticipos = (orden as any).totalAnticipos || 0;
     if (totalAnticipos > 0) {
-      lineas.push(`   Anticipos recibidos: -$${totalAnticipos.toFixed(2)}`);
+      lineas.push(`   Anticipos recibidos: -${fmt(totalAnticipos)}`);
       const saldo = total - totalAnticipos;
-      lineas.push(`   *Saldo pendiente: $${saldo.toFixed(2)}*`);
+      lineas.push(`   *Saldo al recoger: ${fmt(saldo)}*`);
     }
   }
 

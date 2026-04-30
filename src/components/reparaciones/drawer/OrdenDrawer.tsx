@@ -22,7 +22,7 @@ import { CentroMensajesPanel } from "@/components/reparaciones/mensajeria/Centro
 import { BitacoraTiempoPanel } from "@/components/reparaciones/BitacoraTiempoPanel";
 import { Card } from "@/components/ui/Card";
 import type { OrdenReparacionDetallada } from "@/types";
-import { generarMensajePromocion, generarLinkWhatsApp } from "@/lib/whatsapp-reparaciones";
+import { generarMensajePromocion, generarMensajePresupuesto, generarLinkWhatsApp } from "@/lib/whatsapp-reparaciones";
 
 interface OrdenDrawerProps {
   ordenId: string | null;
@@ -892,17 +892,42 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           <AnticipoCajaPanel orden={orden} onOrdenUpdated={handleSuccess} />
         )}
         <PresupuestoSummary orden={orden} />
-        {orden.estado !== "entregado" && orden.estado !== "cancelado" && (
-          <button
-            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium"
-            style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-sunken)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
-            onClick={() => setModalPresupuestoOpen(true)}
-          >
-            <Edit className="w-4 h-4" /> Editar presupuesto
-          </button>
-        )}
+
+        {/* Acciones de presupuesto */}
+        <div className="flex gap-2">
+          {orden.clienteTelefono && (
+            (() => {
+              const trackingUrl = (orden as any).trackingToken
+                ? `${process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone.com.mx"}/tracking/${(orden as any).trackingToken}`
+                : undefined;
+              const msg = generarMensajePresupuesto(orden, trackingUrl);
+              const link = generarLinkWhatsApp(orden.clienteTelefono, msg);
+              return (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold"
+                  style={{ background: "#25D366", color: "#fff" }}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Enviar presupuesto
+                </a>
+              );
+            })()
+          )}
+          {orden.estado !== "entregado" && orden.estado !== "cancelado" && (
+            <button
+              className={`${orden.clienteTelefono ? "flex-shrink-0" : "flex-1"} flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium`}
+              style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-sunken)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+              onClick={() => setModalPresupuestoOpen(true)}
+            >
+              <Edit className="w-4 h-4" /> Editar
+            </button>
+          )}
+        </div>
 
         {/* Solicitudes de cambio de precio — solo admin */}
         {solicitudesPrecio.filter((s) => s.estado === "pendiente").length > 0 && (
