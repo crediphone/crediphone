@@ -1201,6 +1201,60 @@ export default function TrackingPublicoPage() {
             </div>
           )}
 
+        {/* ── Resumen de servicios contratados (estados aprobado en adelante) ── */}
+        {["aprobado", "en_reparacion", "completado", "listo_entrega", "entregado"].includes(orden.estado) &&
+          (orden.piezasCotizacion?.length > 0 || orden.partesReemplazadas?.length > 0) && (
+          <SectionCard title="Servicios Contratados" icon={CheckCircle2}>
+            {orden.piezasCotizacion && orden.piezasCotizacion.length > 0 ? (
+              <div className="space-y-1">
+                {orden.piezasCotizacion.map((p, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg px-3 py-2"
+                    style={{ background: "var(--color-bg-elevated)" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-success)" }} />
+                      <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                        {p.nombre}
+                        {p.cantidad > 1 && (
+                          <span className="ml-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>× {p.cantidad}</span>
+                        )}
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                      {formatCurrency(p.precioTotal ?? p.precioUnitario * (p.cantidad ?? 1))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : orden.partesReemplazadas && orden.partesReemplazadas.length > 0 ? (
+              <div className="space-y-1">
+                {orden.partesReemplazadas.map((parte, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg px-3 py-2"
+                    style={{ background: "var(--color-bg-elevated)" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-success)" }} />
+                      <span className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                        {parte.parte}
+                        {(parte.cantidad ?? 1) > 1 && (
+                          <span className="ml-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>× {parte.cantidad}</span>
+                        )}
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                      {formatCurrency((parte.costo ?? 0) * (parte.cantidad ?? 1))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </SectionCard>
+        )}
+
         {/* ── Costo total ───────────────────────────────────── */}
         {mostrarCosto && (
           <SectionCard>

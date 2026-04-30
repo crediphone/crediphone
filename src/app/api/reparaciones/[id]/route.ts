@@ -399,6 +399,8 @@ export async function DELETE(
     await supabase.from("anticipos_reparacion").delete().eq("orden_id", id);
     await supabase.from("imagenes_reparacion").delete().eq("orden_id", id);
     await supabase.from("reparacion_piezas").delete().eq("orden_id", id);
+    await supabase.from("pedidos_pieza_reparacion").delete().eq("orden_id", id);
+    await supabase.from("movimientos_bolsa_virtual").delete().eq("orden_id", id);
     await supabase.from("historial_estado_orden").delete().eq("orden_id", id);
 
     // Eliminar la orden principal
