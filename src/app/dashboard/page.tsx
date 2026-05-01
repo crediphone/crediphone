@@ -114,6 +114,8 @@ export default function DashboardPage() {
   const [drawerOrdenId, setDrawerOrdenId] = useState<string | null>(null);
   const [ordenesPendientes, setOrdenesPendientes] = useState<OrdenReparacionDetallada[]>([]);
   const [loadingPendientes, setLoadingPendientes] = useState(false);
+  // I5: notificaciones fallidas (solo admin)
+  const [notifFallidasCount, setNotifFallidasCount] = useState(0);
 
   // PAGES-002: Esperar a que user esté cargado antes de hacer fetch (evita 401/403 en carga inicial)
   useEffect(() => {
@@ -123,6 +125,12 @@ export default function DashboardPage() {
     fetchOrdenesPendientes();
     if (["admin", "vendedor", "super_admin"].includes(user.role)) {
       fetchCajaStatus();
+    }
+    if (["admin", "super_admin"].includes(user.role)) {
+      fetch("/api/notificaciones/fallidas")
+        .then(r => r.json())
+        .then(d => { if (d.success) setNotifFallidasCount(d.total ?? 0); })
+        .catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);

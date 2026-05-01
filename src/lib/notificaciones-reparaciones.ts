@@ -48,6 +48,8 @@ export async function notificarCambioEstado(
 ): Promise<NotificacionCreada[]> {
   const notificaciones: NotificacionCreada[] = [];
 
+  const supabase = createAdminClient();
+
   try {
     const config = getConfiguracionNotificacion(nuevoEstado);
 
@@ -128,7 +130,21 @@ export async function notificarCambioEstado(
               distribuidorId: orden.distribuidorId ?? undefined,
               entidadTipo: "reparacion",
               entidadId:   orden.id,
-            }).catch(() => null);
+            }).catch(async (waErr) => {
+              // I5: registrar WhatsApp fallido
+              try {
+                await supabase.from("notificaciones_fallidas").insert({
+                  orden_id:       orden.id,
+                  distribuidor_id: orden.distribuidorId ?? null,
+                  tipo:           "whatsapp",
+                  canal:          destino.tipo,
+                  telefono:       orden.clienteTelefono,
+                  mensaje,
+                  error:          waErr instanceof Error ? waErr.message : String(waErr),
+                });
+              } catch { /* no bloquear */ }
+              return null;
+            });
 
             if (waResult?.canal === "link" && waResult.waLink) {
               resultado.whatsappLink = waResult.waLink;
@@ -144,6 +160,17 @@ export async function notificarCambioEstado(
           `Error al notificar ${destino.tipo} por ${destino.canal}:`,
           err
         );
+        // I5: registrar fallo genérico de notificación
+        try {
+          await supabase.from("notificaciones_fallidas").insert({
+            orden_id:       orden.id,
+            distribuidor_id: orden.distribuidorId ?? null,
+            tipo:           destino.canal,
+            canal:          destino.tipo,
+            telefono:       destino.canal === "whatsapp" ? (orden.clienteTelefono ?? null) : null,
+            error:          err instanceof Error ? err.message : String(err),
+          });
+        } catch { /* no bloquear */ }
       }
     }
 

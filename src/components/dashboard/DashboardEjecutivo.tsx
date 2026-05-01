@@ -541,6 +541,8 @@ export function DashboardEjecutivo() {
   const [modalOrdenOpen, setModalOrdenOpen] = useState(false);
 
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  // I5: notificaciones fallidas
+  const [notifFallidas, setNotifFallidas] = useState(0);
 
   const fetchAll = useCallback(async () => {
     setLoadingResumen(true);
@@ -549,10 +551,11 @@ export function DashboardEjecutivo() {
 
     const REQUIEREN_ACCION = ["recibido", "diagnostico", "esperando_piezas", "presupuesto", "aprobado", "listo_entrega"];
 
-    const [resRes, streamRes, ordenesRes] = await Promise.allSettled([
+    const [resRes, streamRes, ordenesRes, fallidasRes] = await Promise.allSettled([
       fetch("/api/dashboard/resumen").then((r) => r.json()),
       fetch("/api/dashboard/stream").then((r) => r.json()),
       fetch("/api/reparaciones?detalladas=true").then((r) => r.json()),
+      fetch("/api/notificaciones/fallidas").then((r) => r.json()),
     ]);
 
     if (resRes.status === "fulfilled" && resRes.value.success) {
@@ -570,6 +573,10 @@ export function DashboardEjecutivo() {
       setOrdenes(todas.filter((o) => REQUIEREN_ACCION.includes(o.estado)));
     }
     setLoadingOrdenes(false);
+
+    if (fallidasRes.status === "fulfilled" && fallidasRes.value.success) {
+      setNotifFallidas(fallidasRes.value.total ?? 0);
+    }
 
     setLastRefresh(new Date());
   }, []);
@@ -605,6 +612,25 @@ export function DashboardEjecutivo() {
           {lastRefresh.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
         </button>
       </div>
+
+      {/* I5: Banner de notificaciones fallidas (solo si hay pendientes) */}
+      {notifFallidas > 0 && (
+        <Link
+          href="/dashboard/notificaciones/fallidas"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+          style={{
+            background: "var(--color-danger-bg, #fee2e2)",
+            border: "1px solid var(--color-danger)",
+            color: "var(--color-danger)",
+          }}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>
+            {notifFallidas} notificación{notifFallidas !== 1 ? "es" : ""} de WhatsApp no llegaron al cliente.
+            {" "}<span style={{ textDecoration: "underline" }}>Ver y reenviar</span>
+          </span>
+        </Link>
+      )}
 
       {/* ── Zona 1: Pulso del Día — 6 KPIs ── */}
       <section>
