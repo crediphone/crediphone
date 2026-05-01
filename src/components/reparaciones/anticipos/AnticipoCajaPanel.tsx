@@ -10,7 +10,7 @@ import type { AnticipoReparacion, OrdenReparacionDetallada, TipoPago } from "@/t
 import {
   DollarSign, CheckCircle2, Clock, RotateCcw,
   Banknote, ArrowUpRight, AlertTriangle, Package,
-  Loader2, CreditCard,
+  Loader2, CreditCard, Trash2,
 } from "lucide-react";
 
 interface AnticipoCajaPanelProps {
@@ -260,12 +260,16 @@ function ModalDevolverAnticipo({
 export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelProps) {
   const { user } = useAuth();
   const esTecnico = user?.role === "tecnico";
+  const isSuperAdmin = user?.role === "super_admin";
 
   const [anticipos, setAnticipos] = useState<AnticipoReparacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalAgregarOpen, setModalAgregarOpen] = useState(false);
   const [modalEntregarOpen, setModalEntregarOpen] = useState(false);
   const [modalDevolverOpen, setModalDevolverOpen] = useState(false);
+  // C9: eliminar anticipo (super_admin)
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null);
 
   const cargarAnticipos = useCallback(async () => {
     try {
@@ -280,6 +284,27 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
   }, [orden.id]);
 
   useEffect(() => { cargarAnticipos(); }, [cargarAnticipos]);
+
+  // C9: eliminar anticipo individual (super_admin only)
+  const handleEliminarAnticipo = async (anticipoId: string) => {
+    if (!window.confirm("¿Eliminar este anticipo? Esta acción revierte el movimiento de caja y no se puede deshacer.")) return;
+    setEliminandoId(anticipoId);
+    setErrorEliminar(null);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/anticipos/${anticipoId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        await cargarAnticipos();
+        onOrdenUpdated();
+      } else {
+        setErrorEliminar(data.error || "No se pudo eliminar el anticipo");
+      }
+    } catch {
+      setErrorEliminar("Error de conexión");
+    } finally {
+      setEliminandoId(null);
+    }
+  };
 
   const totalAnticiposPendientes  = anticipos.filter((a) => a.estado === "pendiente").reduce((s, a) => s + a.monto, 0);
   const totalAnticiposAplicados   = anticipos.filter((a) => a.estado === "aplicado").reduce((s, a) => s + a.monto, 0);
@@ -426,6 +451,22 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
                     <span className="text-base font-bold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
                       {MXN(a.monto)}
                     </span>
+                    {/* C9: botón eliminar — solo super_admin + anticipo pendiente + orden no entregada */}
+                    {isSuperAdmin && a.estado === "pendiente" && orden.estado !== "entregado" && (
+                      <button
+                        onClick={() => handleEliminarAnticipo(a.id)}
+                        disabled={eliminandoId === a.id}
+                        title="Eliminar anticipo (super_admin)"
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: "var(--color-danger)", background: "transparent" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-danger-bg, #fee2e2)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        {eliminandoId === a.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -433,6 +474,13 @@ export function AnticipoCajaPanel({ orden, onOrdenUpdated }: AnticipoCajaPanelPr
           </div>
         )}
       </div>
+
+      {/* C9: error al eliminar */}
+      {errorEliminar && (
+        <div className="mx-4 px-3 py-2 rounded-lg text-xs" style={{ background: "var(--color-danger-bg, #fee2e2)", color: "var(--color-danger)" }}>
+          {errorEliminar}
+        </div>
+      )}
 
       {/* FASE 37: Panel de traspasos pendientes de confirmar (visible para vendedor/admin) */}
       {!esTecnico && (
