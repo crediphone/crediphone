@@ -54,6 +54,8 @@ interface OrdenTracking {
   totalAnticipos?: number;
   saldoPendiente?: number;
   checklistApertura?: string | null;
+  // C8: snapshot inmutable de la cotización original
+  snapshotCotizacionInicial?: PiezaCotizacion[] | null;
 }
 
 interface FotoEquipo {

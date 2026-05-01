@@ -535,6 +535,8 @@ export interface OrdenReparacion {
   cargoCancelacion?: number;
   /** Piezas/refacciones cotizadas al crear la orden (guardadas en DB, visibles en tracking y PDF) */
   piezasCotizacion?: PiezaCotizacion[];
+  /** C8: Snapshot inmutable de la cotización inicial — se fija al crear y nunca cambia */
+  snapshotCotizacionInicial?: PiezaCotizacion[] | null;
 
   // Auditoría
   creadoPor?: string;
