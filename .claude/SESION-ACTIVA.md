@@ -1,8 +1,8 @@
 # Sesión Activa — CREDIPHONE
 
-## Estado: CICLO DE PIEZAS COMPLETO ✅ — Deployado en master (2026-04-24)
+## Estado: AUDITORÍA INTEGRAL — Fase 2 completada ✅ (2026-04-30)
 
-**Última sesión:** 2026-04-24 — Ciclo de vida de piezas completo (backend + UI + visibilidad + corte)
+**Última sesión:** 2026-04-30 — Auditoría integral: flujo de dinero, inventario, clientes y drawer
 **Historial:** `ARCHIVO/HISTORIAL-SESIONES.md`
 
 ---
@@ -32,41 +32,38 @@
 | C4 — Columnas anticipo/saldo en POS | ✅ | Lista "Listos para cobrar" con anticipo + saldo por fila |
 | SECURITY-003 — Cifrado wa_access_token | ✅ | AES-256-GCM, llave en CF secret WA_ENCRYPTION_KEY |
 | PO1 — Sistema de puntos / loyalty | ✅ | $50=1pt, 1pt=$1 descuento, reseteo anual, visible en tracking |
+| B0 — Bug esperando_piezas | ✅ | estadosValidos en PUT /api/reparaciones/[id] |
+| C6 — Eliminación limpia de orden | ✅ | DELETE elimina pedidos_pieza + movimientos_bolsa_virtual |
+| V3 — Tracking: Servicios Contratados | ✅ | Muestra piezasCotizacion con precio al cliente |
+| B1 — Flujo retraso de pieza | ✅ | PATCH /api/reparaciones/[id]/pedidos-pieza/[pedidoId] + tracking |
+| I1 — Resumen financiero por cliente | ✅ | GET /api/clientes/[id]/resumen + panel expandible en tabla |
+| I7 — Reasignar técnico (admin) | ✅ | Selector inline en "Técnico Asignado" del OrdenDrawer |
+| I6 — Puntos lealtad visible en POS | ✅ | Chip verde "X pts = $X descuento" en panel cliente POS |
+| D1 — Margen de utilidad por reparación | ✅ | Panel rentabilidad en tab Presupuesto (solo admin) |
 
 ---
 
-## Commits de la sesión 2026-04-24 (todos en master)
+## Pendiente — Plan de auditoría (ver plan completo)
 
-| Commit | Descripción |
-|--------|-------------|
-| `25bc1a4` | refactor(puntos): upsertPuntosManual → RPC atómico; filtro server-side reparaciones-activas |
-| `9ee8e1e` | feat(offline): soporte offline para cambios de estado en reparaciones |
-| `86fb04b` | feat(piezas): ciclo de vida completo — recibida/instalada separados, verificar, en_camino, no_reparable, catálogo |
-| `022cf69` | feat(reparaciones): UI OrdenDrawer — botones Verificar/En camino + badges por estado |
-| `5c5bfa5` | feat(piezas): Fase B — badges OrdenCard, tracking en_camino, stock en diagnóstico, tab En disputa |
-| `ab55cc1` | feat(piezas): A3/A4/P8 — resolución piezas, catálogo y bolsas corte |
+### Alta prioridad (requieren migración SQL o lógica compleja):
+- **C3** — Crear tabla `movimientos_stock` (SQL migration en Supabase)
+- **C1** — Descontar stock al entregar equipo + notificación pieza cancelada sin catálogo
+- **C2** — UI ajuste manual con motivo obligatorio + vista admin movimientos
+- **C7** — Cambio de precio por admin debe notificar al cliente (WhatsApp)
+- **C8** — PDF congela snapshot de cotización inicial
 
----
+### Media prioridad:
+- **I4** — Sugerencia de OC desde alertas de inventario
+- **I5** — Notificaciones fallidas: tabla + badge admin + reenvío
+- **C9** — DELETE individual de anticipo (super_admin)
+- **C11** — Historial de cambios de precio
 
-## Tablas y columnas en Supabase
-
-### Migradas 2026-04-22
-- `movimientos_bolsa_virtual` — gastos, devoluciones, ingresos de caja por orden
-- `versiones_pdf_reparacion` — historial de PDFs versionados con URL en R2
-- `solicitudes_cambio_precio` — solicitudes de vendedores esperando aprobación de admin
-
-### Migradas 2026-04-24 (pieza_lifecycle_estados_y_verificacion)
-- `pedidos_pieza_reparacion`: +fecha_estimada_llegada, +motivo_defecto, +intentos_reemplazo, +verificado_por, +fecha_verificacion, +instalado_por, +fecha_instalacion
-- `movimientos_bolsa_virtual`: +en_disputa, +pedido_pieza_id
-- Índice: `idx_pedidos_pieza_estado` ON pedidos_pieza_reparacion(orden_id, estado)
-
----
-
-## Pendiente (no urgente — esperar instrucción de Trini)
-
-- **PO1-UI** — Redemption UI en POS (canjear puntos al momento de cobrar)
-- **PO1-ADMIN** — Panel admin: ver puntos por cliente, historial
-- **P7** — Área clientes: historial financiero (reparaciones activas + saldo bolsa por cliente)
+### Deseables:
+- **D3** — Carga de fotos vía QR (corregir ligar-sesion-qr)
+- **D4** — Múltiples diagnósticos visibles en historial
+- **D5** — Garantías: UI de reclamación
+- **D6** — Dashboard super_admin: comparativa entre sucursales
+- **D7** — Offline queue: conectar al reconectar
 
 ---
 
