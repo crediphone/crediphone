@@ -253,7 +253,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   }, [ordenId]);
 
   useEffect(() => {
-    if (activeTab === "diagnostico" && ordenId) fetchPedidosPieza();
+    if ((activeTab === "diagnostico" || activeTab === "presupuesto") && ordenId) fetchPedidosPieza();
   }, [activeTab, ordenId, fetchPedidosPieza]);
 
   const fetchSolicitudesPrecio = useCallback(async () => {
@@ -1075,6 +1075,46 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           <AnticipoCajaPanel orden={orden} onOrdenUpdated={handleSuccess} />
         )}
         <PresupuestoSummary orden={orden} />
+
+        {/* D1: Margen de utilidad — solo admin/super_admin */}
+        {isAdmin && (() => {
+          const costosPiezas = pedidosPieza
+            .filter((p) => p.estado !== "cancelada")
+            .reduce((s, p) => s + (p.costoEstimado ?? 0) + (p.costoEnvio ?? 0), 0);
+          const ingresos = orden.costoTotal ?? orden.presupuestoTotal ?? 0;
+          if (ingresos === 0 && costosPiezas === 0) return null;
+          const ingresoNeto = ingresos - costosPiezas;
+          const margenPct = ingresos > 0 ? Math.round((ingresoNeto / ingresos) * 100) : 0;
+          const fmtMXN = (n: number) =>
+            new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
+          return (
+            <div
+              className="rounded-lg px-4 py-3 space-y-2"
+              style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border-subtle)" }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Rentabilidad (solo tú ves esto)
+              </p>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Ingresos</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--color-success)", fontFamily: "var(--font-data)" }}>{fmtMXN(ingresos)}</p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Costo piezas</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--color-danger)", fontFamily: "var(--font-data)" }}>{fmtMXN(costosPiezas)}</p>
+                </div>
+                <div>
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Utilidad neta</p>
+                  <p className="text-sm font-bold" style={{ color: ingresoNeto >= 0 ? "var(--color-success)" : "var(--color-danger)", fontFamily: "var(--font-data)" }}>
+                    {fmtMXN(ingresoNeto)}
+                    <span className="text-xs ml-1" style={{ opacity: 0.7 }}>({margenPct}%)</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Acciones de presupuesto */}
         <div className="flex gap-2">
