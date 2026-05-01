@@ -13,7 +13,13 @@ import ImportPayjoyModal from "@/components/clientes/ImportPayjoyModal";
 import type { Cliente } from "@/types";
 import { ExportButton } from "@/components/ui/ExportButton";
 import type { ColumnaExport } from "@/hooks/useExportCSV";
-import { Zap, BarChart2, Camera, Pencil, Trash2, X } from "lucide-react";
+import { Zap, BarChart2, Camera, Pencil, Trash2, X, Wrench, Star, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+
+interface ClienteResumen {
+  ordenesActivas: number;
+  saldoPendiente: number;
+  puntos: number;
+}
 
 // ─── ClienteRow ────────────────────────────────────────────────────────────────
 // Definido FUERA del componente padre para evitar desmontaje en cada render.
@@ -29,15 +35,36 @@ function ClienteRow({
   onVerScoring: (c: Cliente) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const [btnHover, setBtnHover] = useState<"scoring" | "edit" | "delete" | null>(null);
+  const [btnHover, setBtnHover] = useState<"scoring" | "edit" | "delete" | "actividad" | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [resumen, setResumen] = useState<ClienteResumen | null>(null);
+  const [loadingResumen, setLoadingResumen] = useState(false);
+
+  const handleToggleActividad = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!expanded && !resumen) {
+      setLoadingResumen(true);
+      try {
+        const res = await fetch(`/api/clientes/${cliente.id}/resumen`);
+        const data = await res.json();
+        if (data.success) setResumen(data.data);
+      } catch { /* silencioso */ }
+      finally { setLoadingResumen(false); }
+    }
+    setExpanded((v) => !v);
+  };
+
+  const fmtMXN = (n: number) =>
+    new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n);
 
   return (
+    <>
     <tr
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setBtnHover(null); }}
       onClick={() => onEdit(cliente)}
       style={{
-        borderBottom: "1px solid var(--color-border-subtle)",
+        borderBottom: expanded ? "none" : "1px solid var(--color-border-subtle)",
         background: hovered ? "var(--color-bg-elevated)" : "transparent",
         cursor: "pointer",
         transition: "background 150ms ease",
@@ -104,9 +131,86 @@ function ClienteRow({
           >
             <Trash2 size={12} />Eliminar
           </button>
+          <button
+            onClick={handleToggleActividad}
+            onMouseEnter={() => setBtnHover("actividad")}
+            onMouseLeave={() => setBtnHover(null)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+            style={{
+              color: "var(--color-text-muted)",
+              background: btnHover === "actividad" ? "var(--color-bg-elevated)" : "transparent",
+              transition: "background 150ms ease",
+            }}
+          >
+            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
         </div>
       </td>
     </tr>
+    {expanded && (
+      <tr style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+        <td colSpan={5} className="px-6 pb-3 pt-0">
+          {loadingResumen ? (
+            <div className="flex gap-6 py-2 animate-pulse">
+              {[1,2,3].map((i) => (
+                <div key={i} className="h-8 w-28 rounded-lg" style={{ background: "var(--color-bg-elevated)" }} />
+              ))}
+            </div>
+          ) : resumen ? (
+            <div className="flex flex-wrap items-center gap-4 py-2">
+              <a
+                href={`/dashboard/reparaciones?clienteId=${cliente.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+                style={{
+                  background: resumen.ordenesActivas > 0 ? "var(--color-accent-light)" : "var(--color-bg-elevated)",
+                  color: resumen.ordenesActivas > 0 ? "var(--color-accent)" : "var(--color-text-muted)",
+                  border: `1px solid ${resumen.ordenesActivas > 0 ? "var(--color-accent)" : "var(--color-border-subtle)"}`,
+                  textDecoration: "none",
+                }}
+              >
+                <Wrench size={12} />
+                {resumen.ordenesActivas} orden{resumen.ordenesActivas !== 1 ? "es" : ""} activa{resumen.ordenesActivas !== 1 ? "s" : ""}
+                <ExternalLink size={10} style={{ opacity: 0.6 }} />
+              </a>
+              {resumen.saldoPendiente > 0 && (
+                <span
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                  style={{
+                    background: "var(--color-warning-bg)",
+                    color: "var(--color-warning-text)",
+                    border: "1px solid var(--color-warning-bg)",
+                    fontFamily: "var(--font-data)",
+                  }}
+                >
+                  Saldo pendiente: {fmtMXN(resumen.saldoPendiente)}
+                </span>
+              )}
+              {resumen.puntos > 0 && (
+                <span
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                  style={{
+                    background: "var(--color-success-bg)",
+                    color: "var(--color-success-text)",
+                    border: "1px solid var(--color-success-bg)",
+                    fontFamily: "var(--font-data)",
+                  }}
+                >
+                  <Star size={11} />
+                  {resumen.puntos} puntos
+                </span>
+              )}
+              {resumen.ordenesActivas === 0 && resumen.saldoPendiente === 0 && resumen.puntos === 0 && (
+                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  Sin actividad activa
+                </span>
+              )}
+            </div>
+          ) : null}
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 // ──────────────────────────────────────────────────────────────────────────────
