@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 import {
   X, ExternalLink, Edit, Loader2, Wrench, Clock, AlertCircle,
   MessageSquare, Package, Timer, FileText, Image as ImageIcon,
   DollarSign, Phone, CheckCircle, GitBranch, Printer, Plus, PackageCheck, PackagePlus,
-  Download, History, ShieldAlert,
+  Download, History, ShieldAlert, UserCog,
 } from "lucide-react";
 import { EstadoBadge, PrioridadBadge } from "@/components/reparaciones/EstadoBadge";
 import { PresupuestoSummary } from "@/components/reparaciones/detail/PresupuestoSummary";
@@ -65,7 +66,9 @@ function isOverdue(orden: OrdenReparacionDetallada): boolean {
 
 export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen" }: OrdenDrawerProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const isMobile = useIsMobile();
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const [orden, setOrden] = useState<OrdenReparacionDetallada | null>(null);
   const [loading, setLoading] = useState(false);
   const [drawerError, setDrawerError] = useState(false);
@@ -125,6 +128,47 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   }
   const [versionesPDF, setVersionesPDF] = useState<VersionPDF[]>([]);
   const [cargandoPDF, setCargandoPDF] = useState(false);
+
+  // I7: Reasignar técnico (solo admin/super_admin)
+  const [reasignarOpen, setReasignarOpen] = useState(false);
+  const [tecnicos, setTecnicos] = useState<{ id: string; nombre: string }[]>([]);
+  const [nuevoTecnicoId, setNuevoTecnicoId] = useState("");
+  const [reasignando, setReasignando] = useState(false);
+
+  const fetchTecnicos = useCallback(async () => {
+    try {
+      const res = await fetch("/api/empleados");
+      const data = await res.json();
+      if (data.success) {
+        const todos = data.data ?? [];
+        setTecnicos(
+          todos
+            .filter((e: { role?: string }) => e.role === "tecnico" || e.role === "admin")
+            .map((e: { id: string; name?: string }) => ({ id: e.id, nombre: e.name ?? e.id }))
+        );
+      }
+    } catch { /* silencioso */ }
+  }, []);
+
+  const handleReasignar = async () => {
+    if (!nuevoTecnicoId || !ordenId) return;
+    setReasignando(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${ordenId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tecnicoId: nuevoTecnicoId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReasignarOpen(false);
+        setNuevoTecnicoId("");
+        await fetchOrden();
+        onRefresh();
+      }
+    } catch { /* silencioso */ }
+    finally { setReasignando(false); }
+  };
 
   /** Abre el modal de cambio de estado, opcionalmente pre-seleccionando un destino */
   function abrirCambiarEstado(estadoDestino?: import("@/types").EstadoOrdenReparacion) {
@@ -664,13 +708,57 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "var(--color-info-bg)" }}>
               <Wrench className="w-5 h-5" style={{ color: "var(--color-info)" }} />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
                 {orden.tecnicoNombre || "No asignado"}
               </p>
               <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Técnico de reparación</p>
             </div>
+            {isAdmin && !["entregado", "cancelado"].includes(orden.estado) && (
+              <button
+                onClick={() => { setReasignarOpen((v) => !v); if (!reasignarOpen) fetchTecnicos(); }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border-subtle)" }}
+              >
+                <UserCog className="w-3.5 h-3.5" />
+                Reasignar
+              </button>
+            )}
           </div>
+          {reasignarOpen && (
+            <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: "1px solid var(--color-border-subtle)" }}>
+              <select
+                value={nuevoTecnicoId}
+                onChange={(e) => setNuevoTecnicoId(e.target.value)}
+                className="flex-1 px-2.5 py-1.5 rounded-lg text-sm focus:outline-none"
+                style={{ background: "var(--color-bg-sunken)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+              >
+                <option value="">Seleccionar técnico…</option>
+                {tecnicos.map((t) => (
+                  <option key={t.id} value={t.id}>{t.nombre}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleReasignar}
+                disabled={!nuevoTecnicoId || reasignando}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{
+                  background: nuevoTecnicoId && !reasignando ? "var(--color-accent)" : "var(--color-bg-elevated)",
+                  color: nuevoTecnicoId && !reasignando ? "#fff" : "var(--color-text-muted)",
+                  cursor: nuevoTecnicoId && !reasignando ? "pointer" : "not-allowed",
+                }}
+              >
+                {reasignando ? "…" : "Guardar"}
+              </button>
+              <button
+                onClick={() => { setReasignarOpen(false); setNuevoTecnicoId(""); }}
+                className="px-2.5 py-1.5 rounded-lg text-xs"
+                style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}
+              >
+                ×
+              </button>
+            </div>
+          )}
         </Card>
 
         {orden.partesReemplazadas && orden.partesReemplazadas.length > 0 && (

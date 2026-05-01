@@ -308,8 +308,12 @@ export async function PUT(
       });
     }
 
-    // Caso 3: Actualizar campos sueltos (fechaEstimadaEntrega, requiereAprobacion)
-    if (body.fechaEstimadaEntrega !== undefined || body.requiereAprobacion !== undefined) {
+    // Caso 3: Actualizar campos sueltos (fechaEstimadaEntrega, requiereAprobacion, tecnicoId)
+    if (body.fechaEstimadaEntrega !== undefined || body.requiereAprobacion !== undefined || body.tecnicoId !== undefined) {
+      // Solo admin/super_admin puede reasignar técnico
+      if (body.tecnicoId !== undefined && !["admin", "super_admin"].includes(role ?? "")) {
+        return NextResponse.json({ success: false, error: "Solo admin puede reasignar técnicos" }, { status: 403 });
+      }
       const supabase = createAdminClient();
       const patchData: Record<string, unknown> = {};
       if (body.fechaEstimadaEntrega !== undefined) {
@@ -317,6 +321,9 @@ export async function PUT(
       }
       if (body.requiereAprobacion !== undefined) {
         patchData.requiere_aprobacion = body.requiereAprobacion;
+      }
+      if (body.tecnicoId !== undefined) {
+        patchData.tecnico_id = body.tecnicoId || null;
       }
       const { data, error } = await supabase
         .from("ordenes_reparacion")
@@ -336,7 +343,7 @@ export async function PUT(
         success: false,
         error: "Datos insuficientes",
         message:
-          "Debe proporcionar 'diagnostico', 'estado', 'fechaEstimadaEntrega' o 'requiereAprobacion' para actualizar la orden",
+          "Debe proporcionar 'diagnostico', 'estado', 'fechaEstimadaEntrega', 'requiereAprobacion' o 'tecnicoId' para actualizar la orden",
       },
       { status: 400 }
     );
