@@ -9,6 +9,7 @@ import { notificarCambioEstado } from "@/lib/notificaciones-reparaciones";
 import { notificarResponsablesKassa } from "@/lib/db/notificaciones";
 import { getAuthContext } from "@/lib/auth/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendWhatsApp, generarLinkWa } from "@/lib/whatsapp-api";
 import type { EstadoOrdenReparacion, DiagnosticoFormData } from "@/types";
 
 /**
@@ -193,6 +194,9 @@ export async function PUT(
         requiereAprobacion: body.diagnostico.requiereAprobacion ?? true,
       };
 
+      // C7: capturar precio anterior antes de aplicar el cambio (solo para admin)
+      const ordenPrevia = !esVendedor ? await getOrdenReparacionById(id) : null;
+
       ordenActualizada = await updateDiagnostico(id, diagnosticoData);
 
       // Si el diagnóstico resultó en estado "presupuesto", notificar al cliente
@@ -205,6 +209,68 @@ export async function PUT(
           }
         } catch (notifError) {
           console.error("Error al notificar presupuesto (no bloquea):", notifError);
+        }
+      }
+
+      // C7: Si admin cambió precio y la orden ya tiene tracking token → notificar al cliente
+      if (!esVendedor && ordenPrevia && hayNuevoPrecio) {
+        const precioAntes = (ordenPrevia.costoReparacion ?? 0) + (ordenPrevia.costoPartes ?? 0);
+        const precioDespues = (Number(nuevoCostoRep ?? ordenPrevia.costoReparacion ?? 0)) + (Number(nuevoCostoPar ?? ordenPrevia.costoPartes ?? 0));
+        if (precioAntes !== precioDespues) {
+          ;(async () => {
+            try {
+              const supabase = createAdminClient();
+              const { data: token } = await supabase
+                .from("tracking_tokens")
+                .select("token")
+                .eq("orden_id", id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              if (!token?.token) return; // sin tracking, no se puede notificar
+
+              const ordenDetallada = await getOrdenReparacionDetalladaById(id);
+              if (!ordenDetallada?.clienteTelefono) return;
+
+              const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crediphone.com.mx";
+              const trackingUrl = `${baseUrl}/tracking/${token.token}`;
+              const nombreCliente = `${ordenDetallada.clienteNombre || ""} ${(ordenDetallada as any).clienteApellido || ""}`.trim() || "Cliente";
+
+              const mensaje = [
+                `🔧 *Actualización de presupuesto — CREDIPHONE*`,
+                ``,
+                `Hola *${nombreCliente}*,`,
+                ``,
+                `El precio de tu reparación ha sido actualizado:`,
+                ``,
+                `📱 *Folio:* ${ordenDetallada.folio}`,
+                `💰 *Precio anterior:* $${precioAntes.toFixed(2)}`,
+                `💰 *Precio nuevo:* $${precioDespues.toFixed(2)}`,
+                ``,
+                `🔗 Revisa tu presupuesto actualizado:`,
+                trackingUrl,
+                ``,
+                `Si tienes preguntas, responde a este mensaje.`,
+                `📱 CREDIPHONE`,
+              ].join("\n");
+
+              await sendWhatsApp({ telefono: ordenDetallada.clienteTelefono, mensaje, distribuidorId: ordenDetallada.distribuidorId ?? undefined }).catch(() => {
+                // fallback: no bloquea si WA no configurado
+              });
+
+              // Registrar en historial
+              await supabase.from("historial_estado_orden").insert({
+                orden_id: id,
+                estado_anterior: ordenDetallada.estado,
+                estado_nuevo: ordenDetallada.estado,
+                comentario: `Precio actualizado por admin: $${precioAntes.toFixed(2)} → $${precioDespues.toFixed(2)}. Notificación enviada al cliente.`,
+                usuario_id: userId,
+              });
+            } catch (e) {
+              console.error("[C7] Error al notificar cambio de precio al cliente (no bloquea):", e);
+            }
+          })();
         }
       }
 
@@ -295,6 +361,43 @@ export async function PUT(
             nombre: p.nombre_pieza,
             costoEstimado: Number(p.costo_estimado ?? 0),
           }));
+
+          // C1: Piezas instaladas del catálogo → devolver stock (fire-and-forget)
+          const piezasInstaladas = (piezasPendientes ?? []).filter(
+            (p: any) => ["instalada", "verificada_ok"].includes(p.estado) && p.producto_id
+          );
+          // También buscar instaladas (que no estaban en "pendiente/en_camino/recibida/defectuosa")
+          const { data: instaladas } = await supabase
+            .from("pedidos_pieza_reparacion")
+            .select("id, producto_id, nombre_pieza")
+            .eq("orden_id", id)
+            .not("producto_id", "is", null)
+            .in("estado", ["instalada", "verificada_ok"]);
+
+          const todasInstaladas = [
+            ...piezasInstaladas,
+            ...(instaladas ?? []).filter((i: any) => !piezasInstaladas.find((p: any) => p.id === i.id)),
+          ];
+
+          for (const pieza of todasInstaladas) {
+            const { data: prod } = await supabase.from("productos").select("stock").eq("id", pieza.producto_id).single();
+            if (!prod) continue;
+            const stockAntes = Number(prod.stock ?? 0);
+            const stockDespues = stockAntes + 1;
+            await supabase.from("productos").update({ stock: stockDespues }).eq("id", pieza.producto_id);
+            await supabase.from("movimientos_stock").insert({
+              producto_id: pieza.producto_id,
+              distribuidor_id: distribuidorId ?? null,
+              tipo: "cancelacion_reparacion",
+              cantidad: 1,
+              stock_antes: stockAntes,
+              stock_despues: stockDespues,
+              referencia_id: id,
+              referencia_tipo: "orden_reparacion",
+              registrado_por: userId,
+              notas: `Pieza "${pieza.nombre_pieza}" devuelta al cancelar orden`,
+            });
+          }
         }
       }
 
