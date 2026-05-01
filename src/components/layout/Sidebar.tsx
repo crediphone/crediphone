@@ -48,6 +48,7 @@ import {
   TrendingUp,       // Rentabilidad por categoría (FASE 63)
   Smartphone,       // Reporte de equipos
   Star,             // Programa de puntos / loyalty
+  ArrowLeftRight,   // Movimientos de stock (C2)
 } from "lucide-react";
 
 /* ── Tipos de navegación ────────────────────────────────────── */
@@ -175,6 +176,7 @@ const navGroups: NavGroup[] = [
           { href: "/dashboard/inventario/verificar",      label: "Verificar",       icon: ClipboardCheck, roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
           { href: "/dashboard/inventario/ubicaciones",  label: "Ubicaciones",     icon: Warehouse,      roles: ["admin", "vendedor", "super_admin"], moduleKey: "inventario_avanzado" },
           { href: "/dashboard/inventario/alertas",      label: "Alertas Stock",   icon: PackageX,       roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
+          { href: "/dashboard/inventario/movimientos",  label: "Movimientos",     icon: ArrowLeftRight, roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
           { href: "/dashboard/inventario/discrepancias",label: "Discrepancias",   icon: FileBarChart,   roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
           { href: "/dashboard/inventario/series",       label: "Series x Lote",   icon: Barcode,        roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },
           { href: "/dashboard/inventario/importar",     label: "Importar Excel",  icon: Upload,         roles: ["admin", "super_admin"],             moduleKey: "inventario_avanzado" },

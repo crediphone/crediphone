@@ -994,6 +994,8 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
     ram:             producto?.ram                || "",
     almacenamiento:  producto?.almacenamiento     || "",
   });
+  const stockOriginal = useRef<number>(producto?.stock ?? 0);
+  const [motivoAjuste, setMotivoAjuste] = useState("");
   const [loading, setLoading]       = useState(false);
   const [errors, setErrors]         = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -1190,6 +1192,10 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
     if (!formData.precio || Number(formData.precio) <= 0) e.precio  = "El precio debe ser mayor a 0";
     // FASE 53d: los servicios no tienen stock físico, no validar
     if (formData.tipo !== "servicio" && Number(formData.stock) < 0) e.stock = "El stock no puede ser negativo";
+    // C2: motivo obligatorio cuando el stock cambia en modo edición
+    if (mode === "edit" && formData.tipo !== "servicio" && Number(formData.stock) !== stockOriginal.current && !motivoAjuste.trim()) {
+      e.motivoAjuste = "Debes indicar el motivo del ajuste de stock";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -1200,6 +1206,22 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
     setLoading(true);
     setSubmitError(null);
     try {
+      // C2: si el stock cambió en modo edición, usar PATCH ajustar_stock (requiere motivo)
+      const stockCambio = mode === "edit" && formData.tipo !== "servicio" && Number(formData.stock) !== stockOriginal.current;
+      if (stockCambio) {
+        const patchRes = await fetch(`/api/productos/${producto?.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "ajustar_stock", cantidadNueva: Number(formData.stock), motivo: motivoAjuste.trim() }),
+        });
+        if (!patchRes.ok) {
+          const patchData = await patchRes.json().catch(() => ({}));
+          setSubmitError(patchData?.message || patchData?.error || "Error al ajustar el stock");
+          setLoading(false);
+          return;
+        }
+      }
+
       const url = mode === "create" ? "/api/productos" : `/api/productos/${producto?.id}`;
       const method = mode === "create" ? "POST" : "PUT";
       const res = await fetch(url, {
@@ -1209,7 +1231,8 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
           ...formData,
           precio:          Number(formData.precio),
           costo:           formData.costo          ? Number(formData.costo)          : undefined,
-          stock:           Number(formData.stock),
+          // C2: si ya se ajustó el stock vía PATCH, no incluirlo en el PUT para evitar sobreescribir
+          stock:           stockCambio ? undefined : Number(formData.stock),
           stockMinimo:     formData.stockMinimo !== "" ? Number(formData.stockMinimo)  : undefined,
           tipo:            formData.tipo            || undefined,
           categoriaId:     formData.categoriaId     || undefined,
@@ -1536,10 +1559,37 @@ function ProductoForm({ mode, producto, onSuccess, onCancel, productosExistentes
           <span>Los servicios no tienen inventario físico — el stock se ignora al vender.</span>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Stock Actual *" name="stock" type="number" value={formData.stock} onChange={handleChange} error={errors.stock} placeholder="1" required />
-          <Input label="Stock Mínimo" name="stockMinimo" type="number" value={formData.stockMinimo} onChange={handleChange} placeholder="3" />
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Stock Actual *" name="stock" type="number" value={formData.stock} onChange={handleChange} error={errors.stock} placeholder="1" required />
+            <Input label="Stock Mínimo" name="stockMinimo" type="number" value={formData.stockMinimo} onChange={handleChange} placeholder="3" />
+          </div>
+          {/* C2: motivo de ajuste — solo en edición cuando el stock cambia */}
+          {mode === "edit" && Number(formData.stock) !== stockOriginal.current && (
+            <div className="space-y-1">
+              <label className="block text-sm font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                Motivo del ajuste de stock <span style={{ color: "var(--color-danger)" }}>*</span>
+              </label>
+              <input
+                value={motivoAjuste}
+                onChange={(e) => setMotivoAjuste(e.target.value)}
+                placeholder="Ej: corrección física, merma, daño en almacén..."
+                className="w-full px-3 py-2 rounded-xl text-sm font-mono"
+                style={{
+                  background: "var(--color-bg-sunken)",
+                  border: `1px solid ${errors.motivoAjuste ? "var(--color-danger)" : "var(--color-border)"}`,
+                  color: "var(--color-text-primary)",
+                }}
+              />
+              {errors.motivoAjuste && (
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-danger)" }}>{errors.motivoAjuste}</p>
+              )}
+              <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>
+                Ajuste: {stockOriginal.current} → {formData.stock} unidades
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       {/* FASE 55: Código de barras con generación automática + escaneo por cámara */}
