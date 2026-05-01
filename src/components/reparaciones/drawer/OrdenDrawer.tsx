@@ -129,6 +129,42 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [versionesPDF, setVersionesPDF] = useState<VersionPDF[]>([]);
   const [cargandoPDF, setCargandoPDF] = useState(false);
 
+  // C11: Historial de precios (solo admin/super_admin)
+  interface HistorialPrecio {
+    id: string; precioAnterior: number; precioNuevo: number;
+    costoReparacionAnterior: number; costoPartesAnterior: number;
+    costoReparacionNuevo: number; costoPartesNuevo: number;
+    motivo: string | null; via: string; createdAt: string; cambiadoPor: string | null;
+  }
+  const [historialPrecios, setHistorialPrecios] = useState<HistorialPrecio[]>([]);
+  const [cargandoHistorialPrecios, setCargandoHistorialPrecios] = useState(false);
+
+  const fetchHistorialPrecios = useCallback(async () => {
+    if (!ordenId || !isAdmin) return;
+    setCargandoHistorialPrecios(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${ordenId}/historial-precios`);
+      const data = await res.json();
+      if (data.success) {
+        setHistorialPrecios((data.data ?? []).map((h: any) => ({
+          id: h.id,
+          precioAnterior: Number(h.precio_anterior ?? 0),
+          precioNuevo: Number(h.precio_nuevo ?? 0),
+          costoReparacionAnterior: Number(h.costo_reparacion_anterior ?? 0),
+          costoPartesAnterior: Number(h.costo_partes_anterior ?? 0),
+          costoReparacionNuevo: Number(h.costo_reparacion_nuevo ?? 0),
+          costoPartesNuevo: Number(h.costo_partes_nuevo ?? 0),
+          motivo: h.motivo ?? null,
+          via: h.via ?? "",
+          createdAt: h.created_at,
+          cambiadoPor: h.cambiado_por ?? null,
+        })));
+      }
+    } finally {
+      setCargandoHistorialPrecios(false);
+    }
+  }, [ordenId, isAdmin]);
+
   // I7: Reasignar técnico (solo admin/super_admin)
   const [reasignarOpen, setReasignarOpen] = useState(false);
   const [tecnicos, setTecnicos] = useState<{ id: string; nombre: string }[]>([]);
@@ -284,10 +320,13 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     if (ordenId) fetchSolicitudesPrecio();
   }, [ordenId, fetchSolicitudesPrecio]);
 
-  // Cargar versiones PDF al abrir el tab presupuesto
+  // Cargar versiones PDF y historial de precios al abrir el tab presupuesto
   useEffect(() => {
-    if (activeTab === "presupuesto" && ordenId) fetchVersionesPDF();
-  }, [activeTab, ordenId, fetchVersionesPDF]);
+    if (activeTab === "presupuesto" && ordenId) {
+      fetchVersionesPDF();
+      fetchHistorialPrecios();
+    }
+  }, [activeTab, ordenId, fetchVersionesPDF, fetchHistorialPrecios]);
 
   async function handleGuardarPedido() {
     if (!orden || !nuevaPiezaNombre.trim()) return;
@@ -330,7 +369,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       const data = await res.json();
       if (data.success) {
         fetchSolicitudesPrecio();
-        if (accion === "aprobar") fetchOrden();
+        if (accion === "aprobar") { fetchOrden(); fetchHistorialPrecios(); }
       } else {
         alert(data.error || "Error al procesar solicitud");
       }
@@ -1209,6 +1248,57 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 );
               })}
             </div>
+          </Card>
+        )}
+
+        {/* C11: Historial de cambios de precio — solo admin */}
+        {isAdmin && historialPrecios.length > 0 && (
+          <Card title="📈 Historial de precios">
+            {cargandoHistorialPrecios ? (
+              <div className="flex justify-center py-3">
+                <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-accent)" }} />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {historialPrecios.map((h) => {
+                  const fmt = (n: number) =>
+                    new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
+                  const fecha = new Date(h.createdAt).toLocaleDateString("es-MX", {
+                    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+                  });
+                  const subio = h.precioNuevo > h.precioAnterior;
+                  const VIA_LABEL: Record<string, string> = {
+                    admin_directo: "Admin directo",
+                    solicitud_aprobada: "Solicitud aprobada",
+                  };
+                  return (
+                    <div
+                      key={h.id}
+                      className="rounded-lg px-3 py-2 space-y-1"
+                      style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border-subtle)" }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-mono" style={{ color: "var(--color-text-muted)" }}>{fecha}</span>
+                        <span
+                          className="text-xs font-bold font-mono"
+                          style={{ color: subio ? "var(--color-warning-text)" : "var(--color-success)" }}
+                        >
+                          {fmt(h.precioAnterior)} → {fmt(h.precioNuevo)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--color-bg-sunken)", color: "var(--color-text-muted)" }}>
+                          {VIA_LABEL[h.via] ?? h.via}
+                        </span>
+                        {h.motivo && (
+                          <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>{h.motivo}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </Card>
         )}
 

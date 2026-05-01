@@ -267,6 +267,20 @@ export async function PUT(
                 comentario: `Precio actualizado por admin: $${precioAntes.toFixed(2)} → $${precioDespues.toFixed(2)}. Notificación enviada al cliente.`,
                 usuario_id: userId,
               });
+              // C11: registro en tabla de historial de precios
+              await supabase.from("historial_precios_orden").insert({
+                orden_id: id,
+                distribuidor_id: ordenDetallada.distribuidorId ?? null,
+                precio_anterior: precioAntes,
+                precio_nuevo: precioDespues,
+                costo_reparacion_anterior: ordenPrevia.costoReparacion ?? 0,
+                costo_partes_anterior: ordenPrevia.costoPartes ?? 0,
+                costo_reparacion_nuevo: Number(nuevoCostoRep ?? ordenPrevia.costoReparacion ?? 0),
+                costo_partes_nuevo: Number(nuevoCostoPar ?? ordenPrevia.costoPartes ?? 0),
+                cambiado_por: userId,
+                motivo: "Cambio directo por admin",
+                via: "admin_directo",
+              });
             } catch (e) {
               console.error("[C7] Error al notificar cambio de precio al cliente (no bloquea):", e);
             }

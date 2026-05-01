@@ -143,6 +143,23 @@ export async function POST(
         .update({ estado: "aprobado", revisado_por: userId, revisado_at: ahora })
         .eq("id", solicitudId);
 
+      // C11: historial de precios
+      const precioAntes = Number(solicitud.costo_reparacion_actual ?? 0) + Number(solicitud.costo_partes_actual ?? 0);
+      const precioNuevo = Number(solicitud.costo_reparacion_propuesto ?? 0) + Number(solicitud.costo_partes_propuesto ?? 0);
+      await supabase.from("historial_precios_orden").insert({
+        orden_id: ordenId,
+        distribuidor_id: orden.distribuidor_id ?? null,
+        precio_anterior: precioAntes,
+        precio_nuevo: precioNuevo,
+        costo_reparacion_anterior: Number(solicitud.costo_reparacion_actual ?? 0),
+        costo_partes_anterior: Number(solicitud.costo_partes_actual ?? 0),
+        costo_reparacion_nuevo: Number(solicitud.costo_reparacion_propuesto ?? 0),
+        costo_partes_nuevo: Number(solicitud.costo_partes_propuesto ?? 0),
+        cambiado_por: userId,
+        motivo: solicitud.motivo ?? "Solicitud aprobada",
+        via: "solicitud_aprobada",
+      });
+
       return NextResponse.json({
         success: true,
         message: `Precio aprobado y aplicado a la orden ${orden.folio}`,
