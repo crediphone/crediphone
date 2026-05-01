@@ -780,6 +780,9 @@ export default function AlertasPage() {
   const [resurtirModal, setResurtirModal] = useState(false);
   // Modal descontinuar
   const [descontinuarProducto, setDescontinuarProducto] = useState<Producto | null>(null);
+  // I4: Sugerencias automáticas de OC
+  const [loadingSugerencias, setLoadingSugerencias] = useState(false);
+  const [lineasSugeridas, setLineasSugeridas] = useState<LineaResurtido[] | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -886,6 +889,33 @@ export default function AlertasPage() {
     router.push("/dashboard/compras");
   };
 
+  // I4: Cargar sugerencias automáticas desde la API y abrir modal pre-llenado
+  const handleOCSugerida = useCallback(async () => {
+    setLoadingSugerencias(true);
+    try {
+      const res = await fetch("/api/ordenes-compra/sugerencias");
+      const data = await res.json();
+      if (!data.success) return;
+      const { sinStock, stockBajo } = data.data as {
+        sinStock: { id: string; nombre: string; proveedor_id?: string; stock: number; stock_minimo?: number; cantidadSugerida: number }[];
+        stockBajo: { id: string; nombre: string; proveedor_id?: string; stock: number; stock_minimo?: number; cantidadSugerida: number }[];
+      };
+      const urgentes = [...sinStock, ...stockBajo];
+      if (urgentes.length === 0) { setLoadingSugerencias(false); return; }
+      const lineas: LineaResurtido[] = urgentes.map((p) => ({
+        productoId: p.id,
+        nombre: p.nombre,
+        proveedor: undefined,
+        stock: p.stock,
+        stockMinimo: p.stock_minimo,
+        cantidad: p.cantidadSugerida,
+      }));
+      setLineasSugeridas(lineas);
+    } finally {
+      setLoadingSugerencias(false);
+    }
+  }, []);
+
   // Descontinuar producto
   const handleDescontinuar = async () => {
     if (!descontinuarProducto) return;
@@ -935,6 +965,13 @@ export default function AlertasPage() {
       {/* Modales */}
       {resurtirModal && lineasResurtido.length > 0 && (
         <ModalResurtido lineas={lineasResurtido} onClose={() => setResurtirModal(false)} onCrear={handleCrearOrden} />
+      )}
+      {lineasSugeridas && lineasSugeridas.length > 0 && (
+        <ModalResurtido
+          lineas={lineasSugeridas}
+          onClose={() => setLineasSugeridas(null)}
+          onCrear={async (items, notas) => { await handleCrearOrden(items, notas); setLineasSugeridas(null); }}
+        />
       )}
       {descontinuarProducto && (
         <ModalDescontinuar producto={descontinuarProducto} onClose={() => setDescontinuarProducto(null)} onConfirm={handleDescontinuar} />
@@ -1015,6 +1052,16 @@ export default function AlertasPage() {
               <>
                 {/* Toolbar de selección */}
                 <div className="flex items-center gap-3 flex-wrap">
+                  {/* I4: botón de OC sugerida automática */}
+                  <button
+                    onClick={handleOCSugerida}
+                    disabled={loadingSugerencias}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                    style={{ background: "var(--color-accent)", color: "#fff", opacity: loadingSugerencias ? 0.7 : 1 }}
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    {loadingSugerencias ? "Calculando…" : "Crear OC sugerida"}
+                  </button>
                   <button
                     onClick={seleccionarTodos}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
