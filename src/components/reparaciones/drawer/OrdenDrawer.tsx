@@ -22,7 +22,7 @@ import { AnticipoCajaPanel } from "@/components/reparaciones/anticipos/AnticipoC
 import { CentroMensajesPanel } from "@/components/reparaciones/mensajeria/CentroMensajesPanel";
 import { BitacoraTiempoPanel } from "@/components/reparaciones/BitacoraTiempoPanel";
 import { Card } from "@/components/ui/Card";
-import type { OrdenReparacionDetallada } from "@/types";
+import type { OrdenReparacionDetallada, ReparacionDiagnostico } from "@/types";
 import { generarMensajePromocion, generarMensajePresupuesto, generarLinkWhatsApp } from "@/lib/whatsapp-reparaciones";
 
 interface OrdenDrawerProps {
@@ -164,6 +164,22 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       setCargandoHistorialPrecios(false);
     }
   }, [ordenId, isAdmin]);
+
+  // D4: Historial de diagnósticos múltiples
+  const [historialDiagnosticos, setHistorialDiagnosticos] = useState<ReparacionDiagnostico[]>([]);
+  const [cargandoDiagnosticos, setCargandoDiagnosticos] = useState(false);
+
+  const fetchHistorialDiagnosticos = useCallback(async () => {
+    if (!ordenId) return;
+    setCargandoDiagnosticos(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${ordenId}/diagnosticos`);
+      const data = await res.json();
+      if (data.success) setHistorialDiagnosticos(data.data ?? []);
+    } finally {
+      setCargandoDiagnosticos(false);
+    }
+  }, [ordenId]);
 
   // I7: Reasignar técnico (solo admin/super_admin)
   const [reasignarOpen, setReasignarOpen] = useState(false);
@@ -327,6 +343,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       fetchHistorialPrecios();
     }
   }, [activeTab, ordenId, fetchVersionesPDF, fetchHistorialPrecios]);
+
+  useEffect(() => {
+    if (activeTab === "diagnostico" && ordenId) fetchHistorialDiagnosticos();
+  }, [activeTab, ordenId, fetchHistorialDiagnosticos]);
 
   async function handleGuardarPedido() {
     if (!orden || !nuevaPiezaNombre.trim()) return;
@@ -799,6 +819,77 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             </div>
           )}
         </Card>
+
+        {/* D4: Historial de diagnósticos múltiples */}
+        {(cargandoDiagnosticos || historialDiagnosticos.length > 1) && (
+          <Card title="📋 Historial de diagnósticos">
+            {cargandoDiagnosticos ? (
+              <div className="flex justify-center py-3">
+                <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-accent)" }} />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {historialDiagnosticos.map((diag) => {
+                  const fmt = (n: number) =>
+                    new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
+                  const fecha = new Date(diag.createdAt).toLocaleDateString("es-MX", {
+                    day: "2-digit", month: "short", year: "numeric",
+                  });
+                  const ESTADO_COLOR: Record<string, string> = {
+                    pendiente_aprobacion: "var(--color-warning-text)",
+                    aprobado: "var(--color-success)",
+                    rechazado: "var(--color-danger)",
+                    cancelado: "var(--color-text-muted)",
+                  };
+                  const ESTADO_LABEL: Record<string, string> = {
+                    pendiente_aprobacion: "Pendiente",
+                    aprobado: "Aprobado",
+                    rechazado: "Rechazado",
+                    cancelado: "Cancelado",
+                  };
+                  return (
+                    <div
+                      key={diag.id}
+                      className="rounded-lg px-3 py-2 space-y-1"
+                      style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border-subtle)" }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold" style={{ color: "var(--color-text-secondary)" }}>
+                          Diagnóstico #{diag.numeroDiagnostico}
+                          {diag.esDiagnosticoInicial && (
+                            <span className="ml-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>(inicial)</span>
+                          )}
+                        </span>
+                        <span className="text-xs font-medium" style={{ color: ESTADO_COLOR[diag.estado] ?? "var(--color-text-muted)" }}>
+                          {ESTADO_LABEL[diag.estado] ?? diag.estado}
+                        </span>
+                      </div>
+                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        {fecha} {diag.tecnicoNombre ? `· ${diag.tecnicoNombre}` : ""}
+                      </p>
+                      {diag.descripcionProblema && (
+                        <p className="text-xs whitespace-pre-wrap" style={{ color: "var(--color-text-primary)" }}>
+                          {diag.descripcionProblema}
+                        </p>
+                      )}
+                      {diag.diagnosticoTecnico && (
+                        <p className="text-xs whitespace-pre-wrap" style={{ color: "var(--color-text-secondary)" }}>
+                          {diag.diagnosticoTecnico}
+                        </p>
+                      )}
+                      {(diag.costoLabor > 0 || diag.costoPartes > 0) && (
+                        <div className="flex gap-3 text-xs font-mono" style={{ color: "var(--color-text-muted)" }}>
+                          {diag.costoLabor > 0 && <span>Labor: {fmt(diag.costoLabor)}</span>}
+                          {diag.costoPartes > 0 && <span>Partes: {fmt(diag.costoPartes)}</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
 
         {orden.partesReemplazadas && orden.partesReemplazadas.length > 0 && (
           <Card title="Partes del Diagnóstico">
