@@ -526,8 +526,88 @@ function Greeting({ nombre }: { nombre: string }) {
 
 // ── Componente principal ───────────────────────────────────────
 
+// ── Tarjeta KPI por sucursal (D6) ────────────────────────────
+
+interface KpiSucursal {
+  id: string; nombre: string; slug: string; accesoHabilitado: boolean;
+  activas: number; listasEntrega: number; cobradoHoy: number; ingreso7d: number; entregadas7d: number;
+}
+
+function SucursalKpiCard({ s }: { s: KpiSucursal }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      className="rounded-xl p-5"
+      style={{
+        background: "var(--color-bg-surface)",
+        border: `1px solid ${hov ? "var(--color-border-strong)" : "var(--color-border-subtle)"}`,
+        boxShadow: hov ? "var(--shadow-md)" : "var(--shadow-sm)",
+        transform: hov ? "translateY(-2px)" : "translateY(0)",
+        transition: "all 200ms var(--ease-spring)",
+      }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
+          {s.nombre}
+        </p>
+        <span
+          className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ml-2"
+          style={{
+            background: s.accesoHabilitado ? "var(--color-success-bg)" : "var(--color-danger-bg)",
+            color: s.accesoHabilitado ? "var(--color-success)" : "var(--color-danger)",
+          }}
+        >
+          {s.accesoHabilitado ? "Activa" : "Inhabilitada"}
+        </span>
+      </div>
+
+      {/* KPIs 2×2 */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs mb-0.5" style={{ color: "var(--color-text-muted)" }}>Órdenes activas</p>
+          <p className="text-xl font-bold tabular-nums" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+            {s.activas}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs mb-0.5" style={{ color: "var(--color-text-muted)" }}>Listas entrega</p>
+          <p
+            className="text-xl font-bold tabular-nums"
+            style={{ color: s.listasEntrega > 0 ? "var(--color-success)" : "var(--color-text-primary)", fontFamily: "var(--font-data)" }}
+          >
+            {s.listasEntrega}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs mb-0.5" style={{ color: "var(--color-text-muted)" }}>Cobrado hoy</p>
+          <p className="text-base font-bold tabular-nums" style={{ color: "var(--color-success)", fontFamily: "var(--font-data)" }}>
+            {formatMXN(s.cobradoHoy)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs mb-0.5" style={{ color: "var(--color-text-muted)" }}>Ingreso 7 días</p>
+          <p className="text-base font-bold tabular-nums" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+            {formatMXN(s.ingreso7d)}
+          </p>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <p className="text-xs mt-3" style={{ color: "var(--color-text-muted)" }}>
+        {s.entregadas7d} entregadas en 7 días
+      </p>
+    </div>
+  );
+}
+
+// ── Componente principal ───────────────────────────────────────
+
 export function DashboardEjecutivo() {
   const { user } = useAuth();
+  const role = user?.role ?? "admin";
 
   const [resumen, setResumen] = useState<ResumenDashboard | null>(null);
   const [stream, setStream] = useState<StreamEvent[]>([]);
@@ -543,6 +623,8 @@ export function DashboardEjecutivo() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   // I5: notificaciones fallidas
   const [notifFallidas, setNotifFallidas] = useState(0);
+  // D6: comparativa entre sucursales (solo super_admin)
+  const [sucursales, setSucursales] = useState<KpiSucursal[]>([]);
 
   const fetchAll = useCallback(async () => {
     setLoadingResumen(true);
@@ -551,11 +633,13 @@ export function DashboardEjecutivo() {
 
     const REQUIEREN_ACCION = ["recibido", "diagnostico", "esperando_piezas", "presupuesto", "aprobado", "listo_entrega"];
 
-    const [resRes, streamRes, ordenesRes, fallidasRes] = await Promise.allSettled([
+    const isSA = role === "super_admin";
+    const [resRes, streamRes, ordenesRes, fallidasRes, comparativaRes] = await Promise.allSettled([
       fetch("/api/dashboard/resumen").then((r) => r.json()),
       fetch("/api/dashboard/stream").then((r) => r.json()),
       fetch("/api/reparaciones?detalladas=true").then((r) => r.json()),
       fetch("/api/notificaciones/fallidas").then((r) => r.json()),
+      isSA ? fetch("/api/admin/distribuidores/comparativa").then((r) => r.json()) : Promise.resolve({ success: false }),
     ]);
 
     if (resRes.status === "fulfilled" && resRes.value.success) {
@@ -578,8 +662,12 @@ export function DashboardEjecutivo() {
       setNotifFallidas(fallidasRes.value.total ?? 0);
     }
 
+    if (comparativaRes.status === "fulfilled" && comparativaRes.value.success) {
+      setSucursales(comparativaRes.value.data ?? []);
+    }
+
     setLastRefresh(new Date());
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -748,7 +836,7 @@ export function DashboardEjecutivo() {
             }}
           >
             <AccionesRapidas
-              role={user?.role ?? "admin"}
+              role={role}
               cajaActiva={r?.caja.activa ?? false}
               onNuevaOrden={() => setModalOrdenOpen(true)}
             />
@@ -802,6 +890,23 @@ export function DashboardEjecutivo() {
           </div>
         </div>
       </div>
+
+      {/* ── D6: Comparativa entre sucursales (solo super_admin) ── */}
+      {role === "super_admin" && sucursales.length > 0 && (
+        <section>
+          <p
+            className="text-xs font-semibold uppercase tracking-widest mb-3"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Comparativa por sucursal
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {sucursales.map((s) => (
+              <SucursalKpiCard key={s.id} s={s} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Drawers y Modales ── */}
       {drawerOrdenId && (
