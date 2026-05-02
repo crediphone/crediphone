@@ -458,11 +458,17 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
         // 1. Ligar fotos subidas por QR antes de guardar (si el empleado usó QR durante la creación)
         if (qrSessionToken) {
           try {
-            await fetch("/api/reparaciones/fotos/ligar-sesion-qr", {
+            const ligarRes = await fetch("/api/reparaciones/fotos/ligar-sesion-qr", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ sessionToken: qrSessionToken, ordenId: ordenCreada.id }),
             });
+            const ligarData = await ligarRes.json().catch(() => ({ success: false, fotosLigadas: 0 }));
+            if (!ligarData.success) {
+              console.warn("[ModalOrden] ligar-sesion-qr falló:", ligarData.message);
+            } else if (ligarData.fotosLigadas === 0) {
+              console.warn("[ModalOrden] ligar-sesion-qr: 0 fotos ligadas (el cliente pudo no haber subido fotos todavía)");
+            }
           } catch (e) {
             console.error("Error al ligar fotos QR a la orden:", e);
           }
