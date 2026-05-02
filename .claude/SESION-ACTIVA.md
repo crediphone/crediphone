@@ -1,8 +1,8 @@
 # Sesión Activa — CREDIPHONE
 
-## Estado: AUDITORÍA INTEGRAL — C9/C11/D3/D4 completados ✅ (2026-05-01)
+## Estado: AUDITORÍA INTEGRAL — PLAN COMPLETO ✅ (2026-05-01)
 
-**Última sesión:** 2026-04-30 — Auditoría integral: flujo de dinero, inventario, clientes y drawer
+**Última sesión:** 2026-05-01 — Completados D5, D6, D7 — plan de auditoría integral finalizado
 **Historial:** `ARCHIVO/HISTORIAL-SESIONES.md`
 
 ---
@@ -46,6 +46,9 @@
 | I7 — Reasignar técnico (admin) | ✅ | Selector inline en "Técnico Asignado" del OrdenDrawer |
 | I6 — Puntos lealtad visible en POS | ✅ | Chip verde "X pts = $X descuento" en panel cliente POS |
 | D1 — Margen de utilidad por reparación | ✅ | Panel rentabilidad en tab Presupuesto (solo admin) |
+| D5 — Garantías: UI de reclamación | ✅ | Banner verde en OrdenDrawer si orden entregada + form reclamación |
+| D6 — Dashboard comparativa sucursales | ✅ | SucursalKpiCard grid en DashboardEjecutivo (solo super_admin) |
+| D7 — Offline queue conectada | ✅ | OfflineBanner con onSyncComplete en tecnico y reparaciones |
 
 ---
 
@@ -58,11 +61,12 @@
 - ✅ **C11** — Historial de cambios de precio (tabla + endpoints + UI)
 - ✅ **D3** — ligar-sesion-qr: error handling, deactivar sesión, formato antiguo
 - ✅ **D4** — Historial de diagnósticos múltiples en OrdenDrawer
+- ✅ **D5** — Garantías: UI de reclamación en OrdenDrawer (estado entregado)
+- ✅ **D6** — Dashboard super_admin: comparativa KPIs entre sucursales (SucursalKpiCard grid)
+- ✅ **D7** — Offline queue ya conectada en tecnico/page.tsx y reparaciones/page.tsx (verificado)
 
-### Deseables pendientes:
-- **D5** — Garantías: UI de reclamación
-- **D6** — Dashboard super_admin: comparativa entre sucursales
-- **D7** — Offline queue: conectar al reconectar
+### Plan de auditoría integral: COMPLETO
+Todos los ítems C1-C11, I1-I7, D1-D7, B0-B1, V3 implementados.
 
 ---
 
