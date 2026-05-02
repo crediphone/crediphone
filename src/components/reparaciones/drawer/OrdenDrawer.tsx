@@ -165,6 +165,54 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     }
   }, [ordenId, isAdmin]);
 
+  // D5: Garantía — reclamación
+  const [garantiaActiva, setGarantiaActiva] = useState<boolean>(false);
+  const [garantiaVencimiento, setGarantiaVencimiento] = useState<string | null>(null);
+  const [cargandoGarantia, setCargandoGarantia] = useState(false);
+  const [mostrarFormReclamo, setMostrarFormReclamo] = useState(false);
+  const [motivoReclamo, setMotivoReclamo] = useState("");
+  const [reclamando, setReclamando] = useState(false);
+
+  const fetchGarantia = useCallback(async () => {
+    if (!ordenId || orden?.estado !== "entregado") return;
+    setCargandoGarantia(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${ordenId}/garantia?verificar=true`);
+      const data = await res.json();
+      if (data.success) {
+        setGarantiaActiva(data.data.activa ?? false);
+        setGarantiaVencimiento(data.data.garantia?.fechaVencimiento ?? null);
+      }
+    } finally {
+      setCargandoGarantia(false);
+    }
+  }, [ordenId, orden?.estado]);
+
+  const handleReclamarGarantia = async () => {
+    if (!orden || !motivoReclamo.trim()) return;
+    setReclamando(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/garantia`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crearOrdenGarantia: true, motivoReclamo: motivoReclamo.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ ${data.message ?? "Orden de garantía creada."}`);
+        setMostrarFormReclamo(false);
+        setMotivoReclamo("");
+        onRefresh();
+      } else {
+        alert(`Error: ${data.message ?? "No se pudo crear la orden de garantía."}`);
+      }
+    } catch {
+      alert("Error de conexión al reclamar garantía.");
+    } finally {
+      setReclamando(false);
+    }
+  };
+
   // D4: Historial de diagnósticos múltiples
   const [historialDiagnosticos, setHistorialDiagnosticos] = useState<ReparacionDiagnostico[]>([]);
   const [cargandoDiagnosticos, setCargandoDiagnosticos] = useState(false);
@@ -347,6 +395,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   useEffect(() => {
     if (activeTab === "diagnostico" && ordenId) fetchHistorialDiagnosticos();
   }, [activeTab, ordenId, fetchHistorialDiagnosticos]);
+
+  useEffect(() => {
+    if (orden?.estado === "entregado" && ordenId) fetchGarantia();
+  }, [orden?.estado, ordenId, fetchGarantia]);
 
   async function handleGuardarPedido() {
     if (!orden || !nuevaPiezaNombre.trim()) return;
@@ -721,6 +773,75 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           <Card title="Notas Internas">
             <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--color-text-primary)" }}>{orden.notasInternas}</p>
           </Card>
+        )}
+
+        {/* D5: Garantía — visible cuando la orden está entregada */}
+        {orden.estado === "entregado" && !cargandoGarantia && (
+          <div
+            className="rounded-lg px-4 py-3 space-y-2"
+            style={{
+              background: garantiaActiva ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
+              border: `1px solid ${garantiaActiva ? "var(--color-success)" : "var(--color-border-subtle)"}`,
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: garantiaActiva ? "var(--color-success-text)" : "var(--color-text-muted)" }}>
+                  {garantiaActiva ? "🛡 Garantía activa" : "Garantía"}
+                </p>
+                {garantiaVencimiento && (
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                    Vence: {new Date(garantiaVencimiento).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                  </p>
+                )}
+                {!garantiaActiva && !garantiaVencimiento && (
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Sin garantía registrada o vencida</p>
+                )}
+              </div>
+              {garantiaActiva && !mostrarFormReclamo && (
+                <button
+                  onClick={() => setMostrarFormReclamo(true)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: "var(--color-success)", color: "#fff" }}
+                >
+                  Reclamar garantía
+                </button>
+              )}
+            </div>
+            {mostrarFormReclamo && (
+              <div className="space-y-2 pt-2" style={{ borderTop: "1px solid var(--color-success)" }}>
+                <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>Motivo del reclamo:</p>
+                <textarea
+                  value={motivoReclamo}
+                  onChange={(e) => setMotivoReclamo(e.target.value)}
+                  placeholder="Describe qué falló o cuál es el problema..."
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg text-sm resize-none focus:outline-none"
+                  style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleReclamarGarantia}
+                    disabled={reclamando || !motivoReclamo.trim()}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-bold"
+                    style={{
+                      background: motivoReclamo.trim() && !reclamando ? "var(--color-success)" : "var(--color-bg-elevated)",
+                      color: motivoReclamo.trim() && !reclamando ? "#fff" : "var(--color-text-muted)",
+                    }}
+                  >
+                    {reclamando ? "Creando..." : "✓ Crear orden de garantía"}
+                  </button>
+                  <button
+                    onClick={() => { setMostrarFormReclamo(false); setMotivoReclamo(""); }}
+                    className="px-3 py-1.5 rounded-lg text-xs"
+                    style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         <button

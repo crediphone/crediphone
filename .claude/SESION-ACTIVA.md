@@ -1,6 +1,6 @@
 # Sesión Activa — CREDIPHONE
 
-## Estado: AUDITORÍA INTEGRAL — Fase 2 completada ✅ (2026-04-30)
+## Estado: AUDITORÍA INTEGRAL — C9/C11/D3/D4 completados ✅ (2026-05-01)
 
 **Última sesión:** 2026-04-30 — Auditoría integral: flujo de dinero, inventario, clientes y drawer
 **Historial:** `ARCHIVO/HISTORIAL-SESIONES.md`
@@ -30,6 +30,12 @@
 | Badge "precio pendiente" en OrdenDrawer | ✅ | Header badge + tarjeta aprobación en tab presupuesto |
 | Panel piezas pendientes (vendedor) | ✅ | PiezasPendientesPanel en página reparaciones |
 | C4 — Columnas anticipo/saldo en POS | ✅ | Lista "Listos para cobrar" con anticipo + saldo por fila |
+| C1 — Descontar stock al entregar equipo | ✅ | Fire-and-forget en entregar/route.ts; devuelve stock al cancelar |
+| C2 — Ajuste stock con motivo + historial | ✅ | PATCH ajustar_stock; UI en ProductoForm; página /inventario/movimientos |
+| C7 — Admin cambia precio → notifica al cliente | ✅ | WhatsApp + historial si hay tracking token |
+| C8 — PDF snapshot cotización inicial | ✅ | columna snapshot_cotizacion_inicial JSONB (inmutable) |
+| I4 — OC sugerida desde alertas inventario | ✅ | Botón "Crear OC sugerida" en /inventario/alertas |
+| I5 — Notificaciones fallidas | ✅ | Tabla + captura errores WA + badge dashboard + página reenvío |
 | SECURITY-003 — Cifrado wa_access_token | ✅ | AES-256-GCM, llave en CF secret WA_ENCRYPTION_KEY |
 | PO1 — Sistema de puntos / loyalty | ✅ | $50=1pt, 1pt=$1 descuento, reseteo anual, visible en tracking |
 | B0 — Bug esperando_piezas | ✅ | estadosValidos en PUT /api/reparaciones/[id] |
@@ -45,22 +51,15 @@
 
 ## Pendiente — Plan de auditoría (ver plan completo)
 
-### Alta prioridad (requieren migración SQL o lógica compleja):
-- **C3** — Crear tabla `movimientos_stock` (SQL migration en Supabase)
-- **C1** — Descontar stock al entregar equipo + notificación pieza cancelada sin catálogo
-- **C2** — UI ajuste manual con motivo obligatorio + vista admin movimientos
-- **C7** — Cambio de precio por admin debe notificar al cliente (WhatsApp)
-- **C8** — PDF congela snapshot de cotización inicial
+### Alta prioridad:
 
-### Media prioridad:
-- **I4** — Sugerencia de OC desde alertas de inventario
-- **I5** — Notificaciones fallidas: tabla + badge admin + reenvío
-- **C9** — DELETE individual de anticipo (super_admin)
-- **C11** — Historial de cambios de precio
+### Completados esta sesión (2026-05-01):
+- ✅ **C9** — DELETE individual de anticipo (super_admin)
+- ✅ **C11** — Historial de cambios de precio (tabla + endpoints + UI)
+- ✅ **D3** — ligar-sesion-qr: error handling, deactivar sesión, formato antiguo
+- ✅ **D4** — Historial de diagnósticos múltiples en OrdenDrawer
 
-### Deseables:
-- **D3** — Carga de fotos vía QR (corregir ligar-sesion-qr)
-- **D4** — Múltiples diagnósticos visibles en historial
+### Deseables pendientes:
 - **D5** — Garantías: UI de reclamación
 - **D6** — Dashboard super_admin: comparativa entre sucursales
 - **D7** — Offline queue: conectar al reconectar
