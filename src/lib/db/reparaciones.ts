@@ -113,6 +113,7 @@ function mapOrdenFromDB(dbOrden: any): OrdenReparacion {
     piezasCotizacion: dbOrden.piezas_cotizacion || [],
     // C8: snapshot inmutable de la cotización inicial (nunca se modifica tras la creación)
     snapshotCotizacionInicial: dbOrden.snapshot_cotizacion_inicial ?? null,
+    trackingToken: dbOrden.tracking_token ?? null,
   };
 }
 

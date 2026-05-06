@@ -537,6 +537,8 @@ export interface OrdenReparacion {
   piezasCotizacion?: PiezaCotizacion[];
   /** C8: Snapshot inmutable de la cotización inicial — se fija al crear y nunca cambia */
   snapshotCotizacionInicial?: PiezaCotizacion[] | null;
+  /** Token de tracking público del cliente (64-char hex, se genera al pasar a "presupuesto") */
+  trackingToken?: string | null;
 
   // Auditoría
   creadoPor?: string;

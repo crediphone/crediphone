@@ -7,7 +7,7 @@ import {
   X, ExternalLink, Edit, Loader2, Wrench, Clock, AlertCircle,
   MessageSquare, Package, Timer, FileText, Image as ImageIcon,
   DollarSign, Phone, CheckCircle, GitBranch, Printer, Plus, PackageCheck, PackagePlus,
-  Download, History, ShieldAlert, UserCog,
+  Download, History, ShieldAlert, UserCog, Link2, Copy,
 } from "lucide-react";
 import { EstadoBadge, PrioridadBadge } from "@/components/reparaciones/EstadoBadge";
 import { PresupuestoSummary } from "@/components/reparaciones/detail/PresupuestoSummary";
@@ -172,6 +172,8 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [mostrarFormReclamo, setMostrarFormReclamo] = useState(false);
   const [motivoReclamo, setMotivoReclamo] = useState("");
   const [reclamando, setReclamando] = useState(false);
+  // M2: tracking link
+  const [trackingCopiado, setTrackingCopiado] = useState(false);
 
   const fetchGarantia = useCallback(async () => {
     if (!ordenId || orden?.estado !== "entregado") return;
@@ -1747,6 +1749,36 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 title="Imprimir ticket de taller"
               >
                 <Printer className="w-4 h-4" />
+              </button>
+            )}
+            {/* Botón de tracking — visible si la orden tiene trackingToken */}
+            {orden?.trackingToken && (
+              <button
+                className="flex items-center gap-1 p-1.5 rounded-lg"
+                style={{
+                  color: trackingCopiado ? "var(--color-success)" : "var(--color-info)",
+                  background: trackingCopiado ? "var(--color-success-bg)" : "var(--color-info-bg)",
+                  transition: "all 150ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (!trackingCopiado) (e.currentTarget as HTMLButtonElement).style.opacity = "0.8";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+                }}
+                title={`Seguimiento del cliente${trackingCopiado ? " — ¡Link copiado!" : "\nClick: copiar link\nCtrl+click: abrir en nueva pestaña"}`}
+                onClick={(e) => {
+                  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/tracking/${orden.trackingToken}`;
+                  if (e.ctrlKey || e.metaKey) {
+                    window.open(url, "_blank");
+                  } else {
+                    navigator.clipboard.writeText(url).catch(() => {});
+                    setTrackingCopiado(true);
+                    setTimeout(() => setTrackingCopiado(false), 2000);
+                  }
+                }}
+              >
+                {trackingCopiado ? <Copy className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
               </button>
             )}
             {/* Botón rápido "✓ Listo" — solo cuando está en_reparacion */}
