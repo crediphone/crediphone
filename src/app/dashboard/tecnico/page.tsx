@@ -169,13 +169,13 @@ export default function PanelTecnicoPage() {
   }
 
   const kpiCards = [
-    { label: "Total",          value: stats.total,           bg: "var(--color-bg-surface)",  color: "var(--color-text-primary)" },
-    { label: "Diagnóstico",    value: stats.diagnostico,     bg: "var(--color-warning-bg)",  color: "var(--color-warning-text)" },
-    { label: "Presupuesto",    value: stats.presupuesto,     bg: "var(--color-info-bg)",     color: "var(--color-info-text)" },
-    { label: "Aprobado",       value: stats.aprobado,        bg: "var(--color-success-bg)",  color: "var(--color-success-text)" },
-    { label: "Esp. Piezas",    value: stats.esperandoPiezas, bg: "var(--color-warning-bg)",  color: "var(--color-warning-text)" },
-    { label: "En Reparación",  value: stats.enReparacion,    bg: "var(--color-accent-light)", color: "var(--color-accent)" },
-    { label: "Completadas Hoy",value: stats.completadoHoy,   bg: "var(--color-success-bg)",  color: "var(--color-success-text)" },
+    { label: "Total",           value: stats.total,           estado: "todas",            bg: "var(--color-bg-surface)",   color: "var(--color-text-primary)" },
+    { label: "Diagnóstico",     value: stats.diagnostico,     estado: "diagnostico",      bg: "var(--color-warning-bg)",   color: "var(--color-warning-text)" },
+    { label: "Presupuesto",     value: stats.presupuesto,     estado: "presupuesto",      bg: "var(--color-info-bg)",      color: "var(--color-info-text)" },
+    { label: "Aprobado",        value: stats.aprobado,        estado: "aprobado",         bg: "var(--color-success-bg)",   color: "var(--color-success-text)" },
+    { label: "Esp. Piezas",     value: stats.esperandoPiezas, estado: "esperando_piezas", bg: "var(--color-warning-bg)",   color: "var(--color-warning-text)" },
+    { label: "En Reparación",   value: stats.enReparacion,    estado: "en_reparacion",    bg: "var(--color-accent-light)", color: "var(--color-accent)" },
+    { label: "Completadas Hoy", value: stats.completadoHoy,   estado: "completado",       bg: "var(--color-success-bg)",   color: "var(--color-success-text)" },
   ];
 
   return (
@@ -198,23 +198,40 @@ export default function PanelTecnicoPage() {
         </div>
       </div>
 
-      {/* ── KPI cards ── */}
+      {/* ── KPI cards — clicables para filtrar la lista ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-        {kpiCards.map(({ label, value, bg, color }) => (
-          <div
-            key={label}
-            className="p-4 rounded-xl"
-            style={{ background: bg, boxShadow: "var(--shadow-sm)" }}
-          >
-            <p className="text-xs font-medium" style={{ color }}>{label}</p>
-            <p
-              className="text-2xl font-bold mt-0.5"
-              style={{ color, fontFamily: "var(--font-data)" }}
+        {kpiCards.map(({ label, value, estado, bg, color }) => {
+          const activo = filtroEstado === estado;
+          return (
+            <button
+              key={label}
+              onClick={() => {
+                setFiltroEstado(activo ? "todas" : estado);
+              }}
+              className="p-4 rounded-xl text-left"
+              style={{
+                background: activo ? bg : "var(--color-bg-surface)",
+                boxShadow: "var(--shadow-sm)",
+                border: activo
+                  ? `2px solid ${color}`
+                  : "2px solid transparent",
+                cursor: "pointer",
+                transition: "all 150ms ease",
+              }}
+              title={activo ? "Quitar filtro" : `Filtrar por: ${label}`}
             >
-              {value}
-            </p>
-          </div>
-        ))}
+              <p className="text-xs font-medium" style={{ color: activo ? color : "var(--color-text-secondary)" }}>
+                {label}
+              </p>
+              <p
+                className="text-2xl font-bold mt-0.5"
+                style={{ color: activo ? color : "var(--color-text-primary)", fontFamily: "var(--font-data)" }}
+              >
+                {value}
+              </p>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Toolbar ── */}
