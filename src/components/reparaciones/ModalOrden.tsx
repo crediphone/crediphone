@@ -167,6 +167,41 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
   // Flag para saber si el usuario ya escribió manualmente en "Problema Reportado"
   const [problemaEditadoManualmente, setProblemaEditadoManualmente] = useState(false);
 
+  // ERROR 1: Confirmación al cerrar
+  const [confirmarSalirOpen, setConfirmarSalirOpen] = useState(false);
+
+  // ERROR 2: Panel post-creación
+  interface OrdenCreadaInfo {
+    id: string;
+    folio: string;
+    telefono: string | null;
+    marca: string;
+    modelo: string;
+    pdfBlobUrl: string | null;
+  }
+  const [ordenCreada, setOrdenCreada] = useState<OrdenCreadaInfo | null>(null);
+
+  // Interceptar cierre del modal — siempre pedir confirmación
+  function handleClose() {
+    if (ordenCreada) {
+      // Si ya se creó la orden, cerrar directo y redirigir
+      if (ordenCreada.pdfBlobUrl) URL.revokeObjectURL(ordenCreada.pdfBlobUrl);
+      setOrdenCreada(null);
+      onSuccess();
+      onClose();
+      resetForm();
+      router.push(`/dashboard/reparaciones/${ordenCreada.id}`);
+    } else {
+      setConfirmarSalirOpen(true);
+    }
+  }
+
+  function handleConfirmarSalir() {
+    setConfirmarSalirOpen(false);
+    onClose();
+    resetForm();
+  }
+
   useEffect(() => {
     if (isOpen) {
       fetchClientes();
@@ -344,6 +379,8 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
         setClientes([...clientes, data.data]);
         // Seleccionarlo automáticamente
         setFormData({ ...formData, clienteId: data.data.id });
+        // Propagar nombre a la firma digital
+        setClienteNombreCompleto(`${nuevoCliente.nombre} ${nuevoCliente.apellido ?? ""}`.trim());
         // Cerrar el formulario
         setMostrarFormNuevoCliente(false);
         // Limpiar el formulario de nuevo cliente
@@ -505,7 +542,8 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
           console.error("Error al generar QR post-creación:", qrError);
         }
 
-        // Generar PDF automáticamente y descargarlo
+        // Generar PDF automáticamente, descargarlo y guardar URL para panel post-creación
+        let pdfBlobUrl: string | null = null;
         try {
           const pdfResponse = await fetch(`/api/reparaciones/${data.data.id}/pdf`, {
             method: "POST",
@@ -513,35 +551,35 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
 
           if (pdfResponse.ok) {
             const pdfBlob = await pdfResponse.blob();
-            const pdfUrl = URL.createObjectURL(pdfBlob);
+            pdfBlobUrl = URL.createObjectURL(pdfBlob);
+            // Descarga automática
             const a = document.createElement("a");
-            a.href = pdfUrl;
+            a.href = pdfBlobUrl;
             a.download = `Orden-${data.data.folio}.pdf`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(pdfUrl);
           } else {
             const errData = await pdfResponse.json().catch(() => ({}));
-            const msg = errData?.message || `Error ${pdfResponse.status} al generar PDF`;
-            console.error("Error al generar PDF:", msg);
-            alert(`⚠️ La orden fue creada correctamente pero el PDF no se pudo generar.\n\n${msg}\n\nPuedes descargarlo desde el botón "Descargar PDF" en el detalle de la orden.`);
+            console.error("Error al generar PDF:", errData?.message);
           }
         } catch (pdfError) {
           console.error("Error al generar PDF:", pdfError);
-          alert("⚠️ La orden fue creada correctamente pero hubo un error de conexión al generar el PDF.\n\nPuedes descargarlo desde el botón \"Descargar PDF\" en el detalle de la orden.");
         }
-
-        const ordenId = data.data.id;
 
         // Limpiar folio reservado (ya fue usado — no cancelar)
         setFolioReservado(null);
-        onSuccess();
-        onClose();
-        resetForm();
 
-        // Redirigir al detalle: ahí el técnico puede usar el QR de fotos (tab Fotos)
-        router.push(`/dashboard/reparaciones/${ordenId}`);
+        // Mostrar panel de post-creación en lugar de cerrar inmediatamente
+        const clienteOrden = clientes.find((c) => c.id === formData.clienteId);
+        setOrdenCreada({
+          id: data.data.id,
+          folio: data.data.folio ?? data.data.id,
+          telefono: clienteOrden?.telefono ?? null,
+          marca: formData.marcaDispositivo,
+          modelo: formData.modeloDispositivo,
+          pdfBlobUrl,
+        });
       } else {
         alert(`Error: ${data.error || data.message || "No se pudo crear la orden"}`);
       }
@@ -613,10 +651,131 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="📝 Nueva Orden de Reparación"
       size="xl"
     >
+      {/* ERROR 1: Diálogo de confirmación para salir */}
+      {confirmarSalirOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+        >
+          <div className="rounded-2xl p-6 max-w-sm w-full space-y-4" style={{ background: "var(--color-bg-surface)", boxShadow: "var(--shadow-xl)", border: "1px solid var(--color-border)" }}>
+            <p className="text-base font-bold" style={{ color: "var(--color-text-primary)" }}>¿Deseas salir?</p>
+            <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>Si sales ahora, perderás todos los datos ingresados en el formulario.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmarSalirOpen(false)}
+                className="flex-1 py-2.5 rounded-xl font-semibold text-sm"
+                style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-primary)", border: "1px solid var(--color-border)" }}
+              >
+                Continuar editando
+              </button>
+              <button
+                onClick={handleConfirmarSalir}
+                className="flex-1 py-2.5 rounded-xl font-semibold text-sm"
+                style={{ background: "var(--color-danger)", color: "#fff" }}
+              >
+                Sí, salir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ERROR 2: Panel post-creación */}
+      {ordenCreada ? (
+        <div className="space-y-5 py-2">
+          <div className="text-center space-y-1">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto" style={{ background: "var(--color-success-bg)" }}>
+              <span className="text-2xl">✓</span>
+            </div>
+            <p className="text-lg font-bold" style={{ color: "var(--color-text-primary)" }}>¡Orden creada!</p>
+            <p className="text-sm font-mono font-semibold" style={{ color: "var(--color-accent)", fontFamily: "var(--font-mono)" }}>
+              {ordenCreada.folio}
+            </p>
+            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              {ordenCreada.marca} {ordenCreada.modelo} · El PDF se descargó automáticamente
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {ordenCreada.pdfBlobUrl && (
+              <button
+                onClick={() => {
+                  const a = document.createElement("a");
+                  a.href = ordenCreada.pdfBlobUrl!;
+                  a.download = `Orden-${ordenCreada.folio}.pdf`;
+                  a.click();
+                }}
+                className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-sm font-medium"
+                style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", border: "1px solid transparent" }}
+              >
+                <span className="text-xl">📄</span>
+                Descargar PDF
+              </button>
+            )}
+            {ordenCreada.pdfBlobUrl && (
+              <button
+                onClick={() => window.open(ordenCreada.pdfBlobUrl!, "_blank")}
+                className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-sm font-medium"
+                style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
+              >
+                <span className="text-xl">🖨</span>
+                Imprimir
+              </button>
+            )}
+            {ordenCreada.telefono && (() => {
+              const cleanPhone = ordenCreada.telefono!.replace(/\D/g, "");
+              const msg = encodeURIComponent(
+                `Hola, recibimos tu ${ordenCreada.marca} ${ordenCreada.modelo}.\nFolio de servicio: ${ordenCreada.folio}.\nTe avisamos cuando tengamos el diagnóstico. ¡Gracias por tu confianza! 🔧`
+              );
+              return (
+                <a
+                  href={`https://wa.me/52${cleanPhone}?text=${msg}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-sm font-medium"
+                  style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)", border: "1px solid transparent" }}
+                >
+                  <span className="text-xl">💬</span>
+                  WhatsApp
+                </a>
+              );
+            })()}
+            <button
+              onClick={() => {
+                onSuccess();
+                onClose();
+                resetForm();
+                if (ordenCreada.pdfBlobUrl) URL.revokeObjectURL(ordenCreada.pdfBlobUrl);
+                setOrdenCreada(null);
+                router.push(`/dashboard/reparaciones/${ordenCreada.id}`);
+              }}
+              className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl text-sm font-medium"
+              style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)", border: "1px solid transparent" }}
+            >
+              <span className="text-xl">📋</span>
+              Ver ficha
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              if (ordenCreada.pdfBlobUrl) URL.revokeObjectURL(ordenCreada.pdfBlobUrl);
+              setOrdenCreada(null);
+              onSuccess();
+              onClose();
+              resetForm();
+            }}
+            className="w-full py-2.5 rounded-xl text-sm font-medium"
+            style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}
+          >
+            Cerrar
+          </button>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* FOLIO PRE-GENERADO */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", borderRadius: "0.5rem", border: "1px dashed var(--color-accent)", background: "var(--color-accent-light)" }}>
@@ -723,12 +882,12 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
                         <h4 style={{ marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 700, color: "var(--color-success-text)" }}>
                           Crear Nuevo Cliente
                         </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                           {isSuperAdmin && (
                             <select
                               value={distribuidorSeleccionado}
                               onChange={(e) => setDistribuidorSeleccionado(e.target.value)}
-                              style={{ gridColumn: "span 2", borderRadius: "0.5rem", border: "2px solid var(--color-warning)", background: "var(--color-warning-bg)", color: "var(--color-text-primary)", padding: "0.5rem 0.75rem", fontSize: "0.875rem" }}
+                              style={{ width: "100%", borderRadius: "0.5rem", border: "2px solid var(--color-warning)", background: "var(--color-warning-bg)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontSize: "1rem" }}
                               required
                             >
                               <option value="">Seleccionar distribuidor *</option>
@@ -739,41 +898,54 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
                           )}
                           <input
                             type="text"
+                            className="w-full"
                             value={nuevoCliente.nombre}
                             onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
                             placeholder="Nombre *"
-                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.5rem 0.75rem", fontSize: "0.875rem" }}
+                            autoComplete="given-name"
+                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontSize: "1rem" }}
                             required
                           />
                           <input
                             type="text"
+                            className="w-full"
                             value={nuevoCliente.apellido}
                             onChange={(e) => setNuevoCliente({ ...nuevoCliente, apellido: e.target.value })}
                             placeholder="Apellido *"
-                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.5rem 0.75rem", fontSize: "0.875rem" }}
+                            autoComplete="family-name"
+                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontSize: "1rem" }}
                             required
                           />
                           <input
                             type="tel"
+                            className="w-full"
                             value={nuevoCliente.telefono}
                             onChange={(e) => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })}
                             placeholder="Teléfono *"
-                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.5rem 0.75rem", fontSize: "0.875rem" }}
+                            inputMode="numeric"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            autoComplete="tel"
+                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontSize: "1rem", fontFamily: "var(--font-mono)" }}
                             required
                           />
                           <input
                             type="email"
+                            className="w-full"
                             value={nuevoCliente.email}
                             onChange={(e) => setNuevoCliente({ ...nuevoCliente, email: e.target.value })}
                             placeholder="Email (opcional)"
-                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.5rem 0.75rem", fontSize: "0.875rem" }}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontSize: "1rem" }}
                           />
                           <input
                             type="text"
+                            className="w-full"
                             value={nuevoCliente.direccion}
                             onChange={(e) => setNuevoCliente({ ...nuevoCliente, direccion: e.target.value })}
                             placeholder="Dirección (opcional)"
-                            style={{ gridColumn: "span 2", borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.5rem 0.75rem", fontSize: "0.875rem" }}
+                            style={{ borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontSize: "1rem" }}
                           />
                         </div>
                         <div className="mt-3 flex gap-2">
@@ -1210,7 +1382,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
             type="button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={onClose}
+            onClick={handleClose}
             disabled={submitting}
             style={{ flex: 1, borderRadius: "0.75rem", border: "2px solid var(--color-border)", background: "var(--color-bg-surface)", padding: "0.75rem 1.5rem", fontWeight: 700, color: "var(--color-text-primary)", boxShadow: "var(--shadow-md)", opacity: submitting ? 0.5 : 1 }}
           >
@@ -1237,6 +1409,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
           </motion.button>
         </motion.div>
       </form>
+      )}
     </Modal>
   );
 }

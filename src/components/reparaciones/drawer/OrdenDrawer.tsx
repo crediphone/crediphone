@@ -7,7 +7,7 @@ import {
   X, ExternalLink, Edit, Loader2, Wrench, Clock, AlertCircle,
   MessageSquare, Package, Timer, FileText, Image as ImageIcon,
   DollarSign, Phone, CheckCircle, GitBranch, Printer, Plus, PackageCheck, PackagePlus,
-  Download, History, ShieldAlert, UserCog, Link2, Copy,
+  Download, History, ShieldAlert, UserCog, Link2, Copy, MessageCircle,
 } from "lucide-react";
 import { EstadoBadge, PrioridadBadge } from "@/components/reparaciones/EstadoBadge";
 import { PresupuestoSummary } from "@/components/reparaciones/detail/PresupuestoSummary";
@@ -174,6 +174,8 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [reclamando, setReclamando] = useState(false);
   // M2: tracking link
   const [trackingCopiado, setTrackingCopiado] = useState(false);
+  // E5: teléfono copiado
+  const [telefonoCopiado, setTelefonoCopiado] = useState(false);
 
   // M1: comunicaciones WA
   interface ComunicacionWA {
@@ -678,8 +680,81 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   // ── Tab: Resumen ─────────────────────────────────────────────────────────
   function tabResumen() {
     if (!orden) return null;
+
+    // E6: botones de acción rápida
+    const accionesRapidas = [
+      {
+        label: "Descargar PDF",
+        icon: Download,
+        color: "var(--color-accent)",
+        bg: "var(--color-accent-light)",
+        onClick: async () => {
+          try {
+            const res = await fetch(`/api/reparaciones/${orden.id}/pdf`, { method: "POST" });
+            if (!res.ok) return;
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `orden-${orden.folio ?? orden.id}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch { /* silencioso */ }
+        },
+      },
+      {
+        label: "Ticket",
+        icon: Printer,
+        color: "var(--color-text-secondary)",
+        bg: "var(--color-bg-elevated)",
+        onClick: () => window.open(`/dashboard/reparaciones/${orden.id}/ticket`, "_blank"),
+      },
+      ...(orden.trackingToken ? [{
+        label: trackingCopiado ? "¡Copiado!" : "Link tracking",
+        icon: Link2,
+        color: trackingCopiado ? "var(--color-success-text)" : "var(--color-info-text)",
+        bg: trackingCopiado ? "var(--color-success-bg)" : "var(--color-info-bg)",
+        onClick: () => {
+          const url = `${window.location.origin}/tracking/${orden.trackingToken}`;
+          navigator.clipboard.writeText(url).catch(() => {});
+          setTrackingCopiado(true);
+          setTimeout(() => setTrackingCopiado(false), 2000);
+        },
+      }] : []),
+      ...(orden.clienteTelefono ? [{
+        label: "WhatsApp",
+        icon: MessageCircle,
+        color: "var(--color-success-text)",
+        bg: "var(--color-success-bg)",
+        onClick: () => {
+          const clean = orden.clienteTelefono!.replace(/\D/g, "");
+          window.open(`https://wa.me/52${clean}`, "_blank");
+        },
+      }] : []),
+    ];
+
     return (
       <div className="space-y-4 pb-6">
+        {/* E6: Acciones rápidas */}
+        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${accionesRapidas.length}, 1fr)` }}>
+          {accionesRapidas.map((accion) => {
+            const Icon = accion.icon;
+            return (
+              <button
+                key={accion.label}
+                onClick={accion.onClick}
+                className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl text-center"
+                style={{ background: accion.bg, border: "1px solid transparent" }}
+              >
+                <Icon className="w-4 h-4" style={{ color: accion.color }} />
+                <span className="text-xs font-medium leading-tight" style={{ color: accion.color }}>
+                  {accion.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         <Card title="Dispositivo">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -721,15 +796,52 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
         {(orden.clienteNombre || orden.clienteTelefono) && (
           <Card title="Cliente">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
                   {orden.clienteNombre}{orden.clienteApellido ? ` ${orden.clienteApellido}` : ""}
                 </p>
-                {orden.clienteTelefono && (
-                  <p className="text-xs mt-0.5" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}>
-                    {orden.clienteTelefono}
-                  </p>
-                )}
+                {orden.clienteTelefono && (() => {
+                  const cleanPhone = orden.clienteTelefono.replace(/\D/g, "");
+                  return (
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      <span className="text-xs" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}>
+                        {orden.clienteTelefono}
+                      </span>
+                      <div className="flex items-center gap-1 ml-1">
+                        <a
+                          href={`https://wa.me/52${cleanPhone}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-center w-6 h-6 rounded-md"
+                          style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}
+                          title="WhatsApp"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </a>
+                        <a
+                          href={`tel:${orden.clienteTelefono}`}
+                          className="flex items-center justify-center w-6 h-6 rounded-md"
+                          style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)" }}
+                          title="Llamar"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </a>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(orden.clienteTelefono!).catch(() => {});
+                            setTelefonoCopiado(true);
+                            setTimeout(() => setTelefonoCopiado(false), 2000);
+                          }}
+                          className="flex items-center justify-center w-6 h-6 rounded-md"
+                          style={{ background: telefonoCopiado ? "var(--color-success-bg)" : "var(--color-bg-elevated)", color: telefonoCopiado ? "var(--color-success-text)" : "var(--color-text-muted)" }}
+                          title={telefonoCopiado ? "¡Copiado!" : "Copiar número"}
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               {clienteResumen && (
                 <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
