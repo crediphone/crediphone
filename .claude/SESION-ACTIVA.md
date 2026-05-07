@@ -1,8 +1,8 @@
 # Sesión Activa — CREDIPHONE
 
-## Estado: AUDITORÍA INTEGRAL — PLAN COMPLETO ✅ (2026-05-01)
+## Estado: TRANSPARENCIA DEL SERVICIO — PLAN COMPLETO ✅ (2026-05-06)
 
-**Última sesión:** 2026-05-01 — Completados D5, D6, D7 — plan de auditoría integral finalizado
+**Última sesión:** 2026-05-06 — Plan "Transparencia del Servicio" completo (M1-M9)
 **Historial:** `ARCHIVO/HISTORIAL-SESIONES.md`
 
 ---
@@ -49,21 +49,36 @@
 | D5 — Garantías: UI de reclamación | ✅ | Banner verde en OrdenDrawer si orden entregada + form reclamación |
 | D6 — Dashboard comparativa sucursales | ✅ | SucursalKpiCard grid en DashboardEjecutivo (solo super_admin) |
 | D7 — Offline queue conectada | ✅ | OfflineBanner con onSyncComplete en tecnico y reparaciones |
+| M8 — Topbar ← Atrás + logout dropdown | ✅ | DashboardShell.tsx |
+| M9 — Mobile bottom nav | ✅ | MobileBottomNav.tsx (por rol, 5 tabs) |
+| M5 — KPI cards técnico como filtros | ✅ | tecnico/page.tsx |
+| M2 — Link tracking en OrdenDrawer | ✅ | Copiar/abrir con un click |
+| M1 — Historial WA en OrdenDrawer | ✅ | API + UI sección "Comunicaciones enviadas" |
+| M4 — Contexto cliente en OrdenDrawer | ✅ | Nª reparación, puntos, saldo pendiente |
+| M3 — Cotización original vs modificada | ✅ | Chip warning + details colapsable |
+| M6 — Hub inventario | ✅ | /dashboard/inventario/page.tsx |
+| M7 — Reparaciones en VendedorDashboard | ✅ | Acciones rápidas |
 
 ---
 
 ## Pendiente — Plan de auditoría (ver plan completo)
 
-### Alta prioridad:
+### Completados esta sesión (2026-05-06) — Plan Transparencia del Servicio:
+- ✅ **M8** — Topbar: botón ← Atrás + logout movido a dropdown de usuario
+- ✅ **M9** — MobileBottomNav: barra inferior fija para acceso rápido mobile (por rol)
+- ✅ **M5** — KPI cards del panel técnico como filtros activos (click = filtro)
+- ✅ **M2** — OrdenDrawer: link de tracking copiable en header (Click=copiar, Ctrl+Click=abrir)
+- ✅ **M1** — Historial de comunicaciones WA en tab Resumen del OrdenDrawer
+         + API GET /api/reparaciones/[id]/comunicaciones (whatsapp_mensajes + notificaciones_fallidas)
+- ✅ **M4** — Card "Cliente" con contexto: Nª reparación, puntos lealtad, saldo pendiente
+- ✅ **M3** — Chip "Cotización modificada" en tab Presupuesto con snapshot original colapsable
+- ✅ **M6** — Hub /dashboard/inventario: grid de 7 subpáginas + badge alertas dinámico
+- ✅ **M7** — VendedorDashboard: shortcut "Reparaciones → Órdenes de servicio"
 
-### Completados esta sesión (2026-05-01):
-- ✅ **C9** — DELETE individual de anticipo (super_admin)
-- ✅ **C11** — Historial de cambios de precio (tabla + endpoints + UI)
-- ✅ **D3** — ligar-sesion-qr: error handling, deactivar sesión, formato antiguo
-- ✅ **D4** — Historial de diagnósticos múltiples en OrdenDrawer
-- ✅ **D5** — Garantías: UI de reclamación en OrdenDrawer (estado entregado)
-- ✅ **D6** — Dashboard super_admin: comparativa KPIs entre sucursales (SucursalKpiCard grid)
-- ✅ **D7** — Offline queue ya conectada en tecnico/page.tsx y reparaciones/page.tsx (verificado)
+### ⚠️ PENDIENTE: Push a master
+Los commits están locales (5 commits en worktree). El token de GitHub ha expirado.
+Trini debe renovar el token o hacer push manualmente:
+  git push origin HEAD:master  (desde el worktree o tras hacer merge del worktree)
 
 ### Plan de auditoría integral: COMPLETO
 Todos los ítems C1-C11, I1-I7, D1-D7, B0-B1, V3 implementados.
