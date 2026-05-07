@@ -15,6 +15,7 @@ import {
   Bell,
   TrendingUp,
   DollarSign,
+  Wrench,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/components/AuthProvider";
@@ -329,6 +330,13 @@ export function VendedorDashboard() {
                 icon: <TrendingUp className="w-4 h-4" />,
                 label: "Verificar inventario",
                 sub: "Conteo físico",
+                accent: false,
+              },
+              {
+                href: "/dashboard/reparaciones",
+                icon: <Wrench className="w-4 h-4" />,
+                label: "Reparaciones",
+                sub: "Órdenes de servicio",
                 accent: false,
               },
             ].map((item) => (
