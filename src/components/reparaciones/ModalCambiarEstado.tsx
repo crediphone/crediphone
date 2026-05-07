@@ -17,6 +17,8 @@ interface ModalCambiarEstadoProps {
   folio: string;
   estadoActual: EstadoOrdenReparacion;
   onSuccess: () => void;
+  /** Callback adicional que recibe el nuevo estado al completarse (para abrir modal WA) */
+  onSuccessWithEstado?: (nuevoEstado: EstadoOrdenReparacion, notas?: string) => void;
   /** Pre-selecciona un estado destino al abrir el modal (ej: "completado" desde botón rápido) */
   estadoInicial?: EstadoOrdenReparacion;
 }
@@ -61,6 +63,7 @@ export function ModalCambiarEstado({
   folio,
   estadoActual,
   onSuccess,
+  onSuccessWithEstado,
   estadoInicial,
 }: ModalCambiarEstadoProps) {
   const isOnline = useOnlineStatus();
@@ -113,6 +116,7 @@ export function ModalCambiarEstado({
           payload: { id: ordenId, estado: nuevoEstado, notas: notas || undefined },
         });
         onSuccess();
+        onSuccessWithEstado?.(nuevoEstado, notas || undefined);
         handleClose();
         return;
       }
@@ -134,6 +138,7 @@ export function ModalCambiarEstado({
 
       // Notificar al padre para que refresque la lista
       onSuccess();
+      onSuccessWithEstado?.(nuevoEstado, notas || undefined);
 
       // Si hay piezas que requieren atención, mostrar paso de resolución
       if (result.piezasPendientesResolucion?.length > 0) {

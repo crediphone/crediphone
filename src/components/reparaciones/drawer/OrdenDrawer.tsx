@@ -17,6 +17,7 @@ import { HistorialNotificaciones } from "@/components/reparaciones/HistorialNoti
 import { ModalEditarOrden } from "@/components/reparaciones/ModalEditarOrden";
 import { ModalEditarPresupuesto } from "@/components/reparaciones/ModalEditarPresupuesto";
 import { ModalCambiarEstado } from "@/components/reparaciones/ModalCambiarEstado";
+import { ModalWhatsAppEstado } from "@/components/reparaciones/ModalWhatsAppEstado";
 import { PiezasInventarioPanel } from "@/components/reparaciones/PiezasInventarioPanel";
 import { AnticipoCajaPanel } from "@/components/reparaciones/anticipos/AnticipoCajaPanel";
 import { CentroMensajesPanel } from "@/components/reparaciones/mensajeria/CentroMensajesPanel";
@@ -176,6 +177,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [trackingCopiado, setTrackingCopiado] = useState(false);
   // E5: teléfono copiado
   const [telefonoCopiado, setTelefonoCopiado] = useState(false);
+  // E8: Modal WA post-cambio de estado
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waModalEstado, setWaModalEstado] = useState<import("@/types").EstadoOrdenReparacion>("recibido");
+  const [waModalNotas, setWaModalNotas] = useState<string | undefined>(undefined);
   // E7: Aprobar presencialmente
   const [aprobandoPresencial, setAprobandoPresencial] = useState(false);
   // Compartir tracking (panel expandible)
@@ -2519,8 +2524,24 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             folio={orden.folio}
             estadoActual={orden.estado}
             onSuccess={handleSuccess}
+            onSuccessWithEstado={(nuevoEstado, notas) => {
+              if (orden.clienteTelefono) {
+                setWaModalEstado(nuevoEstado);
+                setWaModalNotas(notas);
+                setWaModalOpen(true);
+              }
+            }}
             estadoInicial={estadoInicialModal}
           />
+          {orden.clienteTelefono && (
+            <ModalWhatsAppEstado
+              isOpen={waModalOpen}
+              onClose={() => setWaModalOpen(false)}
+              orden={orden}
+              nuevoEstado={waModalEstado}
+              notas={waModalNotas}
+            />
+          )}
         </>
       )}
     </>
