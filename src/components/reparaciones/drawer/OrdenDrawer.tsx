@@ -175,6 +175,47 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   // M2: tracking link
   const [trackingCopiado, setTrackingCopiado] = useState(false);
 
+  // M1: comunicaciones WA
+  interface ComunicacionWA {
+    id: string;
+    tipo: "wa" | "fallida";
+    canal: string;
+    estado: string;
+    resumen: string;
+    error: string | null;
+    creadoEn: string;
+  }
+  const [comunicaciones, setComunicaciones] = useState<ComunicacionWA[]>([]);
+  const [cargandoComunicaciones, setCargandoComunicaciones] = useState(false);
+
+  const fetchComunicaciones = useCallback(async () => {
+    if (!ordenId) return;
+    setCargandoComunicaciones(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${ordenId}/comunicaciones`);
+      const data = await res.json();
+      if (data.success) setComunicaciones(data.data ?? []);
+    } catch { /* silencioso */ }
+    finally { setCargandoComunicaciones(false); }
+  }, [ordenId]);
+
+  // M4: Contexto del cliente
+  interface ClienteResumen {
+    ordenesActivas: number;
+    saldoPendiente: number;
+    puntos: number;
+    totalOrdenes: number;
+  }
+  const [clienteResumen, setClienteResumen] = useState<ClienteResumen | null>(null);
+
+  const fetchClienteResumen = useCallback(async (clienteId: string) => {
+    try {
+      const res = await fetch(`/api/clientes/${clienteId}/resumen`);
+      const data = await res.json();
+      if (data.success) setClienteResumen(data.data);
+    } catch { /* silencioso */ }
+  }, []);
+
   const fetchGarantia = useCallback(async () => {
     if (!ordenId || orden?.estado !== "entregado") return;
     setCargandoGarantia(true);
@@ -401,6 +442,14 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   useEffect(() => {
     if (orden?.estado === "entregado" && ordenId) fetchGarantia();
   }, [orden?.estado, ordenId, fetchGarantia]);
+
+  useEffect(() => {
+    if (activeTab === "resumen" && ordenId) fetchComunicaciones();
+  }, [activeTab, ordenId, fetchComunicaciones]);
+
+  useEffect(() => {
+    if (orden?.clienteId) fetchClienteResumen(orden.clienteId);
+  }, [orden?.clienteId, fetchClienteResumen]);
 
   async function handleGuardarPedido() {
     if (!orden || !nuevaPiezaNombre.trim()) return;
@@ -668,6 +717,43 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           </div>
         </Card>
 
+        {/* M4: Contexto del cliente */}
+        {(orden.clienteNombre || orden.clienteTelefono) && (
+          <Card title="Cliente">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
+                  {orden.clienteNombre}{orden.clienteApellido ? ` ${orden.clienteApellido}` : ""}
+                </p>
+                {orden.clienteTelefono && (
+                  <p className="text-xs mt-0.5" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}>
+                    {orden.clienteTelefono}
+                  </p>
+                )}
+              </div>
+              {clienteResumen && (
+                <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+                  {clienteResumen.totalOrdenes > 0 && (
+                    <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: "var(--color-info-bg)", color: "var(--color-info-text)" }}>
+                      {clienteResumen.totalOrdenes === 1 ? "1ª visita" : `${clienteResumen.totalOrdenes}ª reparación`}
+                    </span>
+                  )}
+                  {clienteResumen.puntos > 0 && (
+                    <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                      ⭐ {clienteResumen.puntos} pts
+                    </span>
+                  )}
+                  {clienteResumen.saldoPendiente > 0 && (
+                    <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)" }}>
+                      Saldo ${clienteResumen.saldoPendiente.toLocaleString("es-MX", { minimumFractionDigits: 0 })}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
         {/* Acceso al dispositivo */}
         {(orden.patronDesbloqueo || orden.passwordDispositivo) && (
           <div className="rounded-xl p-4" style={{ background: "var(--color-warning-bg)", border: "2px solid var(--color-warning)" }}>
@@ -845,6 +931,74 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             )}
           </div>
         )}
+
+        {/* M1: Historial de comunicaciones WA */}
+        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-border-subtle)" }}>
+          <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--color-bg-surface)" }}>
+            <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+              Comunicaciones enviadas
+            </p>
+            <button
+              onClick={fetchComunicaciones}
+              disabled={cargandoComunicaciones}
+              className="text-xs px-2 py-1 rounded"
+              style={{ color: "var(--color-text-muted)", background: "var(--color-bg-elevated)" }}
+            >
+              {cargandoComunicaciones ? "..." : "↻"}
+            </button>
+          </div>
+          {cargandoComunicaciones ? (
+            <div className="px-4 py-6 text-center">
+              <Loader2 className="w-4 h-4 mx-auto animate-spin" style={{ color: "var(--color-text-muted)" }} />
+            </div>
+          ) : comunicaciones.length === 0 ? (
+            <div className="px-4 py-5 text-center">
+              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Sin comunicaciones registradas</p>
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "var(--color-border-subtle)" }}>
+              {comunicaciones.map((com) => (
+                <div key={com.id} className="px-4 py-3 flex items-start gap-3">
+                  <span className="text-base mt-0.5 flex-shrink-0">
+                    {com.estado === "enviado" || com.estado === "entregado" ? "📱" : com.estado === "fallido" ? "⚠️" : "🔗"}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate" style={{ color: "var(--color-text-primary)" }}>{com.resumen}</p>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        {new Date(com.creadoEn).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })},{" "}
+                        {new Date(com.creadoEn).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                        style={{
+                          background: com.estado === "enviado" || com.estado === "entregado"
+                            ? "var(--color-success-bg)"
+                            : com.estado === "fallido"
+                            ? "var(--color-danger-bg)"
+                            : "var(--color-info-bg)",
+                          color: com.estado === "enviado" || com.estado === "entregado"
+                            ? "var(--color-success-text)"
+                            : com.estado === "fallido"
+                            ? "var(--color-danger)"
+                            : "var(--color-info-text)",
+                        }}
+                      >
+                        {com.estado}
+                      </span>
+                      {com.canal && com.canal !== "whatsapp" && (
+                        <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{com.canal}</span>
+                      )}
+                    </div>
+                    {com.error && (
+                      <p className="text-xs mt-1" style={{ color: "var(--color-danger)" }}>✗ {com.error}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button
           className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium"
@@ -1327,6 +1481,36 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
         {orden.estado !== "entregado" && orden.estado !== "cancelado" && (
           <AnticipoCajaPanel orden={orden} onOrdenUpdated={handleSuccess} />
         )}
+        {/* M3: Indicador cotización modificada */}
+        {orden.snapshotCotizacionInicial &&
+          JSON.stringify(orden.snapshotCotizacionInicial) !== JSON.stringify(orden.piezasCotizacion) && (
+          <div
+            className="rounded-lg px-4 py-3"
+            style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}
+          >
+            <p className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>
+              ⚠️ Cotización modificada — el precio fue ajustado después del presupuesto inicial
+            </p>
+            <details className="mt-2">
+              <summary className="text-xs cursor-pointer" style={{ color: "var(--color-warning)" }}>
+                Ver cotización original
+              </summary>
+              <div className="mt-2 rounded-lg p-3 space-y-1" style={{ background: "rgba(0,0,0,0.06)" }}>
+                {Array.isArray(orden.snapshotCotizacionInicial) && (orden.snapshotCotizacionInicial as Array<{ nombre?: string; precio?: number; cantidad?: number }>).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2">
+                    <span className="text-xs" style={{ color: "var(--color-warning-text)" }}>
+                      {item.cantidad && item.cantidad > 1 ? `${item.cantidad}× ` : ""}{item.nombre ?? "—"}
+                    </span>
+                    <span className="text-xs font-medium" style={{ color: "var(--color-warning-text)", fontFamily: "var(--font-data)" }}>
+                      ${(item.precio ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        )}
+
         <PresupuestoSummary orden={orden} />
 
         {/* D1: Margen de utilidad — solo admin/super_admin */}

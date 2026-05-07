@@ -39,8 +39,16 @@ export async function GET(
       .not("estado", "in", "(cancelado,entregado)");
     if (distId) ordenesQuery = ordenesQuery.eq("distribuidor_id", distId);
 
-    const [{ data: ordenes }, saldo] = await Promise.all([
+    // Total de órdenes históricas
+    let totalQuery = supabase
+      .from("ordenes_reparacion")
+      .select("id", { count: "exact", head: true })
+      .eq("cliente_id", clienteId);
+    if (distId) totalQuery = totalQuery.eq("distribuidor_id", distId);
+
+    const [{ data: ordenes }, { count: totalOrdenes }, saldo] = await Promise.all([
       ordenesQuery,
+      totalQuery,
       getSaldoPuntos(clienteId, distId).catch(() => ({ saldoDisponible: 0, totalGanado: 0 })),
     ]);
 
@@ -56,6 +64,7 @@ export async function GET(
         ordenesActivas,
         saldoPendiente,
         puntos: saldo.saldoDisponible,
+        totalOrdenes: totalOrdenes ?? 0,
       },
     });
   } catch {
