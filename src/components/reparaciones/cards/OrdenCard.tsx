@@ -12,6 +12,7 @@ import { ModalWhatsAppEstado } from "@/components/reparaciones/ModalWhatsAppEsta
 import { AccionesOrdenPanel } from "@/components/reparaciones/AccionesOrdenPanel";
 import { ModalSegundoDiagnostico } from "@/components/reparaciones/ModalSegundoDiagnostico";
 import type { OrdenReparacionDetallada, EstadoOrdenReparacion } from "@/types";
+import { generarMensajeSeguimiento, generarLinkWhatsApp } from "@/lib/whatsapp-reparaciones";
 
 // ─── Mapa de transiciones válidas (espejo de ModalCambiarEstado) ──────────────
 const transicionesValidas: Record<EstadoOrdenReparacion, EstadoOrdenReparacion[]> = {
@@ -43,7 +44,7 @@ const estadoLabels: Record<EstadoOrdenReparacion, string> = {
 };
 
 // ─── Phone Action Menu ────────────────────────────────────────────────────────
-function PhoneMenu({ telefono, onClose }: { telefono: string; onClose: () => void }) {
+function PhoneMenu({ telefono, waHref, onClose }: { telefono: string; waHref?: string; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,7 +69,7 @@ function PhoneMenu({ telefono, onClose }: { telefono: string; onClose: () => voi
       }}
     >
       <a
-        href={`https://wa.me/52${numeroLimpio}`}
+        href={waHref ?? `https://wa.me/52${numeroLimpio}`}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors"
@@ -367,6 +368,7 @@ export function OrdenCard({
           {phoneMenuOpen && (
             <PhoneMenu
               telefono={orden.clienteTelefono}
+              waHref={generarLinkWhatsApp(orden.clienteTelefono, generarMensajeSeguimiento(orden))}
               onClose={() => setPhoneMenuOpen(false)}
             />
           )}

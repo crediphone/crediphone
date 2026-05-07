@@ -23,7 +23,7 @@ import { CentroMensajesPanel } from "@/components/reparaciones/mensajeria/Centro
 import { BitacoraTiempoPanel } from "@/components/reparaciones/BitacoraTiempoPanel";
 import { Card } from "@/components/ui/Card";
 import type { OrdenReparacionDetallada, ReparacionDiagnostico } from "@/types";
-import { generarMensajePromocion, generarMensajePresupuesto, generarLinkWhatsApp } from "@/lib/whatsapp-reparaciones";
+import { generarMensajePromocion, generarMensajePresupuesto, generarMensajeSeguimiento, generarLinkWhatsApp } from "@/lib/whatsapp-reparaciones";
 
 interface OrdenDrawerProps {
   ordenId: string | null;
@@ -176,6 +176,11 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [trackingCopiado, setTrackingCopiado] = useState(false);
   // E5: teléfono copiado
   const [telefonoCopiado, setTelefonoCopiado] = useState(false);
+  // Compartir tracking (panel expandible)
+  const [compartirOpen, setCompartirOpen] = useState(false);
+  const [compartirUrl, setCompartirUrl] = useState<string | null>(null);
+  const [compartirCopiado, setCompartirCopiado] = useState(false);
+  const [cargandoCompartir, setCargandoCompartir] = useState(false);
 
   // M1: comunicaciones WA
   interface ComunicacionWA {
@@ -709,26 +714,36 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
         bg: "var(--color-bg-elevated)",
         onClick: () => window.open(`/dashboard/reparaciones/${orden.id}/ticket`, "_blank"),
       },
-      ...(orden.trackingToken ? [{
-        label: trackingCopiado ? "¡Copiado!" : "Link tracking",
+      {
+        label: "Compartir",
         icon: Link2,
-        color: trackingCopiado ? "var(--color-success-text)" : "var(--color-info-text)",
-        bg: trackingCopiado ? "var(--color-success-bg)" : "var(--color-info-bg)",
-        onClick: () => {
-          const url = `${window.location.origin}/tracking/${orden.trackingToken}`;
-          navigator.clipboard.writeText(url).catch(() => {});
-          setTrackingCopiado(true);
-          setTimeout(() => setTrackingCopiado(false), 2000);
+        color: compartirOpen ? "var(--color-accent)" : "var(--color-info-text)",
+        bg: compartirOpen ? "var(--color-accent-light)" : "var(--color-info-bg)",
+        onClick: async () => {
+          if (compartirOpen) { setCompartirOpen(false); return; }
+          if (compartirUrl) { setCompartirOpen(true); return; }
+          setCargandoCompartir(true);
+          try {
+            const res = await fetch(`/api/reparaciones/${orden.id}/tracking-link`);
+            const data = await res.json();
+            const url = (data.success && data.url) ? data.url : `${window.location.origin}/reparacion/${orden.folio}`;
+            setCompartirUrl(url);
+          } catch {
+            setCompartirUrl(`${window.location.origin}/reparacion/${orden.folio}`);
+          } finally {
+            setCargandoCompartir(false);
+          }
+          setCompartirOpen(true);
         },
-      }] : []),
+      },
       ...(orden.clienteTelefono ? [{
         label: "WhatsApp",
         icon: MessageCircle,
         color: "var(--color-success-text)",
         bg: "var(--color-success-bg)",
         onClick: () => {
-          const clean = orden.clienteTelefono!.replace(/\D/g, "");
-          window.open(`https://wa.me/52${clean}`, "_blank");
+          const link = generarLinkWhatsApp(orden.clienteTelefono!, generarMensajeSeguimiento(orden));
+          window.open(link, "_blank");
         },
       }] : []),
     ];
@@ -754,6 +769,66 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             );
           })}
         </div>
+
+        {/* Panel Compartir tracking */}
+        {compartirOpen && compartirUrl && (
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+            <div className="flex items-center gap-2">
+              <Link2 className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+              <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                Compartir seguimiento
+              </span>
+              <span className="text-xs ml-1 font-mono" style={{ color: "var(--color-text-muted)" }}>
+                #{orden.folio}
+              </span>
+            </div>
+            <div className="rounded-lg px-3 py-2 text-xs break-all" style={{ background: "var(--color-bg-base)", fontFamily: "var(--font-mono)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}>
+              {compartirUrl}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(compartirUrl).catch(() => {});
+                  setCompartirCopiado(true);
+                  setTimeout(() => setCompartirCopiado(false), 2000);
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium"
+                style={{ background: compartirCopiado ? "var(--color-success-bg)" : "var(--color-bg-base)", color: compartirCopiado ? "var(--color-success-text)" : "var(--color-text-primary)", border: "1px solid var(--color-border)" }}
+              >
+                {compartirCopiado ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {compartirCopiado ? "¡Copiado!" : "Copiar link"}
+              </button>
+              <button
+                onClick={() => window.open(compartirUrl, "_blank")}
+                className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium"
+                style={{ background: "var(--color-bg-base)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Abrir
+              </button>
+              {orden.clienteTelefono && (
+                <button
+                  onClick={() => {
+                    const clean = orden.clienteTelefono!.replace(/\D/g, "");
+                    const msg = encodeURIComponent(`Hola, aquí puedes rastrear tu reparación ${orden.folio}: ${compartirUrl}`);
+                    window.open(`https://wa.me/52${clean}?text=${msg}`, "_blank");
+                  }}
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium"
+                  style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)", border: "1px solid transparent" }}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  WhatsApp
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {compartirOpen && !compartirUrl && cargandoCompartir && (
+          <div className="flex items-center justify-center py-3 gap-2 rounded-xl" style={{ background: "var(--color-bg-elevated)" }}>
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-muted)" }} />
+            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>Generando link…</span>
+          </div>
+        )}
 
         <Card title="Dispositivo">
           <div className="grid grid-cols-2 gap-3">

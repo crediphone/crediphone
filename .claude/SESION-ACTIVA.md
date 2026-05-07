@@ -75,13 +75,121 @@
 - ✅ **M6** — Hub /dashboard/inventario: grid de 7 subpáginas + badge alertas dinámico
 - ✅ **M7** — VendedorDashboard: shortcut "Reparaciones → Órdenes de servicio"
 
-### ⚠️ PENDIENTE: Push a master
-Los commits están locales (5 commits en worktree). El token de GitHub ha expirado.
-Trini debe renovar el token o hacer push manualmente:
-  git push origin HEAD:master  (desde el worktree o tras hacer merge del worktree)
+### ✅ Push a master completado (2026-05-06)
+Token renovado: ghp_LY29... válido 3 meses. Remote actualizado en worktree y repo principal.
 
 ### Plan de auditoría integral: COMPLETO
 Todos los ítems C1-C11, I1-I7, D1-D7, B0-B1, V3 implementados.
+
+### Completados sesión 2026-05-07 (mañana):
+- ✅ **E1** — ModalOrden: confirmación siempre al cerrar
+- ✅ **E2** — ModalOrden: panel post-creación con PDF/WA/imprimir/ver ficha
+- ✅ **E3** — Inputs cliente en mobile: grid 1 col, font 1rem (sin zoom iOS)
+- ✅ **E4** — Nombre del cliente nuevo propaga a firma digital (1 línea)
+- ✅ **E5** — Card Cliente en OrdenDrawer: botones WA/Llamar/Copiar inline
+- ✅ **E6** — Fila acciones rápidas en tab Resumen del OrdenDrawer (PDF, ticket, tracking, WA)
+
+### 🔴 PENDIENTE — Bugs identificados en auditoría (2026-05-07):
+- ❌ **BUG-WA-001** — WhatsApp en OrdenCard sin mensaje precargado
+- ❌ **BUG-TRACK-001** — Token de tracking no se genera si se salta estado "presupuesto"
+- ❌ **BUG-TRACK-002** — Costo/servicios ocultos en tracking con requiereAprobacion=false
+- ❌ **E7** — Botón "Cliente aprobó en tienda" en drawer (aprobar-presencial)
+- ❌ **E8** — Notificación automática WA al cambiar estado
+- ❌ **BUG-PIEZAS-001** — PiezasPendientesPanel sin botón WA por pieza
+
+### REGLA PERMANENTE (2026-05-07)
+**NUNCA eliminar funcionalidades existentes. Solo agregar.**
+Antes de editar: verificar con git diff qué existía antes.
+Documentar en SESION-ACTIVA y BUGS-ACTIVOS todo lo encontrado.
+
+---
+
+## PRÓXIMA SESIÓN — Plan de Auditoría con Cliente Ficticio (2026-05-07)
+
+### METODOLOGÍA
+Crear cliente ficticio con sufijo " — Prueba de Servicios" en el nombre.
+Abrir la web en vivo y recorrer el sistema como: cliente, técnico y administrador.
+Verificar que lo implementado REALMENTE funciona end-to-end. Corregir lo que falle.
+
+---
+
+### BLOQUE A — Creación de orden de servicio
+**Errores conocidos a verificar:**
+- [ ] Al crear cliente: nombre y teléfono aparecen muy pequeños, no caben en mobile
+- [ ] Modal de creación de cliente tiene detalles en versión mobile
+- [ ] Al presionar "firma digital" en creación de orden, el cliente NO se arrastra automáticamente
+- [ ] Revisar todos los campos del formulario de nueva orden — ¿qué falta? ¿qué lógica no está clara?
+
+---
+
+### BLOQUE B — Flujo de tracking cuando el cliente NO necesita aprobar nada
+**El problema central:**
+Cuando la cotización coincide con el presupuesto inicial (sin cambios) o cuando `requiereAprobacion = false`,
+el cliente nunca recibe el WA de presupuesto → no genera token de tracking → la página de tracking
+existe pero está vacía o no muestra las funciones de:
+- Ver el estado actual y cotización
+- Aceptar/rechazar presupuesto
+- Ver piezas en camino
+- Recibir ofertas y promociones
+- Ver si hay cambios de precio posteriores
+
+**Preguntas de lógica de negocio que Trini debe responder:**
+1. ¿Cuándo se genera el token de tracking? ¿Solo al cambiar a estado "presupuesto"?
+2. ¿Qué pasa si el cliente aprobó en persona y el técnico avanza sin pasar por presupuesto?
+3. ¿Debe el cliente poder ver su tracking SIEMPRE, independientemente del flujo?
+4. ¿La sección de "¿deseas recibir promociones?" debe aparecer en CUALQUIER punto del proceso?
+5. ¿Qué información debe estar siempre visible (precio, estado) vs. qué requiere aprobación?
+
+**A verificar en producción:**
+- [ ] ¿El token se genera si el orden salta de "recibido" directo a "en_reparacion"?
+- [ ] ¿Si `requiereAprobacion = false`, el cliente recibe algún mensaje con el link de tracking?
+- [ ] ¿Aparecen las ofertas/promociones cuando el cliente entra al tracking con orden ya completada?
+- [ ] ¿El precio final es visible en tracking aunque no haya habido aprobación del cliente?
+- [ ] ¿Qué ve el cliente en tracking si la orden ya fue entregada?
+
+---
+
+### BLOQUE C — Auditoría visual y funcional completa (con preview del navegador)
+Recorrer como técnico:
+- [ ] Crear orden nueva desde panel técnico
+- [ ] Agregar diagnóstico
+- [ ] Cambiar estados: diagnostico → presupuesto → aprobado → en_reparacion → completado → listo_entrega → entregado
+- [ ] Verificar que cada cambio de estado envía (o intenta enviar) el WA correcto
+- [ ] Verificar historial de comunicaciones en OrdenDrawer (M1 nuevo)
+- [ ] Verificar link de tracking en drawer (M2)
+- [ ] Verificar badge de Nª reparación y puntos del cliente (M4)
+- [ ] Verificar cotización original vs modificada (M3)
+
+Recorrer como administrador:
+- [ ] Aprobar/rechazar solicitud de cambio de precio
+- [ ] Ver historial de precios
+- [ ] Ver margen de utilidad
+- [ ] Reasignar técnico
+- [ ] Verificar panel de comunicaciones WA fallidas
+
+Recorrer como cliente (página tracking):
+- [ ] Abrir URL de tracking
+- [ ] Ver estado, cotización, piezas
+- [ ] Aprobar/rechazar presupuesto
+- [ ] Ver sección de promociones
+- [ ] Verificar que la página funciona ANTES y DESPUÉS de la aprobación
+
+---
+
+### BLOQUE D — Problemas silenciosos y "en el limbo"
+- [ ] Órdenes que nunca generan token de tracking — ¿quedan sin seguimiento para el cliente?
+- [ ] Notificaciones fallidas — ¿hay forma de reenviarlas desde el drawer?
+- [ ] ¿Qué pasa si el cliente pierde el link de tracking? ¿Puede el empleado reenviarlo?
+- [ ] Estados intermedios que no notifican al cliente (esperando_piezas, retraso de pieza)
+- [ ] ¿El anticipo se aplica correctamente al precio final en la vista del cliente?
+
+---
+
+### NOTAS DE METODOLOGÍA PARA LA SESIÓN
+- Usar preview del navegador (preview_start → preview_screenshot/snapshot) para verificar visualmente
+- Corregir errores encontrados EN EL MOMENTO, no acumularlos
+- Al final: commit + push de todas las correcciones
+- Cliente ficticio a crear: "Juan Prueba de Servicios" + teléfono ficticio
 
 ---
 
