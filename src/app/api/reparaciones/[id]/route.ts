@@ -330,6 +330,37 @@ export async function PUT(
         body.aprobacionPresencial === true
       );
 
+      // BUG-TRACK-001: Generar token de tracking si no existe para cualquier estado activo.
+      // "presupuesto" ya crea el token via notificarCambioEstado → excluirlo para evitar duplicados.
+      // "recibido", "cancelado", "no_reparable" → no necesitan tracking.
+      const estadosSinTracking: EstadoOrdenReparacion[] = ["recibido", "presupuesto", "cancelado", "no_reparable"];
+      if (!estadosSinTracking.includes(body.estado)) {
+        try {
+          const supabaseT = createAdminClient();
+          const { data: existeToken } = await supabaseT
+            .from("tracking_tokens")
+            .select("id")
+            .eq("orden_id", id)
+            .limit(1)
+            .maybeSingle();
+          if (!existeToken) {
+            const { randomBytes } = await import("crypto");
+            const token = randomBytes(32).toString("hex");
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 90);
+            await supabaseT.from("tracking_tokens").insert({
+              orden_id: id,
+              token,
+              expires_at: expiresAt.toISOString(),
+              activa: true,
+              accesos: 0,
+            });
+          }
+        } catch (tokenErr) {
+          console.error("[TRACK-001] Error auto-generando tracking token (no bloquea):", tokenErr);
+        }
+      }
+
       // FASE 10: Notificar automáticamente al cambiar estado
       let notificaciones: any[] = [];
       try {

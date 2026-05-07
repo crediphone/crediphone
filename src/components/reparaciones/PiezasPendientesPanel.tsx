@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { PackagePlus, RefreshCw, AlertCircle, ExternalLink, Clock } from "lucide-react";
+import { PackagePlus, RefreshCw, AlertCircle, ExternalLink, Clock, MessageCircle } from "lucide-react";
 
 interface PedidoPendiente {
   id: string;
@@ -247,19 +247,39 @@ function PedidoRow({
         </div>
       </div>
 
-      {/* Botón abrir orden */}
-      {onAbrirOrden && pedido.orden.id && (
-        <button
-          className="p-1.5 rounded-lg flex-shrink-0"
-          style={{ color: "var(--color-text-muted)", background: "transparent" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          onClick={() => onAbrirOrden(pedido.orden.id!)}
-          title="Abrir orden"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </button>
-      )}
+      {/* Botones de acción */}
+      <div className="flex gap-1 flex-shrink-0">
+        {pedido.orden.clienteTelefono && (
+          <button
+            className="p-1.5 rounded-lg"
+            style={{ color: "var(--color-success)", background: "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-success-bg)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            onClick={() => {
+              const clean = pedido.orden.clienteTelefono!.replace(/\D/g, "");
+              const msg = encodeURIComponent(
+                `⏳ *ESPERA DE REFACCIÓN - CREDIPHONE*\n\nHola *${pedido.orden.clienteNombre}*, gracias por tu paciencia.\n\nTe informamos sobre tu ${pedido.orden.marcaDispositivo} ${pedido.orden.modeloDispositivo} (Folio: ${pedido.orden.folio}).\n\nLa refacción ya fue pedida al proveedor y estamos esperando su llegada. Te notificaremos en cuanto esté lista.\n\nCualquier duda estamos a tus órdenes. 📱 CREDIPHONE`
+              );
+              window.open(`https://wa.me/52${clean}?text=${msg}`, "_blank");
+            }}
+            title="WhatsApp al cliente"
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+        )}
+        {onAbrirOrden && pedido.orden.id && (
+          <button
+            className="p-1.5 rounded-lg"
+            style={{ color: "var(--color-text-muted)", background: "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            onClick={() => onAbrirOrden(pedido.orden.id!)}
+            title="Abrir orden"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

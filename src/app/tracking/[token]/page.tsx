@@ -563,10 +563,12 @@ export default function TrackingPublicoPage() {
   const estadoInfo = getEstadoInfo(orden.estado);
   const StatusIcon = estadoInfo.icon;
 
-  // Costo: visible siempre que haya monto; estado "presupuesto" ya tiene su propio panel de autorización
+  // Costo: visible siempre que haya monto.
+  // En estado "presupuesto" el panel de autorización ya lo muestra — no duplicar,
+  // EXCEPTO cuando aprobadoPorCliente = true (panel oculto pero estado aún no cambió).
   const tieneCosto = orden.costoTotal > 0;
   const costoEsEstimado = ["recibido", "diagnostico"].includes(orden.estado);
-  const mostrarCosto = tieneCosto && orden.estado !== "presupuesto";
+  const mostrarCosto = tieneCosto && (orden.estado !== "presupuesto" || orden.aprobadoPorCliente);
 
   return (
     <div
@@ -1203,8 +1205,9 @@ export default function TrackingPublicoPage() {
             </div>
           )}
 
-        {/* ── Resumen de servicios contratados (estados aprobado en adelante) ── */}
-        {["aprobado", "en_reparacion", "completado", "listo_entrega", "entregado"].includes(orden.estado) &&
+        {/* ── Resumen de servicios contratados (estados aprobado en adelante, o presupuesto ya aprobado) ── */}
+        {(["aprobado", "en_reparacion", "completado", "listo_entrega", "entregado"].includes(orden.estado) ||
+          (orden.estado === "presupuesto" && orden.aprobadoPorCliente)) &&
           (orden.piezasCotizacion?.length > 0 || orden.partesReemplazadas?.length > 0) && (
           <SectionCard title="Servicios Contratados" icon={CheckCircle2}>
             {orden.piezasCotizacion && orden.piezasCotizacion.length > 0 ? (

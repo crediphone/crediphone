@@ -176,6 +176,8 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [trackingCopiado, setTrackingCopiado] = useState(false);
   // E5: teléfono copiado
   const [telefonoCopiado, setTelefonoCopiado] = useState(false);
+  // E7: Aprobar presencialmente
+  const [aprobandoPresencial, setAprobandoPresencial] = useState(false);
   // Compartir tracking (panel expandible)
   const [compartirOpen, setCompartirOpen] = useState(false);
   const [compartirUrl, setCompartirUrl] = useState<string | null>(null);
@@ -1739,6 +1741,40 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
             </div>
           );
         })()}
+
+        {/* E7: Botón "Cliente aprobó en tienda" — solo cuando está en presupuesto y no ha aprobado */}
+        {orden.estado === "presupuesto" && !(orden as any).aprobadoPorCliente && (
+          <button
+            disabled={aprobandoPresencial}
+            onClick={async () => {
+              if (!confirm("¿Confirmar que el cliente aprobó el presupuesto en tienda?")) return;
+              setAprobandoPresencial(true);
+              try {
+                const res = await fetch(`/api/reparaciones/${orden.id}/aprobar-presupuesto`, { method: "POST" });
+                const data = await res.json();
+                if (data.success) {
+                  handleSuccess();
+                } else {
+                  alert(data.message ?? "Error al aprobar presupuesto");
+                }
+              } catch {
+                alert("Error de conexión");
+              } finally {
+                setAprobandoPresencial(false);
+              }
+            }}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold"
+            style={{
+              background: aprobandoPresencial ? "var(--color-success-bg)" : "var(--color-success)",
+              color: aprobandoPresencial ? "var(--color-success-text)" : "#fff",
+              border: "none",
+              opacity: aprobandoPresencial ? 0.8 : 1,
+            }}
+          >
+            <CheckCircle className="w-4 h-4" />
+            {aprobandoPresencial ? "Procesando…" : "✓ Cliente aprobó en tienda"}
+          </button>
+        )}
 
         {/* Acciones de presupuesto */}
         <div className="flex gap-2">
