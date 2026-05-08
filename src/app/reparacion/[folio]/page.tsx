@@ -18,7 +18,9 @@ import {
   CircleDashed,
   AlertTriangle,
   ExternalLink,
+  ArrowRight,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -126,6 +128,24 @@ export default function ReparacionFolioPage() {
   const [orden, setOrden] = useState<OrdenPublica | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEmpleado, setIsEmpleado] = useState(false);
+
+  // Estados finales donde NO redirigimos al tracking (ya no hay acción pendiente del cliente)
+  const estadosFinales = ["listo_entrega", "entregado", "no_reparable", "cancelado"];
+
+  useEffect(() => {
+    // Verificar si hay sesión activa (empleado en dashboard)
+    async function checkAuth() {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsEmpleado(!!session?.user);
+      } catch {
+        setIsEmpleado(false);
+      }
+    }
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     if (!folio) return;
@@ -137,8 +157,9 @@ export default function ReparacionFolioPage() {
         const data = await res.json();
         if (data.success) {
           setOrden(data.data);
-          // Si hay token de tracking válido, redirigir allá para aprovechar la funcionalidad completa
-          if (data.data.trackingToken) {
+          // Redirigir al tracking solo si hay token Y no es un estado final
+          // (en estados finales la página de QR de entrega es más útil)
+          if (data.data.trackingToken && !estadosFinales.includes(data.data.estado)) {
             router.replace(`/tracking/${data.data.trackingToken}`);
           }
         } else {
@@ -152,7 +173,7 @@ export default function ReparacionFolioPage() {
     }
 
     cargar();
-  }, [folio, router]);
+  }, [folio, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <Skeleton />;
   if (error || !orden) return <ErrorPage mensaje={error ?? "No se encontró información para este folio."} />;
@@ -252,6 +273,68 @@ export default function ReparacionFolioPage() {
             )}
           </div>
         </div>
+
+        {/* ── Banner entrega (listo_entrega) ── */}
+        {orden.estado === "listo_entrega" && isEmpleado && (
+          <div className="rounded-xl p-5"
+            style={{ background: "var(--color-success-bg)", border: "2px solid var(--color-success)" }}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <Package className="w-6 h-6 shrink-0 mt-0.5" style={{ color: "var(--color-success)" }} />
+              <div>
+                <p className="text-base font-bold" style={{ color: "var(--color-success-text, var(--color-success))" }}>
+                  Equipo listo para entrega
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-success-text, var(--color-success))", opacity: 0.85 }}>
+                  Folio escaneado: <strong style={{ fontFamily: "var(--font-mono)" }}>{orden.folio}</strong>
+                </p>
+              </div>
+            </div>
+            <a
+              href={`/dashboard/reparaciones?buscar=${orden.folio}`}
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold"
+              style={{ background: "var(--color-success)", color: "#fff", textDecoration: "none" }}
+            >
+              <ArrowRight className="w-5 h-5" />
+              Ir al dashboard — procesar entrega
+            </a>
+          </div>
+        )}
+
+        {orden.estado === "listo_entrega" && !isEmpleado && (
+          <div className="rounded-xl p-4"
+            style={{ background: "var(--color-info-bg, #e0f2fe)", border: "1px solid var(--color-info, #0ea5e9)" }}
+          >
+            <div className="flex items-start gap-3">
+              <Package className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--color-info, #0369a1)" }} />
+              <div>
+                <p className="text-sm font-bold" style={{ color: "var(--color-info, #0369a1)" }}>
+                  Tu equipo está listo para recoger
+                </p>
+                <p className="text-xs mt-1" style={{ color: "var(--color-info, #0369a1)", opacity: 0.9 }}>
+                  Solicita a un empleado de CREDIPHONE que procese la entrega presentando este folio.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Banner entregado ── */}
+        {orden.estado === "entregado" && (
+          <div className="rounded-xl p-4 flex items-center gap-3"
+            style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
+          >
+            <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: "var(--color-success)" }} />
+            <p className="text-sm font-semibold" style={{ color: "var(--color-success)" }}>
+              Equipo entregado
+              {orden.fechaCompletado && (
+                <span className="font-normal" style={{ color: "var(--color-success)", opacity: 0.8 }}>
+                  {" "}— {formatFecha(orden.fechaCompletado)}
+                </span>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Alerta de aprobación parcial */}
         {orden.aprobacionParcial && (

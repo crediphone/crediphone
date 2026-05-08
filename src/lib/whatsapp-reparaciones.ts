@@ -275,7 +275,7 @@ ${saldo > 0 ? `💰 *Saldo pendiente:* $${saldo.toFixed(2)}` : `✅ *Sin saldo p
 CREDIPHONE - Durango, México
 Horario: Lunes a Sábado, 9:00 AM - 7:00 PM
 
-⚠️ *Importante:* Por favor recoge tu equipo dentro de los próximos 15 días.
+⚠️ *Importante:* Por favor recoge tu equipo dentro de los próximos 30 días naturales. Después de ese plazo se aplicará una tarifa de almacenaje diaria conforme a nuestros términos de servicio.
 ${pdfUrl ? `\n📄 *Contrato / Comprobante:*\n${pdfUrl}\n` : ""}
 ¡Te esperamos!
 📱 CREDIPHONE

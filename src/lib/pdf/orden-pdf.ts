@@ -153,6 +153,7 @@ function buildTerms(cond: unknown, imei?: string): string[] {
     "Propiedad y datos: El cliente declara ser propietario legítimo del equipo. CREDIPHONE no se responsabiliza por pérdida de datos; se recomienda respaldo previo.",
     `Garantía: 90 días naturales sobre mano de obra (LFPC Art. 76 bis). No aplica por golpes, líquidos ni mal uso posteriores al servicio.`,
     "Diagnóstico: Si el cliente rechaza el presupuesto, el equipo se devuelve en el estado recibido. Al aprobar, autoriza expresamente los trabajos y el costo indicado.",
+    "Resguardo y recolección (LFPC Art. 63): El cliente tiene 30 días naturales a partir de la notificación de equipo listo para recogerlo sin cargo adicional. Transcurrido dicho plazo se aplicará una tarifa de almacenaje diaria. A los 90 días sin reclamación, CREDIPHONE podrá disponer del equipo para recuperar costos. El cliente acepta estas condiciones al firmar.",
     "T&C completos disponibles en el código QR de este documento.",
   ];
 

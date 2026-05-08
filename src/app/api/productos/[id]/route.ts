@@ -138,6 +138,56 @@ export async function PATCH(
       return NextResponse.json({ success: true, codigo, generado: true });
     }
 
+    // C2: Ajuste manual de stock con motivo obligatorio
+    if (body.action === "ajustar_stock") {
+      const authAdmin = await requireAuth(["admin", "super_admin"]);
+      if (!authAdmin.ok) return authAdmin.response;
+
+      const { cantidadNueva, motivo } = body as { cantidadNueva?: number; motivo?: string };
+      if (cantidadNueva === undefined || cantidadNueva === null || !Number.isFinite(cantidadNueva)) {
+        return NextResponse.json({ success: false, error: "cantidadNueva es obligatorio" }, { status: 400 });
+      }
+      if (!motivo?.trim()) {
+        return NextResponse.json({ success: false, error: "El motivo del ajuste es obligatorio" }, { status: 400 });
+      }
+
+      const supabase = createAdminClient();
+
+      const { data: prod } = await supabase
+        .from("productos")
+        .select("id, stock, distribuidor_id, nombre")
+        .eq("id", id)
+        .single();
+
+      if (!prod) return NextResponse.json({ success: false, error: "Producto no encontrado" }, { status: 404 });
+
+      const stockAntes = Number(prod.stock ?? 0);
+      const stockDespues = Math.max(0, Math.round(cantidadNueva));
+      const delta = stockDespues - stockAntes;
+
+      if (delta === 0) {
+        return NextResponse.json({ success: true, message: "Sin cambio de stock", stockAntes, stockDespues });
+      }
+
+      const { userId } = await import("@/lib/auth/server").then((m) => m.getAuthContext());
+
+      await supabase.from("productos").update({ stock: stockDespues }).eq("id", id);
+
+      await supabase.from("movimientos_stock").insert({
+        producto_id: id,
+        distribuidor_id: prod.distribuidor_id ?? null,
+        tipo: "ajuste",
+        cantidad: delta,
+        stock_antes: stockAntes,
+        stock_despues: stockDespues,
+        referencia_tipo: "ajuste_manual",
+        registrado_por: userId ?? null,
+        notas: motivo.trim(),
+      });
+
+      return NextResponse.json({ success: true, stockAntes, stockDespues, delta, motivo: motivo.trim() });
+    }
+
     return NextResponse.json({ success: false, error: "Acción no reconocida" }, { status: 400 });
   } catch (error) {
     console.error("Error en PATCH /api/productos/[id]:", error);

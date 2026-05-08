@@ -159,7 +159,58 @@ export async function POST(
       userId
     ).catch(() => {});
 
-    // 8. Acumular puntos de loyalty (fire-and-forget)
+    // 8. C1: Descontar stock de piezas del catálogo usadas en esta reparación
+    // Solo piezas con producto_id (del catálogo) y estado instalada/verificada_ok
+    ;(async () => {
+      try {
+        const { data: piezasCatalogo } = await supabase
+          .from("pedidos_pieza_reparacion")
+          .select("id, producto_id, nombre_pieza")
+          .eq("orden_id", id)
+          .not("producto_id", "is", null)
+          .in("estado", ["instalada", "verificada_ok"]);
+
+        if (!piezasCatalogo || piezasCatalogo.length === 0) return;
+
+        for (const pieza of piezasCatalogo) {
+          // Leer stock actual
+          const { data: prod } = await supabase
+            .from("productos")
+            .select("stock")
+            .eq("id", pieza.producto_id)
+            .single();
+
+          if (!prod) continue;
+          const stockAntes = Number(prod.stock ?? 0);
+          const stockDespues = Math.max(0, stockAntes - 1);
+
+          // Actualizar stock
+          await supabase
+            .from("productos")
+            .update({ stock: stockDespues })
+            .eq("id", pieza.producto_id);
+
+          // Registrar movimiento
+          await supabase.from("movimientos_stock").insert({
+            producto_id: pieza.producto_id,
+            distribuidor_id: orden.distribuidor_id,
+            tipo: "uso_reparacion",
+            cantidad: -1,
+            stock_antes: stockAntes,
+            stock_despues: stockDespues,
+            referencia_id: id,
+            referencia_tipo: "orden_reparacion",
+            referencia_folio: orden.folio,
+            registrado_por: userId,
+            notas: `Pieza "${pieza.nombre_pieza}" instalada en ${orden.folio}`,
+          });
+        }
+      } catch (e) {
+        console.error("[entregar] Error al descontar stock de piezas (no bloquea):", e);
+      }
+    })();
+
+    // 8b. Acumular puntos de loyalty (fire-and-forget)
     if (orden.cliente_id && precioTotal > 0) {
       import("@/lib/db/puntos").then(({ acumularPuntos }) =>
         acumularPuntos({
