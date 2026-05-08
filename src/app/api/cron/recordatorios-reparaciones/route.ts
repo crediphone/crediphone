@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     // 2. Fecha en que cada orden entró en listo_entrega
     const ordenIds = ordenes.map((o: any) => o.id);
     const { data: historialData } = await supabase
-      .from("historial_estados_reparacion")
+      .from("historial_estado_orden")
       .select("orden_id, created_at")
       .in("orden_id", ordenIds)
       .eq("estado_nuevo", "listo_entrega")
