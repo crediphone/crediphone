@@ -72,6 +72,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const [orden, setOrden] = useState<OrdenReparacionDetallada | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const [drawerError, setDrawerError] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [modalEditarOpen, setModalEditarOpen] = useState(false);
@@ -352,15 +353,18 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       setDrawerError(true);
     } finally {
       setLoading(false);
+      setHasFetched(true);
     }
   }, [ordenId]);
 
   useEffect(() => {
     if (ordenId) {
+      setHasFetched(false);
       fetchOrden();
       setActiveTab(defaultTab);
     } else {
       setOrden(null);
+      setHasFetched(false);
     }
   }, [ordenId, defaultTab, fetchOrden]);
 
@@ -2491,10 +2495,14 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 Reintentar
               </button>
             </div>
-          ) : !orden ? (
+          ) : !orden && hasFetched ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2">
               <Wrench className="w-10 h-10" style={{ color: "var(--color-border-strong)" }} />
               <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>No se encontró la orden</p>
+            </div>
+          ) : !orden ? (
+            <div className="flex items-center justify-center h-40">
+              <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-accent)" }} />
             </div>
           ) : (
             renderTab()
