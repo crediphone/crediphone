@@ -77,10 +77,11 @@ export function DistribuidorProvider({ children }: { children: React.ReactNode }
         const dists: DistribuidorItem[] = data.data;
         setDistribuidores(dists);
 
-        // Siempre arrancar con CREDIPHONE Principal (primer distribuidor activo).
-        // NO restauramos desde localStorage entre sesiones — Trini quiere entrar
-        // siempre en su tienda principal por defecto (opción C).
-        const primero = dists.find((d) => d.activo) ?? dists[0] ?? null;
+        // Restaurar selección guardada en localStorage (persiste entre sesiones).
+        // Si no hay nada guardado, usar la primera tienda activa como default.
+        const savedId = typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null;
+        const saved = savedId ? (dists.find((d) => d.id === savedId) ?? null) : null;
+        const primero = saved ?? dists.find((d) => d.activo) ?? dists[0] ?? null;
         if (primero) {
           setDistribuidorActivoState(primero);
         }
