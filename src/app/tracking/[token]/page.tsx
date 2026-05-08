@@ -1455,6 +1455,59 @@ export default function TrackingPublicoPage() {
           </SectionCard>
         )}
 
+        {/* ── Aviso de plazo de almacenaje (listo_entrega) ── */}
+        {orden.estado === "listo_entrega" && (() => {
+          // Encontrar cuándo entró en listo_entrega desde el historial
+          const entradaListoEntrega = data.historial
+            .filter((h) => h.estado_nuevo === "listo_entrega")
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+          const fechaListo = entradaListoEntrega?.created_at;
+          const dias = fechaListo
+            ? Math.floor((Date.now() - new Date(fechaListo).getTime()) / 86_400_000)
+            : 0;
+          const diasRestantes = Math.max(0, 30 - dias);
+          const esCobro = dias >= 30;
+          const cobro = esCobro ? (dias - 30) * 30 : 0; // fallback $30/día
+
+          return (
+            <div
+              className="rounded-2xl p-5 space-y-3"
+              style={{
+                background: esCobro ? "var(--color-danger-bg)" : "var(--color-warning-bg)",
+                border: `2px solid ${esCobro ? "var(--color-danger)" : "var(--color-warning)"}`,
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <span className="text-2xl shrink-0">{esCobro ? "⚠️" : "📦"}</span>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: esCobro ? "var(--color-danger-text, var(--color-danger))" : "var(--color-warning-text)" }}>
+                    {esCobro
+                      ? `Tu equipo lleva ${dias} días esperándote — cargo de almacenaje activo`
+                      : `Tu equipo lleva ${dias} días listo para recoger`}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: esCobro ? "var(--color-danger-text, var(--color-danger))" : "var(--color-warning-text)", opacity: 0.9 }}>
+                    {esCobro
+                      ? `Cargo acumulado estimado: $${cobro.toFixed(2)} MXN. Conforme a la LFPC Art. 63, a los 90 días el equipo puede ser dispuesto para recuperar costos.`
+                      : `Tienes ${diasRestantes} día(s) más para recoger tu equipo sin cargo de almacenaje. Después del día 30 se aplica una tarifa diaria.`}
+                  </p>
+                </div>
+              </div>
+              <a
+                href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_SOPORTE ?? "526181245391"}?text=${encodeURIComponent(`Hola CREDIPHONE, quiero coordinar la entrega de mi equipo. Folio: ${orden.folio}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "#25D366", color: "#fff", textDecoration: "none" }}
+              >
+                Contactar para coordinar entrega
+              </a>
+              <p className="text-xs text-center" style={{ color: esCobro ? "var(--color-danger-text, var(--color-danger))" : "var(--color-warning-text)", opacity: 0.7 }}>
+                <a href="/terminos" target="_blank" style={{ color: "inherit" }}>Ver términos completos</a>
+              </p>
+            </div>
+          );
+        })()}
+
         {/* ── Puntos de Loyalty ────────────────────────────── */}
         {data.puntos && orden.estado === "entregado" && (
           <div
