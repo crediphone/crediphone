@@ -67,6 +67,11 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
   const [distribuidores, setDistribuidores] = useState<{ id: string; nombre: string }[]>([]);
   const [distribuidorSeleccionado, setDistribuidorSeleccionado] = useState("");
 
+  // B4: Selección de técnico asignado (solo admin/super_admin)
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+  const [tecnicos, setTecnicos] = useState<{ id: string; nombre: string }[]>([]);
+  const [tecnicoId, setTecnicoId] = useState("");
+
   // Form state - Datos básicos
   const [formData, setFormData] = useState({
     clienteId: "",
@@ -208,6 +213,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
       reservarFolio();
       cargarCatalogo();
       if (isSuperAdmin) fetchDistribuidores();
+      if (isAdmin) fetchTecnicos();
     } else {
       // Si el modal se cierra sin haber guardado, cancelar el folio reservado
       if (folioReservado) {
@@ -294,6 +300,21 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
       const data = await res.json();
       if (data.success) {
         setDistribuidores(data.data.map((d: { id: string; nombre: string }) => ({ id: d.id, nombre: d.nombre })));
+      }
+    } catch {
+      // silencioso
+    }
+  }
+
+  async function fetchTecnicos() {
+    try {
+      const res = await fetch("/api/empleados?activos=true");
+      const data = await res.json();
+      if (data.success) {
+        const lista = (data.data as { id: string; name: string; role: string }[])
+          .filter((e) => e.role === "tecnico")
+          .map((e) => ({ id: e.id, nombre: e.name }));
+        setTecnicos(lista);
       }
     } catch {
       // silencioso
@@ -477,6 +498,9 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
         // FASE 54-B: Referencia al servicio del catálogo seleccionado
         catalogoServicioId: catalogoServicioId || null,
 
+        // Admin: técnico asignado (opcional)
+        ...(tecnicoId ? { tecnicoId } : {}),
+
         // Super admin: asignar a distribuidor específico
         ...(isSuperAdmin && distribuidorSeleccionado ? { distribuidorId: distribuidorSeleccionado } : {}),
       };
@@ -631,6 +655,7 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
       tieneMemoriaSD: false,
       observacionesFisicas: "",
     });
+    setTecnicoId("");
     setPresupuestoTotal(0);
     setPresupuestoManoDeObra(0);
     setPresupuestoPiezas(0);
@@ -1101,6 +1126,25 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
                     <option value="urgente">🔴 Urgente</option>
                   </select>
                 </div>
+
+                {/* Técnico asignado — solo admin/super_admin */}
+                {isAdmin && tecnicos.length > 0 && (
+                  <div>
+                    <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text-secondary)" }}>
+                      Técnico Asignado <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>(opcional)</span>
+                    </label>
+                    <select
+                      value={tecnicoId}
+                      onChange={(e) => setTecnicoId(e.target.value)}
+                      style={{ width: "100%", borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontWeight: 500, fontSize: "0.875rem" }}
+                    >
+                      <option value="">Sin asignar</option>
+                      {tecnicos.map((t) => (
+                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
