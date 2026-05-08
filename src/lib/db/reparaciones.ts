@@ -714,7 +714,7 @@ export async function cambiarEstadoOrden(
   // Leer el estado actual antes de actualizar
   const { data: ordenActual, error: errorLectura } = await supabase
     .from("ordenes_reparacion")
-    .select("estado")
+    .select("estado, precio_total, precio_mano_obra, precio_piezas, costo_total, costo_reparacion, costo_partes")
     .eq("id", ordenId)
     .single();
 
@@ -736,12 +736,26 @@ export async function cambiarEstadoOrden(
     estado: nuevoEstado,
   };
 
+  // F3: Sincronizar precio_total con costo_total si no hay presupuesto explícito
+  if ((nuevoEstado === "completado" || nuevoEstado === "listo_entrega") &&
+      (!ordenActual.precio_total || parseFloat(ordenActual.precio_total) === 0)) {
+    const costoTotal = parseFloat(ordenActual.costo_total || 0);
+    if (costoTotal > 0) {
+      updateData.precio_total = costoTotal;
+      updateData.precio_mano_obra = parseFloat(ordenActual.costo_reparacion || 0);
+      updateData.precio_piezas = parseFloat(ordenActual.costo_partes || 0);
+    }
+  }
+
   // Actualizar fechas según el estado
   if (nuevoEstado === "completado") {
     updateData.fecha_completado = new Date().toISOString();
   } else if (nuevoEstado === "entregado") {
     updateData.fecha_entregado = new Date().toISOString();
-  } else if (nuevoEstado === "aprobado" && aprobacionPresencial) {
+  } else if (nuevoEstado === "aprobado") {
+    // Siempre marcar como aprobado por el cliente al cambiar a "aprobado"
+    // (el técnico no avanzaría a este estado sin confirmación del cliente,
+    // ya sea presencial, por teléfono, o desde la página de tracking)
     updateData.aprobado_por_cliente = true;
   }
 

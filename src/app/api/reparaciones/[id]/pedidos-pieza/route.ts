@@ -100,6 +100,8 @@ export async function POST(
       productoId,
       recibirInmediatamente = false,
       fotoComprobanteUrl,
+      // Precio que ve el cliente (cotización). Si no se envía, usa costoEstimado como fallback.
+      precioCliente,
     } = body;
 
     if (!nombrePieza?.trim()) {
@@ -210,6 +212,37 @@ export async function POST(
         pedido_pieza_id: pedido.id,
         registrado_por: userId,
       });
+    }
+
+    // F2: Actualizar piezas_cotizacion en la orden para que el cliente lo vea en tracking
+    const precioUnitarioCliente = Number(precioCliente ?? costoEstimado) || 0;
+    if (precioUnitarioCliente > 0) {
+      const { data: ordenActual } = await supabase
+        .from("ordenes_reparacion")
+        .select("piezas_cotizacion, precio_piezas, precio_mano_obra")
+        .eq("id", ordenId)
+        .single();
+
+      const cotizacionActual = (ordenActual?.piezas_cotizacion as any[]) ?? [];
+      const nuevaPieza = {
+        id: `ped-${pedido.id}`,
+        nombre: nombrePieza.trim(),
+        esLibre: !productoId,
+        cantidad: 1,
+        tieneStock: !!productoId,
+        productoId: productoId ?? null,
+        precioUnitario: precioUnitarioCliente,
+        precioTotal: precioUnitarioCliente,
+      };
+      const nuevaCotizacion = [...cotizacionActual, nuevaPieza];
+      const nuevoPrecioPiezas = nuevaCotizacion.reduce((s: number, p: any) => s + (p.precioTotal ?? 0), 0);
+      const nuevoPrecioTotal = Number(ordenActual?.precio_mano_obra ?? 0) + nuevoPrecioPiezas;
+
+      await supabase.from("ordenes_reparacion").update({
+        piezas_cotizacion: nuevaCotizacion,
+        precio_piezas: nuevoPrecioPiezas,
+        precio_total: nuevoPrecioTotal,
+      }).eq("id", ordenId);
     }
 
     // Si se recibe inmediatamente, agregar a reparacion_piezas
