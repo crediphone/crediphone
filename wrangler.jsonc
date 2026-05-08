@@ -61,4 +61,12 @@
   "observability": {
     "enabled": true
   }
+
+  // CRON — Para activar recordatorios automáticos:
+  // 1. Agregar CRON_SECRET en Cloudflare Dashboard > crediphone > Settings > Variables (secret)
+  // 2. Usar Cloudflare Dashboard > Workers & Pages > crediphone > Triggers > Cron Triggers
+  //    → Agregar cron: "0 16 * * *" (10am CDT = 16:00 UTC)
+  //    → O bien usar un Worker separado que haga fetch a /api/cron/recordatorios-reparaciones
+  //    con header Authorization: Bearer {CRON_SECRET}
+  // El endpoint ya está listo en: src/app/api/cron/recordatorios-reparaciones/route.ts
 }
