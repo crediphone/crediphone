@@ -76,3 +76,62 @@ Ver `ARCHIVO/DEPLOY-WORKAROUNDS-COWORK.md` — hay parches especiales para el fi
 2. Login con cuenta de prueba
 3. Verificar que el dashboard cargue sin errores
 4. Verificar que las imágenes de productos carguen (R2)
+
+---
+
+## 🚨 BUGS DE BUILD CONOCIDOS — LEER ANTES DE USAR HOOKS DE NEXT.JS
+
+### DEPLOY-BUG-006 — `useSearchParams()` rompe el build con Turbopack (Next.js 16)
+
+**Error:** `useSearchParams() should be wrapped in a suspense boundary at page "/dashboard/X"`
+**Dónde ocurre:** Durante `npm run build` → fase "Generating static pages"
+**Detectado:** 2026-05-09
+
+**Causa raíz (investigada en GitHub Issues #82360, #80254, #85951):**
+- El build de Turbopack analiza el árbol de módulos en build-time buscando `useSearchParams()`
+- Si encuentra el hook en cualquier componente de una página (directo O transitivo), falla
+- El `<Suspense>` wrapper SOLO funciona si el componente que llama `useSearchParams` está en un **archivo separado** y el `<Suspense>` está en un Server Component padre
+- Poner `<Suspense>` dentro del mismo archivo `"use client"` NO es suficiente
+- `export const dynamic = 'force-dynamic'` fue **deprecado** en Next.js 15/16 y NO resuelve el error con Turbopack
+- `missingSuspenseWithCSRBailout: false` fue **eliminado** en Next.js 15+ — no existe
+
+**Soluciones válidas (en orden de preferencia):**
+
+**Opción A — Eliminar `useSearchParams` y leer desde `window.location.search` en `useEffect`:**
+```typescript
+// ✅ FUNCIONA — sin hook SSR, solo client-side
+useEffect(() => {
+  const param = new URLSearchParams(window.location.search).get("miParam");
+  if (param) setMiFiltro(param);
+}, []);
+```
+
+**Opción B — Extraer a archivo separado + Suspense en Server Component:**
+```typescript
+// search-reader.tsx (archivo separado)
+"use client";
+import { useSearchParams } from "next/navigation";
+export function SearchReader({ onParam }: { onParam: (v: string) => void }) {
+  const p = useSearchParams();
+  useEffect(() => { if (p.get("x")) onParam(p.get("x")!); }, [p]);
+  return null;
+}
+
+// page.tsx (Server Component — SIN "use client")
+import { Suspense } from "react";
+import { SearchReader } from "./search-reader";
+export default function Page() {
+  return <Suspense><SearchReader onParam={...} /><RestOfPage /></Suspense>;
+}
+```
+
+**Opción C — `await connection()` desde Next.js 15+ (reemplaza force-dynamic):**
+```typescript
+import { connection } from 'next/server';
+export default async function Page() {
+  await connection();
+  return <ClientComponentConSearchParams />;
+}
+```
+
+**⚠️ REGLA:** Nunca usar `useSearchParams()` directamente en el nivel de `page.tsx` de App Router con Turbopack. Siempre usar Opción A (preferida por simplicidad) o Opción B.
