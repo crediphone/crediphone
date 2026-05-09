@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -45,7 +45,7 @@ const TIPOS_MAP = Object.fromEntries(TIPOS_PRODUCTO.map((t) => [t.value, t]));
 
 // ─── Página principal ──────────────────────────────────────────────────────────
 
-export default function ProductosPage() {
+function ProductosPageInner() {
   const { user } = useAuth();
   const { distribuidorActivo } = useDistribuidor();
   const searchParams = useSearchParams();
@@ -3101,5 +3101,13 @@ body { font-family: 'Helvetica Neue', Arial, sans-serif; background: white; padd
         </div>
       </div>
     </Modal>
+  );
+}
+
+export default function ProductosPage() {
+  return (
+    <Suspense>
+      <ProductosPageInner />
+    </Suspense>
   );
 }
