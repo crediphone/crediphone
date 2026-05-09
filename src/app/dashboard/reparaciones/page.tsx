@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { ModalOrden } from "@/components/reparaciones/ModalOrden";
 import { ModalDiagnostico } from "@/components/reparaciones/ModalDiagnostico";
@@ -101,14 +100,14 @@ export default function ReparacionesPage() {
   const [drawerOrdenId, setDrawerOrdenId] = useState<string | null>(null);
   const [drawerDefaultTab, setDrawerDefaultTab] = useState("resumen");
 
-  const searchParams = useSearchParams();
-  const urlOrdenId = searchParams.get("orden");
-  const urlBuscar = searchParams.get("buscar");
   const handledUrlRef = useRef(false);
 
   // B3: Abrir drawer desde URL ?orden= (link desde panel técnico)
   useEffect(() => {
     if (handledUrlRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const urlOrdenId = params.get("orden");
+    const urlBuscar = params.get("buscar");
     if (urlOrdenId) {
       handledUrlRef.current = true;
       setDrawerOrdenId(urlOrdenId);
@@ -116,7 +115,7 @@ export default function ReparacionesPage() {
       handledUrlRef.current = true;
       setSearchQuery(urlBuscar);
     }
-  }, [urlOrdenId, urlBuscar]);
+  }, []);
 
   // Todos los roles autenticados pueden ver reparaciones
   useEffect(() => {
