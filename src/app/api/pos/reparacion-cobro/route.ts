@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     const { data: orden, error: ordenError } = await supabase
       .from("ordenes_reparacion")
       .select(`
-        id, folio, cliente_id, costo_total, distribuidor_id,
+        id, folio, cliente_id, costo_total, precio_total, presupuesto_total, distribuidor_id,
         cliente:clientes(nombre, apellido)
       `)
       .eq("id", ordenId)
@@ -102,9 +102,10 @@ export async function POST(request: Request) {
       ? anticiposExistentes.reduce((sum: number, a: any) => sum + parseFloat(a.monto || 0), 0)
       : 0;
 
-    const costoTotal = parseFloat(orden.costo_total || 0);
+    // C3 fix: cobrar sobre precio_total (lo que el cliente paga), no costo_total (costo interno)
+    const precioTotal = parseFloat(orden.precio_total || orden.presupuesto_total || orden.costo_total || 0);
     const nuevoTotalAnticipos = totalAnticiposActual + parseFloat(monto);
-    const nuevoSaldo = Math.max(0, costoTotal - nuevoTotalAnticipos);
+    const nuevoSaldo = Math.max(0, precioTotal - nuevoTotalAnticipos);
 
     // Crear anticipo
     const { data: nuevoAnticipo, error: insertError } = await supabase
@@ -115,8 +116,10 @@ export async function POST(request: Request) {
         tipo_pago: metodoPago as TipoPago,
         desglose_mixto: desgloseMixto as DesglosePagoMixto | null,
         recibido_por: userId,
-        estado: "aplicado",
-        caja_sesion_id: sesionCajaId,
+        // C3 fix: estado='pendiente' para que /entregar los encuentre y aplique correctamente
+        estado: "pendiente",
+        // C2 fix: nombre canónico sesion_caja_id (no caja_sesion_id)
+        sesion_caja_id: sesionCajaId,
         creado_por: userId,
         created_at: new Date().toISOString(),
       })
@@ -184,7 +187,7 @@ export async function POST(request: Request) {
         .from("ordenes_reparacion")
         .update({
           estado: "entregado",
-          fecha_entregado: new Date().toISOString(),
+          fecha_entrega: new Date().toISOString(), // C5 fix: campo canónico fecha_entrega
           updated_at: new Date().toISOString(),
         })
         .eq("id", ordenId);

@@ -191,7 +191,7 @@ export default function EmpleadosPage() {
           alert(modalMode === "create" ? "Empleado creado exitosamente" : "Empleado actualizado exitosamente");
         }
       } else {
-        alert(result.error || result.message || "Error al guardar empleado");
+        alert(result.message || result.error || "Error al guardar empleado");
       }
     } catch (error) {
       console.error("Error al guardar empleado:", error);
