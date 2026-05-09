@@ -187,7 +187,7 @@ export async function POST(request: Request) {
     const { data: orden, error: ordenError } = await supabase
       .from("ordenes_reparacion")
       .select(`
-        id, folio, estado, cliente_id, costo_total, precio_total, presupuesto_total, distribuidor_id,
+        id, folio, estado, cliente_id, costo_total, precio_total, distribuidor_id,
         cliente:clientes(nombre, apellido)
       `)
       .eq("id", ordenId)
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
       : 0;
 
     // C3 fix: cobrar sobre precio_total (lo que el cliente paga), no costo_total (costo interno)
-    const precioTotal = parseFloat(orden.precio_total || orden.presupuesto_total || orden.costo_total || 0);
+    const precioTotal = parseFloat(orden.precio_total || orden.costo_total || 0);
     const nuevoTotalAnticipos = totalAnticiposActual + parseFloat(monto);
     const nuevoSaldo = Math.max(0, precioTotal - nuevoTotalAnticipos);
 
