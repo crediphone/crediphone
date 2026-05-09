@@ -288,15 +288,15 @@ export async function createVenta(
   const productItems = formData.items.filter((i) => !i.esServicio && i.productoId);
   const serviceItems = formData.items.filter((i) => i.esServicio && i.servicioId);
 
-  // Obtener snapshot de nombres de productos
-  let productosMap = new Map<string, { nombre: string; marca: string; modelo: string }>();
+  // Obtener snapshot de nombres y stock actual de productos (antes de que el trigger decremente)
+  let productosMap = new Map<string, { nombre: string; marca: string; modelo: string; stock: number }>();
   if (productItems.length > 0) {
     const { data: productosData } = await supabase
       .from("productos")
-      .select("id, nombre, marca, modelo")
+      .select("id, nombre, marca, modelo, stock")
       .in("id", productItems.map((i) => i.productoId!));
     productosMap = new Map(
-      (productosData || []).map((p) => [p.id, p])
+      (productosData || []).map((p) => [p.id, { ...p, stock: p.stock ?? 0 }])
     );
   }
 
@@ -350,7 +350,37 @@ export async function createVenta(
     throw new Error(`Error al crear items de venta: ${itemsError.message}`);
   }
 
-  // 3. Acumular puntos si hay cliente (fire-and-forget)
+  // 3. Registrar movimientos_stock para trazabilidad (fire-and-forget, no bloquea la venta)
+  if (productItemsToInsert.length > 0) {
+    const movimientosStock = productItemsToInsert
+      .filter((i) => i.producto_id)
+      .map((i) => {
+        const producto = productosMap.get(i.producto_id!);
+        const stockAntes = producto?.stock ?? 0;
+        const stockDespues = Math.max(0, stockAntes - i.cantidad);
+        return {
+          producto_id: i.producto_id,
+          distribuidor_id: distribuidorId || null,
+          tipo: "venta_pos",
+          cantidad: -i.cantidad,
+          stock_antes: stockAntes,
+          stock_despues: stockDespues,
+          referencia_id: ventaData.id,
+          referencia_tipo: "venta",
+          referencia_folio: ventaData.folio,
+          registrado_por: vendedorId,
+          notas: `Venta POS: ${i.producto_nombre}`,
+        };
+      });
+
+    if (movimientosStock.length > 0) {
+      supabase.from("movimientos_stock").insert(movimientosStock).then(({ error }) => {
+        if (error) console.error("[createVenta] Error registrando movimientos_stock:", error);
+      });
+    }
+  }
+
+  // 4. Acumular puntos si hay cliente (fire-and-forget)
   if (formData.clienteId && total > 0) {
     import("@/lib/db/puntos").then(({ acumularPuntos }) =>
       acumularPuntos({
@@ -364,7 +394,7 @@ export async function createVenta(
     ).catch(() => {});
   }
 
-  // 4. Retornar venta completa
+  // 5. Retornar venta completa
   const ventaCompleta = await getVentaById(ventaData.id, distribuidorId);
   if (!ventaCompleta) {
     throw new Error("Error al recuperar venta creada");

@@ -299,7 +299,17 @@ export default function UbicacionesPage() {
                 )}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {(ubicacion.productosCount ?? 0) > 0 && (
+                  <Button
+                    onClick={() => router.push(`/dashboard/productos?ubicacion=${ubicacion.id}`)}
+                    variant="secondary"
+                    className="flex-1"
+                  >
+                    <Package className="w-4 h-4 mr-2" />
+                    Ver productos
+                  </Button>
+                )}
                 <Button
                   onClick={() => handleOpenModal(ubicacion)}
                   variant="secondary"

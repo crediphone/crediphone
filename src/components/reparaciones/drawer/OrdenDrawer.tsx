@@ -99,6 +99,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [mostrarFormPedido, setMostrarFormPedido] = useState(false);
   const [nuevaPiezaNombre, setNuevaPiezaNombre] = useState("");
   const [nuevaPiezaCosto, setNuevaPiezaCosto] = useState("");
+  const [nuevaPiezaEnvio, setNuevaPiezaEnvio] = useState("");
   const [recibirInmediatamente, setRecibirInmediatamente] = useState(false);
   const [guardandoPedido, setGuardandoPedido] = useState(false);
   const [recibiendoPedido, setRecibiendoPedido] = useState<string | null>(null);
@@ -479,6 +480,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
         body: JSON.stringify({
           nombrePieza: nuevaPiezaNombre.trim(),
           costoEstimado: parseFloat(nuevaPiezaCosto) || 0,
+          costoEnvio: parseFloat(nuevaPiezaEnvio) || 0,
           recibirInmediatamente,
         }),
       });
@@ -487,6 +489,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
         setMostrarFormPedido(false);
         setNuevaPiezaNombre("");
         setNuevaPiezaCosto("");
+        setNuevaPiezaEnvio("");
         setRecibirInmediatamente(false);
         fetchPedidosPieza();
         if (recibirInmediatamente) fetchOrden();
@@ -1617,9 +1620,23 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                     <span className="absolute left-2 top-2 text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
                     <input
                       type="number"
-                      placeholder="Costo estimado"
+                      placeholder="Costo pieza"
                       value={nuevaPiezaCosto}
                       onChange={(e) => setNuevaPiezaCosto(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      min="0"
+                      step="0.01"
+                      className="w-full pl-5 pr-3 py-2 rounded-lg text-sm focus:outline-none"
+                      style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                    />
+                  </div>
+                  <div className="relative flex-1">
+                    <span className="absolute left-2 top-2 text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
+                    <input
+                      type="number"
+                      placeholder="Costo envío"
+                      value={nuevaPiezaEnvio}
+                      onChange={(e) => setNuevaPiezaEnvio(e.target.value)}
                       onFocus={(e) => e.target.select()}
                       min="0"
                       step="0.01"
@@ -1639,7 +1656,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 </label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setMostrarFormPedido(false); setNuevaPiezaNombre(""); setNuevaPiezaCosto(""); }}
+                    onClick={() => { setMostrarFormPedido(false); setNuevaPiezaNombre(""); setNuevaPiezaCosto(""); setNuevaPiezaEnvio(""); }}
                     className="flex-1 py-1.5 rounded-lg text-xs"
                     style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}
                   >
