@@ -1,6 +1,6 @@
 # Bugs Activos — CREDIPHONE
 > Leer al inicio de sesión si la tarea toca BD, auth, caja o reparaciones.
-> Última actualización: 2026-05-07
+> Última actualización: 2026-05-09
 
 ---
 
@@ -32,6 +32,23 @@
 **Severidad:** Baja | **Estado:** Pendiente de implementar
 **Descripción:** El panel de piezas pendientes al proveedor muestra folio + botón para abrir la orden, pero no tiene botón de WhatsApp para notificar al cliente sobre el estado de la pieza. La función `generarMensajePiezaEnEspera()` existe.
 **Archivo afectado:** `src/components/reparaciones/PiezasPendientesPanel.tsx`
+
+---
+
+## ✅ DEPLOY-BUG-006 — useSearchParams rompe build Turbopack
+**Severidad:** CRÍTICO | **Estado:** ✅ Resuelto 2026-05-09
+**Páginas afectadas:** `/dashboard/productos/page.tsx`, `/dashboard/reparaciones/page.tsx`
+**Causa:** Turbopack 16.2.1 detecta `useSearchParams()` en análisis estático de build aunque esté en `"use client"` y aunque esté envuelto en `<Suspense>` en el mismo archivo. `export const dynamic = "force-dynamic"` tampoco funciona.
+**Solución:** `window.location.search` dentro de `useEffect` con `useRef` para ejecutar solo una vez. Ver `.claude/DEPLOY.md` sección DEPLOY-BUG-006.
+**Regla permanente:** NUNCA usar `useSearchParams()` en `page.tsx` en este proyecto.
+
+---
+
+## ✅ BUG-COBRO-001 — "Orden no encontrada" al cobrar reparación desde POS
+**Severidad:** CRÍTICO | **Estado:** ✅ Resuelto 2026-05-09
+**Archivo:** `src/app/api/pos/reparacion-cobro/route.ts`
+**Causa:** El SELECT incluía columna `presupuesto_total` que no existe en `ordenes_reparacion`. PostgREST devolvía error → el código lo interpretaba como 404 "Orden no encontrada".
+**Solución:** Removida `presupuesto_total` del SELECT y del fallback. Solo usa `precio_total || costo_total`.
 
 ---
 

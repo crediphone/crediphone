@@ -1,8 +1,8 @@
 # Sesión Activa — CREDIPHONE
 
-## Estado: TICKETS / QR / ALMACENAJE / LEGAL ✅ (2026-05-07)
+## Estado: TRAZABILIDAD + COBRO POS + DEPLOY FIXES ✅ (2026-05-09)
 
-**Última sesión:** 2026-05-07 — Plan "Tickets, QR Entrega, Recordatorios y Protección Legal" completo
+**Última sesión:** 2026-05-09 — P1/P2/P5 implementados + 3 bugs de deploy + 1 bug de cobro resueltos
 **Historial:** `ARCHIVO/HISTORIAL-SESIONES.md`
 
 ---
@@ -20,8 +20,11 @@
 | Cron recordatorios | ✅ | POST /api/cron/recordatorios-reparaciones (T3b) |
 | Sidebar Almacenaje | ✅ | Link "Almacenaje" para admin/super_admin (T7) |
 | WA listo_entrega | ✅ | Corregido "15 días" → "30 días naturales" (T6) |
-| C1 — Descontar stock al entregar | ✅ | entregar/route.ts fire-and-forget |
-| C2 — Ajuste stock con motivo | ✅ | PATCH ajustar_stock con motivo obligatorio |
+| movimientos_stock en ventas POS | ✅ | P1 — fire-and-forget en createVenta() |
+| Flujo entrega completo desde POS | ✅ | P2 — ejecutarEntregaCompleta() en reparacion-cobro |
+| Campo costo envío en piezas | ✅ | P5 — input en OrdenDrawer, guarda a DB |
+| Cobro reparación POS | ✅ | Bug presupuesto_total resuelto |
+| Filtro ubicación en /dashboard/productos | ✅ | window.location.search (sin useSearchParams) |
 
 ---
 
@@ -54,6 +57,47 @@ Para activar el cron automático de recordatorios:
 
 ---
 
+## ⏳ PENDIENTE — Plan de mejoras (aprobado por Trini, no implementado aún)
+
+| ID | Descripción | Prioridad |
+|----|-------------|-----------|
+| P3 | Piezas verificadas → opción de ingresar al inventario | Media |
+| P4 | Venta de teléfonos en POS (contado vs crédito con IMEI) | Media |
+| W3 | Rediseño íconos POS para móvil (productos primero) | Baja |
+
+---
+
+## Implementado esta sesión (2026-05-09)
+
+### P1 — Trazabilidad stock en ventas POS
+- **Archivo:** `src/lib/db/ventas.ts`
+- Después de insertar `ventas_items`, inserta fire-and-forget en `movimientos_stock`
+- Tipo: `"venta_pos"`, incluye stock_antes/stock_despues, referencia al folio de venta
+
+### P2 — Flujo completo de entrega desde POS cobro
+- **Archivo:** `src/app/api/pos/reparacion-cobro/route.ts`
+- Función `ejecutarEntregaCompleta()` se ejecuta cuando `tipo === "saldo_final"` y `nuevoSaldo <= 0`
+- Acciones: marca anticipos como aplicados, calcula ingreso neto, inserta movimientos_bolsa_virtual, descuenta stock de piezas instaladas, acumula puntos loyalty, registra historial_estado_orden
+
+### P5 — Campo costo envío en formulario de piezas
+- **Archivo:** `src/components/reparaciones/drawer/OrdenDrawer.tsx`
+- Input nuevo "Costo envío" junto a "Costo pieza", lado a lado
+- Guarda `costoEnvio` al DB vía `handleGuardarPedido`
+
+### DEPLOY-BUG-006 — useSearchParams rompe build Turbopack
+- **Archivos afectados:** `/dashboard/productos/page.tsx`, `/dashboard/reparaciones/page.tsx`
+- Turbopack 16.2.1 detecta `useSearchParams()` en build-time aunque esté en `"use client"`
+- **Solución:** `window.location.search` en `useEffect` con `useRef` para ejecutar solo una vez
+- Documentado en `.claude/DEPLOY.md` y en memory `feedback_usesearchparams_turbopack.md`
+
+### BUG-COBRO-001 — "Orden no encontrada" al cobrar desde POS
+- **Archivo:** `src/app/api/pos/reparacion-cobro/route.ts`
+- La columna `presupuesto_total` NO existe en `ordenes_reparacion`
+- PostgREST devolvía error en el SELECT → el código lo interpretaba como 404
+- **Fix:** Removida del SELECT y del fallback. Solo usa `precio_total || costo_total`
+
+---
+
 ## Marco legal implementado
 
 | Componente | Dónde |
@@ -63,19 +107,6 @@ Para activar el cron automático de recordatorios:
 | Banner de plazo en tracking del cliente | /tracking/[token] (T5) |
 | Panel de alertas por días sin recoger | /dashboard/almacenaje (T3) |
 | Cron automático días 15/25/30/60/90 | /api/cron/recordatorios-reparaciones (T3b) |
-
----
-
-## Fases de implementación completadas esta sesión (2026-05-07)
-
-- ✅ **T6** — WA: "15 días" → "30 días naturales" con aviso de tarifa
-- ✅ **T4** — PDF: cláusula legal de resguardo (LFPC Art. 63)
-- ✅ **T1** — Ticket 58mm: letra legible, QR de identificación, firma al entregar
-- ✅ **T2** — /reparacion/{folio}: banner entrega para empleados autenticados
-- ✅ **T3** — API + panel de almacenaje con WA por fila
-- ✅ **T3b** — Cron endpoint automático (días objetivo: 15/25/30/60/90)
-- ✅ **T5** — Tracking: banner de plazo cuando estado=listo_entrega
-- ✅ **T7** — Sidebar: link "Almacenaje" para admin
 
 ---
 
