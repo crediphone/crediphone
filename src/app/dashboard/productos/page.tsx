@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -17,6 +18,7 @@ import {
   Pencil, Trash2, Search, Plus, Upload, Smartphone, Tag, RefreshCw, QrCode,
   History, ShoppingCart, Wrench, Warehouse, ChevronRight, Layers,
   Printer, Minus as MinusIcon, Plus as PlusIcon, CheckSquare, Square, CheckCircle, Zap,
+  MapPin,
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { inferirCategoria, generarSKU, MARCAS_CELULARES, getNombresModelosPorMarca, getCapacidadesPorModelo } from "@/lib/catalog/celulares";
@@ -46,6 +48,8 @@ const TIPOS_MAP = Object.fromEntries(TIPOS_PRODUCTO.map((t) => [t.value, t]));
 export default function ProductosPage() {
   const { user } = useAuth();
   const { distribuidorActivo } = useDistribuidor();
+  const searchParams = useSearchParams();
+  const urlUbicacion = searchParams.get("ubicacion");
   // admin y super_admin pueden crear productos; vendedores solo editan (por defecto)
   const canCrearProducto = user?.role === "admin" || user?.role === "super_admin";
 
@@ -72,6 +76,15 @@ export default function ProductosPage() {
   const [subcategoriasPage, setSubcategoriasPage]     = useState<{ id: string; nombre: string }[]>([]);
   const [proveedoresPage, setProveedoresPage]         = useState<{ id: string; nombre: string }[]>([]);
   const [ubicacionesPage, setUbicacionesPage]         = useState<{ id: string; nombre: string; codigo: string }[]>([]);
+  const [filtroUbicacionId, setFiltroUbicacionId]     = useState<string>(urlUbicacion ?? "todos");
+
+  // Activar filtro de ubicación si viene desde ?ubicacion= en la URL
+  const handledUrlUbicacion = useRef(false);
+  useEffect(() => {
+    if (handledUrlUbicacion.current || !urlUbicacion || ubicacionesPage.length === 0) return;
+    handledUrlUbicacion.current = true;
+    setFiltroUbicacionId(urlUbicacion);
+  }, [urlUbicacion, ubicacionesPage]);
 
   useEffect(() => { fetchProductos(); }, []);
 
@@ -124,13 +137,18 @@ export default function ProductosPage() {
     } else if (filtroStock === "agotado") {
       result = result.filter((p) => p.stock === 0);
     }
+    if (filtroUbicacionId === "__sin_ubicacion__") {
+      result = result.filter((p) => !p.ubicacionId && (!p.ubicacionFisica || p.ubicacionFisica.trim() === ""));
+    } else if (filtroUbicacionId !== "todos") {
+      result = result.filter((p) => p.ubicacionId === filtroUbicacionId);
+    }
     if (sortStock === "asc") {
       result = [...result].sort((a, b) => a.stock - b.stock);
     } else if (sortStock === "desc") {
       result = [...result].sort((a, b) => b.stock - a.stock);
     }
     setFilteredProductos(result);
-  }, [searchQuery, filtroTipo, filtroCategoriaId, filtroStock, sortStock, productos]);
+  }, [searchQuery, filtroTipo, filtroCategoriaId, filtroStock, sortStock, filtroUbicacionId, productos]);
 
   const fetchProductos = async (): Promise<Producto[]> => {
     try {
@@ -354,6 +372,42 @@ export default function ProductosPage() {
             />
           ))}
         </div>
+
+        {/* Filtro por ubicación */}
+        {ubicacionesPage.length > 0 && (
+          <div className="flex gap-2 flex-wrap items-center">
+            <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: "var(--color-text-muted)" }} />
+            <FilterBtn
+              label="Todas las ubicaciones"
+              active={filtroUbicacionId === "todos"}
+              onClick={() => setFiltroUbicacionId("todos")}
+            />
+            {(() => {
+              const sinUbicacion = productos.filter((p) => !p.ubicacionId && (!p.ubicacionFisica || p.ubicacionFisica.trim() === "")).length;
+              return sinUbicacion > 0 ? (
+                <FilterBtn
+                  label="Sin ubicación"
+                  active={filtroUbicacionId === "__sin_ubicacion__"}
+                  count={sinUbicacion}
+                  onClick={() => setFiltroUbicacionId(filtroUbicacionId === "__sin_ubicacion__" ? "todos" : "__sin_ubicacion__")}
+                />
+              ) : null;
+            })()}
+            {ubicacionesPage.map((u) => {
+              const count = productos.filter((p) => p.ubicacionId === u.id).length;
+              if (count === 0) return null;
+              return (
+                <FilterBtn
+                  key={u.id}
+                  label={u.nombre}
+                  active={filtroUbicacionId === u.id}
+                  count={count}
+                  onClick={() => setFiltroUbicacionId(filtroUbicacionId === u.id ? "todos" : u.id)}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Tabla */}
