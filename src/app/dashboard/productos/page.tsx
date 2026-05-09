@@ -1,10 +1,6 @@
 "use client";
 
-// Prevent static prerendering — this page uses useSearchParams()
-export const dynamic = "force-dynamic";
-
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -51,8 +47,6 @@ const TIPOS_MAP = Object.fromEntries(TIPOS_PRODUCTO.map((t) => [t.value, t]));
 export default function ProductosPage() {
   const { user } = useAuth();
   const { distribuidorActivo } = useDistribuidor();
-  const searchParams = useSearchParams();
-  const urlUbicacion = searchParams.get("ubicacion");
   // admin y super_admin pueden crear productos; vendedores solo editan (por defecto)
   const canCrearProducto = user?.role === "admin" || user?.role === "super_admin";
 
@@ -79,15 +73,17 @@ export default function ProductosPage() {
   const [subcategoriasPage, setSubcategoriasPage]     = useState<{ id: string; nombre: string }[]>([]);
   const [proveedoresPage, setProveedoresPage]         = useState<{ id: string; nombre: string }[]>([]);
   const [ubicacionesPage, setUbicacionesPage]         = useState<{ id: string; nombre: string; codigo: string }[]>([]);
-  const [filtroUbicacionId, setFiltroUbicacionId]     = useState<string>(urlUbicacion ?? "todos");
+  const [filtroUbicacionId, setFiltroUbicacionId]     = useState<string>("todos");
 
-  // Activar filtro de ubicación si viene desde ?ubicacion= en la URL
+  // Activar filtro de ubicación si viene desde ?ubicacion= en la URL (solo client-side)
   const handledUrlUbicacion = useRef(false);
   useEffect(() => {
-    if (handledUrlUbicacion.current || !urlUbicacion || ubicacionesPage.length === 0) return;
+    if (handledUrlUbicacion.current || ubicacionesPage.length === 0) return;
+    const urlUbicacion = new URLSearchParams(window.location.search).get("ubicacion");
+    if (!urlUbicacion) return;
     handledUrlUbicacion.current = true;
     setFiltroUbicacionId(urlUbicacion);
-  }, [urlUbicacion, ubicacionesPage]);
+  }, [ubicacionesPage]);
 
   useEffect(() => { fetchProductos(); }, []);
 
