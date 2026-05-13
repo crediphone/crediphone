@@ -565,10 +565,12 @@ export default function TrackingPublicoPage() {
 
   // Costo: visible siempre que haya monto.
   // En estado "presupuesto" el panel de autorización ya lo muestra — no duplicar,
-  // EXCEPTO cuando aprobadoPorCliente = true (panel oculto pero estado aún no cambió).
+  // EXCEPTO cuando aprobadoPorCliente = true o requiereAprobacion = false.
   const tieneCosto = orden.costoTotal > 0;
   const costoEsEstimado = ["recibido", "diagnostico"].includes(orden.estado);
-  const mostrarCosto = tieneCosto && (orden.estado !== "presupuesto" || orden.aprobadoPorCliente);
+  // M12: Si no requiere aprobación del cliente, tratarlo como ya aprobado en toda la lógica de display
+  const clienteAprobado = orden.aprobadoPorCliente || !orden.requiereAprobacion;
+  const mostrarCosto = tieneCosto && (orden.estado !== "presupuesto" || clienteAprobado);
 
   return (
     <div
@@ -936,7 +938,7 @@ export default function TrackingPublicoPage() {
 
         {/* ── AUTORIZACIÓN REQUERIDA — diseño formal rojo/negro ── */}
         {orden.estado === "presupuesto" &&
-          !orden.aprobadoPorCliente &&
+          !clienteAprobado &&
           !actionMessage && (
             <div
               className="rounded-2xl overflow-hidden"
@@ -1205,9 +1207,9 @@ export default function TrackingPublicoPage() {
             </div>
           )}
 
-        {/* ── Resumen de servicios contratados (estados aprobado en adelante, o presupuesto ya aprobado) ── */}
+        {/* ── Resumen de servicios contratados (estados aprobado en adelante, o presupuesto ya aprobado / sin requerir aprobación) ── */}
         {(["aprobado", "en_reparacion", "completado", "listo_entrega", "entregado"].includes(orden.estado) ||
-          (orden.estado === "presupuesto" && orden.aprobadoPorCliente)) &&
+          (orden.estado === "presupuesto" && clienteAprobado)) &&
           (orden.piezasCotizacion?.length > 0 || orden.partesReemplazadas?.length > 0) && (
           <SectionCard title="Servicios Contratados" icon={CheckCircle2}>
             {orden.piezasCotizacion && orden.piezasCotizacion.length > 0 ? (

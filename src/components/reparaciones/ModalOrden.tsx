@@ -1084,15 +1084,6 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
                     <label style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text-secondary)" }}>
                       Problema Reportado <span style={{ color: "var(--color-danger)" }}>*</span>
                     </label>
-                    {problemaEditadoManualmente && (
-                      <button
-                        type="button"
-                        onClick={() => setProblemaEditadoManualmente(false)}
-                        style={{ fontSize: "0.75rem", color: "var(--color-accent)", background: "none", border: "none", cursor: "pointer", padding: "0.25rem 0.5rem", borderRadius: "0.375rem" }}
-                      >
-                        ↩ Restaurar del checklist
-                      </button>
-                    )}
                   </div>
                   <textarea
                     name="problemaReportado"
@@ -1103,11 +1094,48 @@ export function ModalOrden({ isOpen, onClose, onSuccess }: ModalOrdenProps) {
                     placeholder="Marca fallas en el checklist de condiciones (abajo) o escribe aquí el problema"
                     style={{ width: "100%", borderRadius: "0.5rem", border: "2px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)", padding: "0.75rem 1rem", fontSize: "0.875rem", resize: "vertical" }}
                   />
-                  {!problemaEditadoManualmente && (
-                    <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "0.25rem" }}>
-                      💡 Se llena automáticamente con las fallas marcadas en el checklist de condiciones
-                    </p>
-                  )}
+                  {/* Resumen de fallas del checklist — siempre visible cuando hay fallas marcadas */}
+                  {(() => {
+                    const nombresComponentes: Record<string, string> = {
+                      bateria: "Batería", pantallaTactil: "Pantalla/Táctil", camaras: "Cámaras",
+                      microfono: "Micrófono", altavoz: "Altavoz", bluetooth: "Bluetooth",
+                      wifi: "WiFi", botonEncendido: "Botón encendido", botonesVolumen: "Botones volumen",
+                      sensorHuella: "Sensor huella", centroCarga: "Centro de carga",
+                    };
+                    const fallas = Object.entries(nombresComponentes)
+                      .filter(([k]) => (condicionesFuncionamiento as unknown as Record<string, unknown>)[k] === "falla")
+                      .map(([, v]) => v as string);
+                    const alertas = [
+                      condicionesFuncionamiento.llegaApagado && "Llega apagado",
+                      condicionesFuncionamiento.estaMojado && "Daño por líquido",
+                      condicionesFuncionamiento.bateriaHinchada && "Batería hinchada",
+                    ].filter(Boolean) as string[];
+                    const todos = [...fallas, ...alertas];
+                    if (todos.length === 0) return (
+                      <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "0.25rem" }}>
+                        💡 Se llena automáticamente con las fallas marcadas en el checklist de condiciones
+                      </p>
+                    );
+                    return (
+                      <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", borderRadius: "0.5rem", background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}>
+                        <p style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--color-warning-text)", marginBottom: "0.25rem" }}>
+                          Fallas marcadas en checklist:
+                        </p>
+                        <p style={{ fontSize: "0.75rem", color: "var(--color-warning-text)" }}>
+                          {todos.join(" · ")}
+                        </p>
+                        {problemaEditadoManualmente && (
+                          <button
+                            type="button"
+                            onClick={() => setProblemaEditadoManualmente(false)}
+                            style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "var(--color-accent)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          >
+                            ↩ Aplicar al campo de problema
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>

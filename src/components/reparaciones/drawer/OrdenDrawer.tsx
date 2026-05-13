@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -100,6 +100,13 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [nuevaPiezaNombre, setNuevaPiezaNombre] = useState("");
   const [nuevaPiezaCosto, setNuevaPiezaCosto] = useState("");
   const [nuevaPiezaEnvio, setNuevaPiezaEnvio] = useState("");
+  const [nuevaPiezaPrecioCliente, setNuevaPiezaPrecioCliente] = useState("");
+  const [nuevaPiezaProductoId, setNuevaPiezaProductoId] = useState<string | null>(null);
+  // Búsqueda en inventario para el form de piezas pedidas
+  const [busquedaPieza, setBusquedaPieza] = useState("");
+  const [resultadosBusquedaPieza, setResultadosBusquedaPieza] = useState<Array<{ id: string; nombre: string; precio: number; costo: number; stock: number }>>([]);
+  const [buscandoPieza, setBuscandoPieza] = useState(false);
+  const busquedaPiezaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [recibirInmediatamente, setRecibirInmediatamente] = useState(false);
   const [guardandoPedido, setGuardandoPedido] = useState(false);
   const [recibiendoPedido, setRecibiendoPedido] = useState<string | null>(null);
@@ -418,6 +425,31 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     if ((activeTab === "diagnostico" || activeTab === "presupuesto") && ordenId) fetchPedidosPieza();
   }, [activeTab, ordenId, fetchPedidosPieza]);
 
+  // Búsqueda de inventario para piezas pedidas (M1)
+  const buscarPiezaEnInventario = useCallback((query: string) => {
+    if (busquedaPiezaTimer.current) clearTimeout(busquedaPiezaTimer.current);
+    if (!query.trim()) { setResultadosBusquedaPieza([]); return; }
+    busquedaPiezaTimer.current = setTimeout(async () => {
+      setBuscandoPieza(true);
+      try {
+        const res = await fetch(`/api/productos?busqueda=${encodeURIComponent(query)}&limit=8`);
+        const data = await res.json();
+        if (data.success) {
+          setResultadosBusquedaPieza(
+            (data.data ?? []).map((p: { id: string; nombre: string; precio: number; costo: number; stockActual?: number }) => ({
+              id: p.id,
+              nombre: p.nombre,
+              precio: p.precio,
+              costo: p.costo,
+              stock: p.stockActual ?? 0,
+            }))
+          );
+        }
+      } catch { /* silencioso */ }
+      finally { setBuscandoPieza(false); }
+    }, 300);
+  }, []);
+
   const fetchSolicitudesPrecio = useCallback(async () => {
     if (!ordenId) return;
     try {
@@ -470,27 +502,38 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     if (orden?.clienteId) fetchClienteResumen(orden.clienteId);
   }, [orden?.clienteId, fetchClienteResumen]);
 
+  function resetFormPedido() {
+    setMostrarFormPedido(false);
+    setNuevaPiezaNombre("");
+    setNuevaPiezaCosto("");
+    setNuevaPiezaEnvio("");
+    setNuevaPiezaPrecioCliente("");
+    setNuevaPiezaProductoId(null);
+    setBusquedaPieza("");
+    setResultadosBusquedaPieza([]);
+    setRecibirInmediatamente(false);
+  }
+
   async function handleGuardarPedido() {
     if (!orden || !nuevaPiezaNombre.trim()) return;
     setGuardandoPedido(true);
     try {
+      const body: Record<string, unknown> = {
+        nombrePieza: nuevaPiezaNombre.trim(),
+        costoEstimado: parseFloat(nuevaPiezaCosto) || 0,
+        costoEnvio: parseFloat(nuevaPiezaEnvio) || 0,
+        recibirInmediatamente,
+      };
+      if (nuevaPiezaProductoId) body.productoId = nuevaPiezaProductoId;
+      if (nuevaPiezaPrecioCliente) body.precioCliente = parseFloat(nuevaPiezaPrecioCliente) || 0;
       const res = await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombrePieza: nuevaPiezaNombre.trim(),
-          costoEstimado: parseFloat(nuevaPiezaCosto) || 0,
-          costoEnvio: parseFloat(nuevaPiezaEnvio) || 0,
-          recibirInmediatamente,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.success) {
-        setMostrarFormPedido(false);
-        setNuevaPiezaNombre("");
-        setNuevaPiezaCosto("");
-        setNuevaPiezaEnvio("");
-        setRecibirInmediatamente(false);
+        resetFormPedido();
         fetchPedidosPieza();
         if (recibirInmediatamente) fetchOrden();
       } else {
@@ -1399,6 +1442,64 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           </Card>
         )}
 
+        {/* M8: Badge "Cliente aprobó" — aviso al técnico para proceder */}
+        {orden.aprobadoPorCliente && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}>
+            <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: "var(--color-success)" }} />
+            <p className="text-xs font-semibold" style={{ color: "var(--color-success-text)" }}>
+              Cliente aprobó el presupuesto — puedes proceder con las piezas
+            </p>
+          </div>
+        )}
+
+        {/* Sugerencias de piezas de la cotización (M1 — quick add) */}
+        {(orden.piezasCotizacion?.length ?? 0) > 0 && (
+          <Card title="Piezas cotizadas (sugerencias)">
+            <p className="text-xs mb-2" style={{ color: "var(--color-text-muted)" }}>
+              Estas piezas se cotizaron al cliente. Agrégalas como pedido cuando las ordenes al proveedor.
+            </p>
+            <div className="space-y-1.5">
+              {orden.piezasCotizacion!.map((pieza) => {
+                const yaAgregada = pedidosPieza.some(
+                  (p) => p.nombrePieza.toLowerCase() === pieza.nombre.toLowerCase()
+                );
+                return (
+                  <div
+                    key={pieza.id}
+                    className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg"
+                    style={{ background: "var(--color-bg-sunken)", border: "1px solid var(--color-border-subtle)" }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{pieza.nombre}</p>
+                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        ${pieza.precioTotal.toFixed(2)} · cant. {pieza.cantidad}
+                      </p>
+                    </div>
+                    {yaAgregada ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                        Agregada ✓
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setNuevaPiezaNombre(pieza.nombre);
+                          setNuevaPiezaPrecioCliente(pieza.precioTotal.toFixed(2));
+                          if (pieza.productoId) setNuevaPiezaProductoId(pieza.productoId);
+                          setMostrarFormPedido(true);
+                        }}
+                        className="text-xs px-2 py-1 rounded-lg font-medium flex-shrink-0"
+                        style={{ background: "var(--color-accent)", color: "#fff" }}
+                      >
+                        + Pedir
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
         {/* Piezas pedidas externamente */}
         <Card title="Piezas pedidas">
           <div className="space-y-2">
@@ -1607,11 +1708,64 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
 
             {mostrarFormPedido ? (
               <div className="space-y-2 pt-2">
+                {/* Búsqueda en inventario (M1) */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar en catálogo de productos..."
+                    value={busquedaPieza}
+                    onChange={(e) => {
+                      setBusquedaPieza(e.target.value);
+                      buscarPiezaEnInventario(e.target.value);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                    style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                  />
+                  {buscandoPieza && (
+                    <Loader2 className="absolute right-2 top-2.5 w-4 h-4 animate-spin" style={{ color: "var(--color-text-muted)" }} />
+                  )}
+                  {resultadosBusquedaPieza.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 rounded-lg shadow-lg overflow-hidden" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                      {resultadosBusquedaPieza.map((prod) => (
+                        <button
+                          key={prod.id}
+                          onClick={() => {
+                            setNuevaPiezaNombre(prod.nombre);
+                            setNuevaPiezaCosto(prod.costo.toFixed(2));
+                            setNuevaPiezaPrecioCliente(prod.precio.toFixed(2));
+                            setNuevaPiezaProductoId(prod.id);
+                            setBusquedaPieza("");
+                            setResultadosBusquedaPieza([]);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 border-b last:border-b-0"
+                          style={{ color: "var(--color-text-primary)", borderColor: "var(--color-border-subtle)" }}
+                        >
+                          <span className="truncate flex-1">{prod.nombre}</span>
+                          <span className="flex-shrink-0 font-mono text-xs" style={{ color: "var(--color-text-muted)" }}>
+                            Stock: {prod.stock} · ${prod.precio.toFixed(0)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {nuevaPiezaProductoId && (
+                  <p className="text-xs flex items-center gap-1" style={{ color: "var(--color-success-text)" }}>
+                    <span>✓ Vinculado a catálogo</span>
+                    <button
+                      onClick={() => { setNuevaPiezaProductoId(null); setBusquedaPieza(""); }}
+                      className="underline"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      desvincular
+                    </button>
+                  </p>
+                )}
                 <input
                   type="text"
-                  placeholder="Nombre de la pieza"
+                  placeholder="Nombre de la pieza (o escríbelo libremente)"
                   value={nuevaPiezaNombre}
-                  onChange={(e) => setNuevaPiezaNombre(e.target.value)}
+                  onChange={(e) => { setNuevaPiezaNombre(e.target.value); if (nuevaPiezaProductoId) setNuevaPiezaProductoId(null); }}
                   className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
                   style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
                 />
@@ -1644,7 +1798,24 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                       style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
                     />
                   </div>
+                  <div className="relative flex-1">
+                    <span className="absolute left-2 top-2 text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
+                    <input
+                      type="number"
+                      placeholder="Precio cliente"
+                      value={nuevaPiezaPrecioCliente}
+                      onChange={(e) => setNuevaPiezaPrecioCliente(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      min="0"
+                      step="0.01"
+                      className="w-full pl-5 pr-3 py-2 rounded-lg text-sm focus:outline-none"
+                      style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                    />
+                  </div>
                 </div>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  Costo pieza = lo que pagas al proveedor · Precio cliente = lo que se le cobra
+                </p>
                 <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--color-text-secondary)" }}>
                   <input
                     type="checkbox"
@@ -1656,7 +1827,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 </label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setMostrarFormPedido(false); setNuevaPiezaNombre(""); setNuevaPiezaCosto(""); setNuevaPiezaEnvio(""); }}
+                    onClick={resetFormPedido}
                     className="flex-1 py-1.5 rounded-lg text-xs"
                     style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}
                   >
