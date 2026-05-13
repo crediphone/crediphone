@@ -186,6 +186,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [mostrarFormReclamo, setMostrarFormReclamo] = useState(false);
   const [motivoReclamo, setMotivoReclamo] = useState("");
   const [reclamando, setReclamando] = useState(false);
+  // M9: Reingresar equipo entregado como garantía
+  const [mostrarFormReingreso, setMostrarFormReingreso] = useState(false);
+  const [motivoReingreso, setMotivoReingreso] = useState("");
+  const [reingresando, setReingresando] = useState(false);
   // M2: tracking link
   const [trackingCopiado, setTrackingCopiado] = useState(false);
   // E5: teléfono copiado
@@ -280,6 +284,67 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       alert("Error de conexión al reclamar garantía.");
     } finally {
       setReclamando(false);
+    }
+  };
+
+  // M10: Re-notificar cotización modificada
+  const [renotificando, setRenotificando] = useState(false);
+
+  const handleRenotificarPresupuesto = async () => {
+    if (!orden) return;
+    setRenotificando(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/renotificar-presupuesto`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        // Componer link de WA con el tracking link
+        const baseUrl = window.location.origin;
+        const trackingUrl = data.trackingToken
+          ? `${baseUrl}/tracking/${data.trackingToken}`
+          : `${baseUrl}/reparacion/${orden.folio}`;
+        const tel = data.telefono ? String(data.telefono).replace(/\D/g, "") : "";
+        const monto = orden.costoTotal ?? 0;
+        const msg = encodeURIComponent(
+          `Hola, hemos actualizado el presupuesto de su servicio (${orden.marcaDispositivo ?? ""} ${orden.modeloDispositivo ?? ""}). El nuevo total es $${monto.toLocaleString("es-MX", { minimumFractionDigits: 2 })}. Por favor revise y autorice en el siguiente link:\n${trackingUrl}`
+        );
+        const waUrl = tel
+          ? `https://wa.me/52${tel}?text=${msg}`
+          : `https://wa.me/?text=${msg}`;
+        window.open(waUrl, "_blank");
+        await fetchOrden();
+      } else {
+        alert(data.error || "Error al renotificar");
+      }
+    } catch {
+      alert("Error de conexión");
+    } finally {
+      setRenotificando(false);
+    }
+  };
+
+  // M9: Reingresar equipo entregado como garantía (sin requerir garantía activa)
+  const handleReingresarComoGarantia = async () => {
+    if (!orden || !motivoReingreso.trim()) return;
+    setReingresando(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/garantia`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crearOrdenGarantia: true, motivoReclamo: motivoReingreso.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ ${data.message ?? "Orden de garantía creada. El equipo fue reingresado."}`);
+        setMostrarFormReingreso(false);
+        setMotivoReingreso("");
+        onRefresh();
+      } else {
+        alert(`Error: ${data.message ?? "No se pudo crear la orden de garantía."}`);
+      }
+    } catch {
+      alert("Error de conexión al reingresar equipo.");
+    } finally {
+      setReingresando(false);
     }
   };
 
@@ -1202,6 +1267,72 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           </div>
         )}
 
+        {/* M9: Reingresar como garantía — visible para CUALQUIER orden entregada */}
+        {orden.estado === "entregado" && (
+          <div
+            className="rounded-lg px-4 py-3 space-y-2"
+            style={{
+              background: mostrarFormReingreso ? "var(--color-warning-bg)" : "var(--color-bg-elevated)",
+              border: `1px solid ${mostrarFormReingreso ? "var(--color-warning)" : "var(--color-border-subtle)"}`,
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                  Reingreso de equipo
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                  ¿El cliente regresó con el equipo? Crea una nueva orden de garantía
+                </p>
+              </div>
+              {!mostrarFormReingreso && (
+                <button
+                  onClick={() => setMostrarFormReingreso(true)}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)", border: "1px solid var(--color-warning)" }}
+                >
+                  Reingresar como garantía
+                </button>
+              )}
+            </div>
+            {mostrarFormReingreso && (
+              <div className="space-y-2 pt-2" style={{ borderTop: "1px solid var(--color-warning)" }}>
+                <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                  Describe el problema por el que regresa:
+                </p>
+                <textarea
+                  value={motivoReingreso}
+                  onChange={(e) => setMotivoReingreso(e.target.value)}
+                  placeholder="Ej: La pantalla volvió a fallar, el cliente dice que nunca mejoró..."
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg text-sm resize-none focus:outline-none"
+                  style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleReingresarComoGarantia}
+                    disabled={reingresando || !motivoReingreso.trim()}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-bold"
+                    style={{
+                      background: motivoReingreso.trim() && !reingresando ? "var(--color-warning-text)" : "var(--color-bg-elevated)",
+                      color: motivoReingreso.trim() && !reingresando ? "#fff" : "var(--color-text-muted)",
+                    }}
+                  >
+                    {reingresando ? "Creando orden..." : "✓ Crear orden de garantía"}
+                  </button>
+                  <button
+                    onClick={() => { setMostrarFormReingreso(false); setMotivoReingreso(""); }}
+                    className="px-3 py-1.5 rounded-lg text-xs"
+                    style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* M1: Historial de comunicaciones WA */}
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-border-subtle)" }}>
           <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--color-bg-surface)" }}>
@@ -1940,13 +2071,13 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
         {orden.snapshotCotizacionInicial &&
           JSON.stringify(orden.snapshotCotizacionInicial) !== JSON.stringify(orden.piezasCotizacion) && (
           <div
-            className="rounded-lg px-4 py-3"
+            className="rounded-lg px-4 py-3 space-y-3"
             style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}
           >
             <p className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>
               ⚠️ Cotización modificada — el precio fue ajustado después del presupuesto inicial
             </p>
-            <details className="mt-2">
+            <details>
               <summary className="text-xs cursor-pointer" style={{ color: "var(--color-warning)" }}>
                 Ver cotización original
               </summary>
@@ -1963,6 +2094,23 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 ))}
               </div>
             </details>
+            {/* M10: Re-notificar si el cliente ya aprobó y el precio cambió */}
+            {isAdmin && orden.aprobadoPorCliente && ["presupuesto", "aprobado"].includes(orden.estado) && (
+              <div className="pt-2" style={{ borderTop: "1px solid var(--color-warning)" }}>
+                <p className="text-xs mb-2" style={{ color: "var(--color-warning-text)" }}>
+                  El cliente aprobó el precio anterior. Puedes resetear la aprobación y re-enviar la cotización actualizada.
+                </p>
+                <button
+                  onClick={handleRenotificarPresupuesto}
+                  disabled={renotificando}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: "var(--color-warning-text)", color: "#fff", opacity: renotificando ? 0.7 : 1 }}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  {renotificando ? "Procesando..." : "Re-enviar cotización al cliente (WA)"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
