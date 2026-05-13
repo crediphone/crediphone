@@ -119,6 +119,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [retrasoFecha, setRetrasoFecha] = useState("");
   const [retrasoMotivo, setRetrasoMotivo] = useState("");
   const [guardandoRetraso, setGuardandoRetraso] = useState(false);
+  // M3: Editar nombre de pieza (admin)
+  const [editarNombrePiezaId, setEditarNombrePiezaId] = useState<string | null>(null);
+  const [editarNombreValor, setEditarNombreValor] = useState("");
+  const [guardandoNombrePieza, setGuardandoNombrePieza] = useState(false);
 
   // Solicitudes de cambio de precio
   interface SolicitudPrecio {
@@ -542,6 +546,28 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     } finally {
       setGuardandoPedido(false);
     }
+  }
+
+  // M3: Guardar edición de nombre de pieza
+  async function handleGuardarNombrePieza(pedidoId: string) {
+    if (!orden || !editarNombreValor.trim()) return;
+    setGuardandoNombrePieza(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombrePieza: editarNombreValor.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditarNombrePiezaId(null);
+        setEditarNombreValor("");
+        fetchPedidosPieza();
+      } else {
+        alert(data.error || "Error al editar nombre");
+      }
+    } catch { /* silencioso */ }
+    finally { setGuardandoNombrePieza(false); }
   }
 
   async function handleRevisionPrecio(solicitudId: string, accion: "aprobar" | "rechazar") {
@@ -1528,7 +1554,50 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                           ? <PackageCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-success)" }} />
                           : <PackagePlus className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-warning, #d97706)" }} />
                         }
-                        <p className="text-sm truncate" style={{ color: "var(--color-text-primary)" }}>{p.nombrePieza}</p>
+                        {editarNombrePiezaId === p.id ? (
+                          <div className="flex items-center gap-1 flex-1">
+                            <input
+                              type="text"
+                              value={editarNombreValor}
+                              onChange={(e) => setEditarNombreValor(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleGuardarNombrePieza(p.id);
+                                if (e.key === "Escape") { setEditarNombrePiezaId(null); setEditarNombreValor(""); }
+                              }}
+                              autoFocus
+                              className="flex-1 px-2 py-0.5 rounded text-sm focus:outline-none"
+                              style={{ border: "1px solid var(--color-accent)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)", minWidth: 0 }}
+                            />
+                            <button
+                              onClick={() => handleGuardarNombrePieza(p.id)}
+                              disabled={guardandoNombrePieza || !editarNombreValor.trim()}
+                              className="text-xs px-2 py-0.5 rounded font-medium"
+                              style={{ background: "var(--color-accent)", color: "#fff", opacity: (!editarNombreValor.trim() || guardandoNombrePieza) ? 0.6 : 1 }}
+                            >
+                              {guardandoNombrePieza ? "..." : "OK"}
+                            </button>
+                            <button
+                              onClick={() => { setEditarNombrePiezaId(null); setEditarNombreValor(""); }}
+                              className="text-xs"
+                              style={{ color: "var(--color-text-muted)" }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <p className="text-sm truncate" style={{ color: "var(--color-text-primary)" }}>{p.nombrePieza}</p>
+                            {isAdmin && (
+                              <button
+                                onClick={() => { setEditarNombrePiezaId(p.id); setEditarNombreValor(p.nombrePieza); }}
+                                className="opacity-40 hover:opacity-100 transition-opacity"
+                                title="Editar nombre"
+                              >
+                                <Edit className="w-3 h-3" style={{ color: "var(--color-text-muted)" }} />
+                              </button>
+                            )}
+                          </div>
+                        )}
                         <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ color: badge.color, background: badge.bg }}>
                           {badge.label}
                         </span>
