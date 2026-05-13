@@ -43,18 +43,27 @@ const COLUMNAS_REPARACIONES_CSV: ColumnaExport<OrdenReparacionDetallada>[] = [
 // Estados que requieren confirmación (abren ModalCambiarEstado)
 const ESTADOS_CRITICOS: EstadoOrdenReparacion[] = ["cancelado", "no_reparable"];
 
-function StatPill({ label, value, bg, color }: { label: string; value: number; bg: string; color: string }) {
+function StatPill({
+  label, value, bg, color, onClick, active,
+}: {
+  label: string; value: number; bg: string; color: string;
+  onClick?: () => void; active?: boolean;
+}) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
       className="p-4 rounded-xl"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={onClick}
       style={{
         background: bg,
-        boxShadow: hovered ? "var(--shadow-md)" : "var(--shadow-sm)",
-        transform: hovered ? "translateY(-1px)" : "none",
+        boxShadow: active ? "var(--shadow-lg)" : hovered ? "var(--shadow-md)" : "var(--shadow-sm)",
+        transform: hovered || active ? "translateY(-1px)" : "none",
         transition: "box-shadow 150ms, transform 150ms",
+        cursor: onClick ? "pointer" : "default",
+        outline: active ? `2px solid ${color}` : "none",
+        outlineOffset: "2px",
       }}
     >
       <p className="text-xs font-medium" style={{ color }}>{label}</p>
@@ -71,6 +80,7 @@ export default function ReparacionesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterEstado, setFilterEstado] = useState<EstadoOrdenReparacion | "todas" | "garantias" | "vencidas" | "mis_ordenes">("todas");
+  const [verArchivadas, setVerArchivadas] = useState(false);
   const [diasListoEntregaMaximo, setDiasListoEntregaMaximo] = useState(30);
   const [stats, setStats] = useState({
     total: 0,
@@ -82,6 +92,7 @@ export default function ReparacionesPage() {
     garantiasActivas: 0,
     vencidas: 0,
     misOrdenes: 0,
+    entregados: 0,
   });
 
   // Modal states
@@ -135,7 +146,7 @@ export default function ReparacionesPage() {
   // Filtrar órdenes cuando cambian filtros o búsqueda
   useEffect(() => {
     filterOrdenes();
-  }, [ordenes, searchQuery, filterEstado]);
+  }, [ordenes, searchQuery, filterEstado, verArchivadas]);
 
   // Calcular stats cuando cambian las órdenes, el límite de días o el usuario
   useEffect(() => {
@@ -185,6 +196,8 @@ export default function ReparacionesPage() {
       return dias > diasListoEntregaMaximo;
     }).length;
 
+    const entregados = ordenes.filter((o) => o.estado === "entregado").length;
+
     setStats({
       total,
       activas,
@@ -195,6 +208,7 @@ export default function ReparacionesPage() {
       garantiasActivas,
       vencidas,
       misOrdenes,
+      entregados,
     });
   }
 
@@ -233,6 +247,14 @@ export default function ReparacionesPage() {
       });
     } else if (filterEstado !== "todas") {
       filtered = filtered.filter((o) => o.estado === filterEstado);
+    }
+
+    // M7: Archivar entregados/cancelados/no_reparable por defecto
+    // Solo aplica cuando no hay filtro explícito de estado terminal
+    const estadosArchivados = ["entregado", "cancelado", "no_reparable"];
+    const filtrandoTerminal = estadosArchivados.includes(filterEstado as string);
+    if (!verArchivadas && !filtrandoTerminal && filterEstado === "todas") {
+      filtered = filtered.filter((o) => !estadosArchivados.includes(o.estado));
     }
 
     setFilteredOrdenes(filtered);
@@ -352,17 +374,25 @@ export default function ReparacionesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-2">
         {[
-          { label: "Total", value: stats.total, bg: "var(--color-bg-surface)", color: "var(--color-text-primary)" },
-          { label: "Activas", value: stats.activas, bg: "var(--color-info-bg)", color: "var(--color-info-text)" },
-          { label: "Diagnóstico", value: stats.diagnostico, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)" },
-          { label: "Esp. Piezas", value: stats.esperandoPiezas, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)" },
-          { label: "En Reparación", value: stats.enReparacion, bg: "var(--color-accent-light)", color: "var(--color-accent)" },
-          { label: "Listas Entrega", value: stats.listasEntrega, bg: "var(--color-success-bg)", color: "var(--color-success-text)" },
-          { label: "Garantías", value: stats.garantiasActivas, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)" },
-        ].map(({ label, value, bg, color }) => (
-          <StatPill key={label} label={label} value={value} bg={bg} color={color} />
+          { label: "Total", value: stats.total, bg: "var(--color-bg-surface)", color: "var(--color-text-primary)", filtro: "todas" },
+          { label: "Activas", value: stats.activas, bg: "var(--color-info-bg)", color: "var(--color-info-text)", filtro: null },
+          { label: "Diagnóstico", value: stats.diagnostico, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)", filtro: "diagnostico" },
+          { label: "Esp. Piezas", value: stats.esperandoPiezas, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)", filtro: "esperando_piezas" },
+          { label: "En Reparación", value: stats.enReparacion, bg: "var(--color-accent-light)", color: "var(--color-accent)", filtro: "en_reparacion" },
+          { label: "Listas Entrega", value: stats.listasEntrega, bg: "var(--color-success-bg)", color: "var(--color-success-text)", filtro: "listo_entrega" },
+          { label: "Garantías", value: stats.garantiasActivas, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)", filtro: "garantias" },
+        ].map(({ label, value, bg, color, filtro }) => (
+          <StatPill
+            key={label}
+            label={label}
+            value={value}
+            bg={bg}
+            color={color}
+            active={filtro ? filterEstado === filtro : false}
+            onClick={filtro ? () => setFilterEstado(filtro as typeof filterEstado) : undefined}
+          />
         ))}
         {stats.vencidas > 0 && (
           <StatPill
@@ -370,28 +400,42 @@ export default function ReparacionesPage() {
             value={stats.vencidas}
             bg="var(--color-danger-bg)"
             color="var(--color-danger-text)"
+            active={filterEstado === "vencidas"}
+            onClick={() => setFilterEstado("vencidas")}
           />
         )}
         {user?.role === "tecnico" && (
-          <div
-            className="p-4 rounded-xl cursor-pointer"
+          <StatPill
+            label="Mis Órdenes"
+            value={stats.misOrdenes}
+            bg={filterEstado === "mis_ordenes" ? "var(--color-accent)" : "var(--color-accent-light)"}
+            color={filterEstado === "mis_ordenes" ? "#fff" : "var(--color-accent)"}
+            active={filterEstado === "mis_ordenes"}
             onClick={() => setFilterEstado("mis_ordenes")}
-            style={{
-              background: filterEstado === "mis_ordenes" ? "var(--color-accent)" : "var(--color-accent-light)",
-              boxShadow: "var(--shadow-sm)",
-              transition: "background 150ms",
-            }}
+          />
+        )}
+      </div>
+      {/* Botón de archivadas + stat entregados */}
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => { setVerArchivadas((v) => !v); setFilterEstado("todas"); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+          style={{
+            background: verArchivadas ? "var(--color-danger-bg)" : "var(--color-bg-elevated)",
+            color: verArchivadas ? "var(--color-danger-text)" : "var(--color-text-muted)",
+            border: `1px solid ${verArchivadas ? "var(--color-danger)" : "var(--color-border)"}`,
+          }}
+        >
+          {verArchivadas ? "← Ocultar archivadas" : `Ver archivadas (${stats.entregados} entregadas)`}
+        </button>
+        {stats.entregados > 0 && (
+          <button
+            onClick={() => { setVerArchivadas(true); setFilterEstado("entregado" as typeof filterEstado); }}
+            className="text-xs"
+            style={{ color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer" }}
           >
-            <p className="text-xs font-medium" style={{ color: filterEstado === "mis_ordenes" ? "#fff" : "var(--color-accent)" }}>
-              Mis Órdenes
-            </p>
-            <p
-              className="text-2xl font-bold mt-0.5"
-              style={{ color: filterEstado === "mis_ordenes" ? "#fff" : "var(--color-accent)", fontFamily: "var(--font-data)" }}
-            >
-              {stats.misOrdenes}
-            </p>
-          </div>
+            {stats.entregados} entregadas
+          </button>
         )}
       </div>
 
@@ -462,6 +506,61 @@ export default function ReparacionesPage() {
         </div>
       ) : (
         <>
+          {/* M6: Sección prominente Listos para Entregar (solo cuando filtro = todas o listo_entrega) */}
+          {(filterEstado === "todas" || filterEstado === "listo_entrega") && (() => {
+            const listasEntrega = filteredOrdenes.filter((o) => o.estado === "listo_entrega");
+            if (listasEntrega.length === 0) return null;
+            const restantes = filteredOrdenes.filter((o) => o.estado !== "listo_entrega");
+            return (
+              <>
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--color-success)" }} />
+                    <h3 className="text-sm font-bold" style={{ color: "var(--color-success-text)" }}>
+                      Listos para Entregar ({listasEntrega.length})
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {listasEntrega.map((orden) => (
+                      <OrdenCard
+                        key={orden.id}
+                        orden={orden}
+                        userRole={user?.role || ""}
+                        onOpenDrawer={(o) => handleOpenDrawer(o)}
+                        onDiagnostico={(o) => { setSelectedOrden(o); setModalDiagnosticoOpen(true); }}
+                        onCambiarEstado={handleCambiarEstadoInline}
+                        onEliminar={(o) => { setDeleteConfirmId(o.id); setDeleteConfirmFolio(o.folio); }}
+                        onRefresh={fetchOrdenes}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {restantes.length > 0 && (
+                  <div className="mb-3">
+                    <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--color-text-muted)" }}>
+                      En proceso ({restantes.length})
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {restantes.map((orden) => (
+                        <OrdenCard
+                          key={orden.id}
+                          orden={orden}
+                          userRole={user?.role || ""}
+                          onOpenDrawer={(o) => handleOpenDrawer(o)}
+                          onDiagnostico={(o) => { setSelectedOrden(o); setModalDiagnosticoOpen(true); }}
+                          onCambiarEstado={handleCambiarEstadoInline}
+                          onEliminar={(o) => { setDeleteConfirmId(o.id); setDeleteConfirmFolio(o.folio); }}
+                          onRefresh={fetchOrdenes}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+          {/* Grid normal cuando el filtro es específico (no "todas" ni "listo_entrega") */}
+          {filterEstado !== "todas" && filterEstado !== "listo_entrega" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredOrdenes.map((orden) => (
               <OrdenCard
@@ -482,6 +581,7 @@ export default function ReparacionesPage() {
               />
             ))}
           </div>
+          )}
           <p className="mt-4 text-xs text-center" style={{ color: "var(--color-text-muted)" }}>
             {filteredOrdenes.length} de {ordenes.length} órdenes
           </p>

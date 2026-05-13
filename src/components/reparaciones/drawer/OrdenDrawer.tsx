@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -100,6 +100,13 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [nuevaPiezaNombre, setNuevaPiezaNombre] = useState("");
   const [nuevaPiezaCosto, setNuevaPiezaCosto] = useState("");
   const [nuevaPiezaEnvio, setNuevaPiezaEnvio] = useState("");
+  const [nuevaPiezaPrecioCliente, setNuevaPiezaPrecioCliente] = useState("");
+  const [nuevaPiezaProductoId, setNuevaPiezaProductoId] = useState<string | null>(null);
+  // Búsqueda en inventario para el form de piezas pedidas
+  const [busquedaPieza, setBusquedaPieza] = useState("");
+  const [resultadosBusquedaPieza, setResultadosBusquedaPieza] = useState<Array<{ id: string; nombre: string; precio: number; costo: number; stock: number }>>([]);
+  const [buscandoPieza, setBuscandoPieza] = useState(false);
+  const busquedaPiezaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [recibirInmediatamente, setRecibirInmediatamente] = useState(false);
   const [guardandoPedido, setGuardandoPedido] = useState(false);
   const [recibiendoPedido, setRecibiendoPedido] = useState<string | null>(null);
@@ -112,6 +119,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [retrasoFecha, setRetrasoFecha] = useState("");
   const [retrasoMotivo, setRetrasoMotivo] = useState("");
   const [guardandoRetraso, setGuardandoRetraso] = useState(false);
+  // M3: Editar nombre de pieza (admin)
+  const [editarNombrePiezaId, setEditarNombrePiezaId] = useState<string | null>(null);
+  const [editarNombreValor, setEditarNombreValor] = useState("");
+  const [guardandoNombrePieza, setGuardandoNombrePieza] = useState(false);
 
   // Solicitudes de cambio de precio
   interface SolicitudPrecio {
@@ -175,6 +186,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [mostrarFormReclamo, setMostrarFormReclamo] = useState(false);
   const [motivoReclamo, setMotivoReclamo] = useState("");
   const [reclamando, setReclamando] = useState(false);
+  // M9: Reingresar equipo entregado como garantía
+  const [mostrarFormReingreso, setMostrarFormReingreso] = useState(false);
+  const [motivoReingreso, setMotivoReingreso] = useState("");
+  const [reingresando, setReingresando] = useState(false);
   // M2: tracking link
   const [trackingCopiado, setTrackingCopiado] = useState(false);
   // E5: teléfono copiado
@@ -269,6 +284,67 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       alert("Error de conexión al reclamar garantía.");
     } finally {
       setReclamando(false);
+    }
+  };
+
+  // M10: Re-notificar cotización modificada
+  const [renotificando, setRenotificando] = useState(false);
+
+  const handleRenotificarPresupuesto = async () => {
+    if (!orden) return;
+    setRenotificando(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/renotificar-presupuesto`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        // Componer link de WA con el tracking link
+        const baseUrl = window.location.origin;
+        const trackingUrl = data.trackingToken
+          ? `${baseUrl}/tracking/${data.trackingToken}`
+          : `${baseUrl}/reparacion/${orden.folio}`;
+        const tel = data.telefono ? String(data.telefono).replace(/\D/g, "") : "";
+        const monto = orden.costoTotal ?? 0;
+        const msg = encodeURIComponent(
+          `Hola, hemos actualizado el presupuesto de su servicio (${orden.marcaDispositivo ?? ""} ${orden.modeloDispositivo ?? ""}). El nuevo total es $${monto.toLocaleString("es-MX", { minimumFractionDigits: 2 })}. Por favor revise y autorice en el siguiente link:\n${trackingUrl}`
+        );
+        const waUrl = tel
+          ? `https://wa.me/52${tel}?text=${msg}`
+          : `https://wa.me/?text=${msg}`;
+        window.open(waUrl, "_blank");
+        await fetchOrden();
+      } else {
+        alert(data.error || "Error al renotificar");
+      }
+    } catch {
+      alert("Error de conexión");
+    } finally {
+      setRenotificando(false);
+    }
+  };
+
+  // M9: Reingresar equipo entregado como garantía (sin requerir garantía activa)
+  const handleReingresarComoGarantia = async () => {
+    if (!orden || !motivoReingreso.trim()) return;
+    setReingresando(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/garantia`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crearOrdenGarantia: true, motivoReclamo: motivoReingreso.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✅ ${data.message ?? "Orden de garantía creada. El equipo fue reingresado."}`);
+        setMostrarFormReingreso(false);
+        setMotivoReingreso("");
+        onRefresh();
+      } else {
+        alert(`Error: ${data.message ?? "No se pudo crear la orden de garantía."}`);
+      }
+    } catch {
+      alert("Error de conexión al reingresar equipo.");
+    } finally {
+      setReingresando(false);
     }
   };
 
@@ -418,6 +494,31 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     if ((activeTab === "diagnostico" || activeTab === "presupuesto") && ordenId) fetchPedidosPieza();
   }, [activeTab, ordenId, fetchPedidosPieza]);
 
+  // Búsqueda de inventario para piezas pedidas (M1)
+  const buscarPiezaEnInventario = useCallback((query: string) => {
+    if (busquedaPiezaTimer.current) clearTimeout(busquedaPiezaTimer.current);
+    if (!query.trim()) { setResultadosBusquedaPieza([]); return; }
+    busquedaPiezaTimer.current = setTimeout(async () => {
+      setBuscandoPieza(true);
+      try {
+        const res = await fetch(`/api/productos?busqueda=${encodeURIComponent(query)}&limit=8`);
+        const data = await res.json();
+        if (data.success) {
+          setResultadosBusquedaPieza(
+            (data.data ?? []).map((p: { id: string; nombre: string; precio: number; costo: number; stockActual?: number }) => ({
+              id: p.id,
+              nombre: p.nombre,
+              precio: p.precio,
+              costo: p.costo,
+              stock: p.stockActual ?? 0,
+            }))
+          );
+        }
+      } catch { /* silencioso */ }
+      finally { setBuscandoPieza(false); }
+    }, 300);
+  }, []);
+
   const fetchSolicitudesPrecio = useCallback(async () => {
     if (!ordenId) return;
     try {
@@ -470,27 +571,38 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     if (orden?.clienteId) fetchClienteResumen(orden.clienteId);
   }, [orden?.clienteId, fetchClienteResumen]);
 
+  function resetFormPedido() {
+    setMostrarFormPedido(false);
+    setNuevaPiezaNombre("");
+    setNuevaPiezaCosto("");
+    setNuevaPiezaEnvio("");
+    setNuevaPiezaPrecioCliente("");
+    setNuevaPiezaProductoId(null);
+    setBusquedaPieza("");
+    setResultadosBusquedaPieza([]);
+    setRecibirInmediatamente(false);
+  }
+
   async function handleGuardarPedido() {
     if (!orden || !nuevaPiezaNombre.trim()) return;
     setGuardandoPedido(true);
     try {
+      const body: Record<string, unknown> = {
+        nombrePieza: nuevaPiezaNombre.trim(),
+        costoEstimado: parseFloat(nuevaPiezaCosto) || 0,
+        costoEnvio: parseFloat(nuevaPiezaEnvio) || 0,
+        recibirInmediatamente,
+      };
+      if (nuevaPiezaProductoId) body.productoId = nuevaPiezaProductoId;
+      if (nuevaPiezaPrecioCliente) body.precioCliente = parseFloat(nuevaPiezaPrecioCliente) || 0;
       const res = await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombrePieza: nuevaPiezaNombre.trim(),
-          costoEstimado: parseFloat(nuevaPiezaCosto) || 0,
-          costoEnvio: parseFloat(nuevaPiezaEnvio) || 0,
-          recibirInmediatamente,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (data.success) {
-        setMostrarFormPedido(false);
-        setNuevaPiezaNombre("");
-        setNuevaPiezaCosto("");
-        setNuevaPiezaEnvio("");
-        setRecibirInmediatamente(false);
+        resetFormPedido();
         fetchPedidosPieza();
         if (recibirInmediatamente) fetchOrden();
       } else {
@@ -499,6 +611,28 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     } finally {
       setGuardandoPedido(false);
     }
+  }
+
+  // M3: Guardar edición de nombre de pieza
+  async function handleGuardarNombrePieza(pedidoId: string) {
+    if (!orden || !editarNombreValor.trim()) return;
+    setGuardandoNombrePieza(true);
+    try {
+      const res = await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombrePieza: editarNombreValor.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditarNombrePiezaId(null);
+        setEditarNombreValor("");
+        fetchPedidosPieza();
+      } else {
+        alert(data.error || "Error al editar nombre");
+      }
+    } catch { /* silencioso */ }
+    finally { setGuardandoNombrePieza(false); }
   }
 
   async function handleRevisionPrecio(solicitudId: string, accion: "aprobar" | "rechazar") {
@@ -1133,6 +1267,72 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           </div>
         )}
 
+        {/* M9: Reingresar como garantía — visible para CUALQUIER orden entregada */}
+        {orden.estado === "entregado" && (
+          <div
+            className="rounded-lg px-4 py-3 space-y-2"
+            style={{
+              background: mostrarFormReingreso ? "var(--color-warning-bg)" : "var(--color-bg-elevated)",
+              border: `1px solid ${mostrarFormReingreso ? "var(--color-warning)" : "var(--color-border-subtle)"}`,
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                  Reingreso de equipo
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                  ¿El cliente regresó con el equipo? Crea una nueva orden de garantía
+                </p>
+              </div>
+              {!mostrarFormReingreso && (
+                <button
+                  onClick={() => setMostrarFormReingreso(true)}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)", border: "1px solid var(--color-warning)" }}
+                >
+                  Reingresar como garantía
+                </button>
+              )}
+            </div>
+            {mostrarFormReingreso && (
+              <div className="space-y-2 pt-2" style={{ borderTop: "1px solid var(--color-warning)" }}>
+                <p className="text-xs font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                  Describe el problema por el que regresa:
+                </p>
+                <textarea
+                  value={motivoReingreso}
+                  onChange={(e) => setMotivoReingreso(e.target.value)}
+                  placeholder="Ej: La pantalla volvió a fallar, el cliente dice que nunca mejoró..."
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg text-sm resize-none focus:outline-none"
+                  style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleReingresarComoGarantia}
+                    disabled={reingresando || !motivoReingreso.trim()}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-bold"
+                    style={{
+                      background: motivoReingreso.trim() && !reingresando ? "var(--color-warning-text)" : "var(--color-bg-elevated)",
+                      color: motivoReingreso.trim() && !reingresando ? "#fff" : "var(--color-text-muted)",
+                    }}
+                  >
+                    {reingresando ? "Creando orden..." : "✓ Crear orden de garantía"}
+                  </button>
+                  <button
+                    onClick={() => { setMostrarFormReingreso(false); setMotivoReingreso(""); }}
+                    className="px-3 py-1.5 rounded-lg text-xs"
+                    style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* M1: Historial de comunicaciones WA */}
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-border-subtle)" }}>
           <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--color-bg-surface)" }}>
@@ -1399,6 +1599,64 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           </Card>
         )}
 
+        {/* M8: Badge "Cliente aprobó" — aviso al técnico para proceder */}
+        {orden.aprobadoPorCliente && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}>
+            <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: "var(--color-success)" }} />
+            <p className="text-xs font-semibold" style={{ color: "var(--color-success-text)" }}>
+              Cliente aprobó el presupuesto — puedes proceder con las piezas
+            </p>
+          </div>
+        )}
+
+        {/* Sugerencias de piezas de la cotización (M1 — quick add) */}
+        {(orden.piezasCotizacion?.length ?? 0) > 0 && (
+          <Card title="Piezas cotizadas (sugerencias)">
+            <p className="text-xs mb-2" style={{ color: "var(--color-text-muted)" }}>
+              Estas piezas se cotizaron al cliente. Agrégalas como pedido cuando las ordenes al proveedor.
+            </p>
+            <div className="space-y-1.5">
+              {orden.piezasCotizacion!.map((pieza) => {
+                const yaAgregada = pedidosPieza.some(
+                  (p) => p.nombrePieza.toLowerCase() === pieza.nombre.toLowerCase()
+                );
+                return (
+                  <div
+                    key={pieza.id}
+                    className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg"
+                    style={{ background: "var(--color-bg-sunken)", border: "1px solid var(--color-border-subtle)" }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate" style={{ color: "var(--color-text-primary)" }}>{pieza.nombre}</p>
+                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        ${pieza.precioTotal.toFixed(2)} · cant. {pieza.cantidad}
+                      </p>
+                    </div>
+                    {yaAgregada ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                        Agregada ✓
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setNuevaPiezaNombre(pieza.nombre);
+                          setNuevaPiezaPrecioCliente(pieza.precioTotal.toFixed(2));
+                          if (pieza.productoId) setNuevaPiezaProductoId(pieza.productoId);
+                          setMostrarFormPedido(true);
+                        }}
+                        className="text-xs px-2 py-1 rounded-lg font-medium flex-shrink-0"
+                        style={{ background: "var(--color-accent)", color: "#fff" }}
+                      >
+                        + Pedir
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
         {/* Piezas pedidas externamente */}
         <Card title="Piezas pedidas">
           <div className="space-y-2">
@@ -1427,7 +1685,50 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                           ? <PackageCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-success)" }} />
                           : <PackagePlus className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-warning, #d97706)" }} />
                         }
-                        <p className="text-sm truncate" style={{ color: "var(--color-text-primary)" }}>{p.nombrePieza}</p>
+                        {editarNombrePiezaId === p.id ? (
+                          <div className="flex items-center gap-1 flex-1">
+                            <input
+                              type="text"
+                              value={editarNombreValor}
+                              onChange={(e) => setEditarNombreValor(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleGuardarNombrePieza(p.id);
+                                if (e.key === "Escape") { setEditarNombrePiezaId(null); setEditarNombreValor(""); }
+                              }}
+                              autoFocus
+                              className="flex-1 px-2 py-0.5 rounded text-sm focus:outline-none"
+                              style={{ border: "1px solid var(--color-accent)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)", minWidth: 0 }}
+                            />
+                            <button
+                              onClick={() => handleGuardarNombrePieza(p.id)}
+                              disabled={guardandoNombrePieza || !editarNombreValor.trim()}
+                              className="text-xs px-2 py-0.5 rounded font-medium"
+                              style={{ background: "var(--color-accent)", color: "#fff", opacity: (!editarNombreValor.trim() || guardandoNombrePieza) ? 0.6 : 1 }}
+                            >
+                              {guardandoNombrePieza ? "..." : "OK"}
+                            </button>
+                            <button
+                              onClick={() => { setEditarNombrePiezaId(null); setEditarNombreValor(""); }}
+                              className="text-xs"
+                              style={{ color: "var(--color-text-muted)" }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <p className="text-sm truncate" style={{ color: "var(--color-text-primary)" }}>{p.nombrePieza}</p>
+                            {isAdmin && (
+                              <button
+                                onClick={() => { setEditarNombrePiezaId(p.id); setEditarNombreValor(p.nombrePieza); }}
+                                className="opacity-40 hover:opacity-100 transition-opacity"
+                                title="Editar nombre"
+                              >
+                                <Edit className="w-3 h-3" style={{ color: "var(--color-text-muted)" }} />
+                              </button>
+                            )}
+                          </div>
+                        )}
                         <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ color: badge.color, background: badge.bg }}>
                           {badge.label}
                         </span>
@@ -1607,11 +1908,64 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
 
             {mostrarFormPedido ? (
               <div className="space-y-2 pt-2">
+                {/* Búsqueda en inventario (M1) */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar en catálogo de productos..."
+                    value={busquedaPieza}
+                    onChange={(e) => {
+                      setBusquedaPieza(e.target.value);
+                      buscarPiezaEnInventario(e.target.value);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                    style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                  />
+                  {buscandoPieza && (
+                    <Loader2 className="absolute right-2 top-2.5 w-4 h-4 animate-spin" style={{ color: "var(--color-text-muted)" }} />
+                  )}
+                  {resultadosBusquedaPieza.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 rounded-lg shadow-lg overflow-hidden" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                      {resultadosBusquedaPieza.map((prod) => (
+                        <button
+                          key={prod.id}
+                          onClick={() => {
+                            setNuevaPiezaNombre(prod.nombre);
+                            setNuevaPiezaCosto(prod.costo.toFixed(2));
+                            setNuevaPiezaPrecioCliente(prod.precio.toFixed(2));
+                            setNuevaPiezaProductoId(prod.id);
+                            setBusquedaPieza("");
+                            setResultadosBusquedaPieza([]);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 border-b last:border-b-0"
+                          style={{ color: "var(--color-text-primary)", borderColor: "var(--color-border-subtle)" }}
+                        >
+                          <span className="truncate flex-1">{prod.nombre}</span>
+                          <span className="flex-shrink-0 font-mono text-xs" style={{ color: "var(--color-text-muted)" }}>
+                            Stock: {prod.stock} · ${prod.precio.toFixed(0)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {nuevaPiezaProductoId && (
+                  <p className="text-xs flex items-center gap-1" style={{ color: "var(--color-success-text)" }}>
+                    <span>✓ Vinculado a catálogo</span>
+                    <button
+                      onClick={() => { setNuevaPiezaProductoId(null); setBusquedaPieza(""); }}
+                      className="underline"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      desvincular
+                    </button>
+                  </p>
+                )}
                 <input
                   type="text"
-                  placeholder="Nombre de la pieza"
+                  placeholder="Nombre de la pieza (o escríbelo libremente)"
                   value={nuevaPiezaNombre}
-                  onChange={(e) => setNuevaPiezaNombre(e.target.value)}
+                  onChange={(e) => { setNuevaPiezaNombre(e.target.value); if (nuevaPiezaProductoId) setNuevaPiezaProductoId(null); }}
                   className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
                   style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
                 />
@@ -1644,7 +1998,24 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                       style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
                     />
                   </div>
+                  <div className="relative flex-1">
+                    <span className="absolute left-2 top-2 text-xs" style={{ color: "var(--color-text-muted)" }}>$</span>
+                    <input
+                      type="number"
+                      placeholder="Precio cliente"
+                      value={nuevaPiezaPrecioCliente}
+                      onChange={(e) => setNuevaPiezaPrecioCliente(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      min="0"
+                      step="0.01"
+                      className="w-full pl-5 pr-3 py-2 rounded-lg text-sm focus:outline-none"
+                      style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                    />
+                  </div>
                 </div>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  Costo pieza = lo que pagas al proveedor · Precio cliente = lo que se le cobra
+                </p>
                 <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--color-text-secondary)" }}>
                   <input
                     type="checkbox"
@@ -1656,7 +2027,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 </label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => { setMostrarFormPedido(false); setNuevaPiezaNombre(""); setNuevaPiezaCosto(""); setNuevaPiezaEnvio(""); }}
+                    onClick={resetFormPedido}
                     className="flex-1 py-1.5 rounded-lg text-xs"
                     style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}
                   >
@@ -1700,13 +2071,13 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
         {orden.snapshotCotizacionInicial &&
           JSON.stringify(orden.snapshotCotizacionInicial) !== JSON.stringify(orden.piezasCotizacion) && (
           <div
-            className="rounded-lg px-4 py-3"
+            className="rounded-lg px-4 py-3 space-y-3"
             style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)" }}
           >
             <p className="text-xs font-semibold" style={{ color: "var(--color-warning-text)" }}>
               ⚠️ Cotización modificada — el precio fue ajustado después del presupuesto inicial
             </p>
-            <details className="mt-2">
+            <details>
               <summary className="text-xs cursor-pointer" style={{ color: "var(--color-warning)" }}>
                 Ver cotización original
               </summary>
@@ -1723,6 +2094,23 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                 ))}
               </div>
             </details>
+            {/* M10: Re-notificar si el cliente ya aprobó y el precio cambió */}
+            {isAdmin && orden.aprobadoPorCliente && ["presupuesto", "aprobado"].includes(orden.estado) && (
+              <div className="pt-2" style={{ borderTop: "1px solid var(--color-warning)" }}>
+                <p className="text-xs mb-2" style={{ color: "var(--color-warning-text)" }}>
+                  El cliente aprobó el precio anterior. Puedes resetear la aprobación y re-enviar la cotización actualizada.
+                </p>
+                <button
+                  onClick={handleRenotificarPresupuesto}
+                  disabled={renotificando}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: "var(--color-warning-text)", color: "#fff", opacity: renotificando ? 0.7 : 1 }}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  {renotificando ? "Procesando..." : "Re-enviar cotización al cliente (WA)"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

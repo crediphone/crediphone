@@ -4,28 +4,30 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * PATCH /api/reparaciones/[id]/pedidos-pieza/[pedidoId]
- * Actualiza la fecha estimada y/o motivo de retraso de una pieza ya pedida.
- * Funciona en estados pendiente y en_camino.
- * Body: { fechaEstimadaLlegada?: string; motivoRetraso?: string }
+ * Actualiza fecha estimada, motivo de retraso, o nombre de una pieza pedida.
+ * Edición de nombre: solo admin/super_admin, cualquier estado.
+ * Retraso: solo en estados pendiente/en_camino.
+ * Body: { fechaEstimadaLlegada?: string; motivoRetraso?: string; nombrePieza?: string }
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; pedidoId: string }> }
 ) {
   try {
-    const { userId, distribuidorId, isSuperAdmin } = await getAuthContext();
+    const { userId, role, distribuidorId, isSuperAdmin } = await getAuthContext();
     if (!userId) return NextResponse.json({ success: false, error: "No autenticado" }, { status: 401 });
 
     const { id: ordenId, pedidoId } = await params;
     const body = await request.json().catch(() => ({}));
-    const { fechaEstimadaLlegada, motivoRetraso } = body as {
+    const { fechaEstimadaLlegada, motivoRetraso, nombrePieza } = body as {
       fechaEstimadaLlegada?: string;
       motivoRetraso?: string;
+      nombrePieza?: string;
     };
 
-    if (!fechaEstimadaLlegada && !motivoRetraso) {
+    if (!fechaEstimadaLlegada && !motivoRetraso && !nombrePieza) {
       return NextResponse.json(
-        { success: false, error: "Se requiere fechaEstimadaLlegada o motivoRetraso" },
+        { success: false, error: "Se requiere al menos un campo a actualizar" },
         { status: 400 }
       );
     }
@@ -46,24 +48,34 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Sin acceso" }, { status: 403 });
     }
 
-    if (!["pendiente", "en_camino"].includes(pedido.estado)) {
+    // Edición de nombre: requiere admin/super_admin, cualquier estado
+    if (nombrePieza && role !== "admin" && role !== "super_admin") {
+      return NextResponse.json({ success: false, error: "Sin permisos para editar nombre" }, { status: 403 });
+    }
+
+    // Retraso: solo en estados pendiente/en_camino
+    if ((fechaEstimadaLlegada || motivoRetraso) && !["pendiente", "en_camino"].includes(pedido.estado)) {
       return NextResponse.json(
-        { success: false, error: "Solo se puede actualizar piezas en estado pendiente o en_camino" },
+        { success: false, error: "Solo se puede reportar retraso en piezas pendiente o en_camino" },
         { status: 409 }
       );
     }
 
-    // Append motivo to notas
-    let nuevasNotas = pedido.notas ?? "";
+    const updateData: Record<string, unknown> = {};
+
+    if (nombrePieza?.trim()) {
+      updateData.nombre_pieza = nombrePieza.trim();
+    }
+
+    if (fechaEstimadaLlegada) {
+      updateData.fecha_estimada_llegada = fechaEstimadaLlegada;
+    }
+
     if (motivoRetraso?.trim()) {
       const fecha = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
       const sufijo = `[${fecha}] Retraso: ${motivoRetraso.trim()}`;
-      nuevasNotas = nuevasNotas ? `${nuevasNotas}\n${sufijo}` : sufijo;
-    }
-
-    const updateData: Record<string, unknown> = { notas: nuevasNotas || null };
-    if (fechaEstimadaLlegada) {
-      updateData.fecha_estimada_llegada = fechaEstimadaLlegada;
+      const notasActuales = pedido.notas ?? "";
+      updateData.notas = notasActuales ? `${notasActuales}\n${sufijo}` : sufijo;
     }
 
     const { error } = await supabase
@@ -73,11 +85,7 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-    return NextResponse.json({
-      success: true,
-      message: "Pieza actualizada",
-      nombrePieza: pedido.nombre_pieza,
-    });
+    return NextResponse.json({ success: true, message: "Pieza actualizada" });
   } catch {
     return NextResponse.json({ success: false, error: "Error interno" }, { status: 500 });
   }

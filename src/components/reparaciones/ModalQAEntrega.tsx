@@ -3,25 +3,24 @@
 /**
  * ModalQAEntrega
  *
- * Checklist de verificación de calidad (QA) que el técnico debe completar
- * ANTES de marcar una orden como "Listo para Entrega".
+ * Checklist de verificación de calidad (QA) antes de marcar como "Listo para Entrega".
+ * Funciona como guía visual — el técnico selecciona los puntos que aplican a la reparación.
+ * Sin bloqueo: el técnico puede confirmar con cualquier combinación de ítems.
  *
- * - Los ítems obligatorios deben estar marcados para habilitar la confirmación.
- * - Actúa como una puerta de calidad — no bloquea el sistema, pero obliga a que
- *   el técnico piense en cada punto antes de decirle al cliente que pase a recoger.
- * - No almacena datos en BD (es un gate de flujo, no un log permanente).
+ * Estados por ítem: sin_verificar → ok → no_aplica → sin_verificar
  */
 
 import { useState } from "react";
-import { CheckCircle2, Circle, AlertTriangle, Package } from "lucide-react";
+import { CheckCircle2, MinusCircle, Circle, Package } from "lucide-react";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
+
+type EstadoItem = "sin_verificar" | "ok" | "no_aplica";
 
 interface ItemQA {
   id: string;
   label: string;
   descripcion?: string;
-  obligatorio: boolean;
 }
 
 // ── Ítems del checklist ───────────────────────────────────────────────────────
@@ -31,43 +30,36 @@ const ITEMS_QA: ItemQA[] = [
     id: "problema_resuelto",
     label: "El problema original fue reparado",
     descripcion: "El defecto por el que el cliente trajo el equipo ya no existe",
-    obligatorio: true,
   },
   {
     id: "enciende_normal",
     label: "El equipo enciende y responde normalmente",
     descripcion: "Sin loops de arranque, pantallas negras ni cierres inesperados",
-    obligatorio: true,
   },
   {
     id: "pantalla_ok",
     label: "Pantalla sin defectos visibles",
     descripcion: "Sin líneas, manchas, píxeles muertos o touch fallido",
-    obligatorio: true,
   },
   {
     id: "carga_ok",
     label: "El equipo carga correctamente",
     descripcion: "Conector funcional, sin errores de carga",
-    obligatorio: true,
   },
   {
     id: "limpieza",
     label: "Equipo limpiado exteriormente",
     descripcion: "Sin huellas, polvo ni residuos de pegamento visibles",
-    obligatorio: false,
   },
   {
     id: "tornillos",
     label: "Todos los tornillos colocados",
     descripcion: "Ningún tornillo faltante, sin cuerpo abierto",
-    obligatorio: false,
   },
   {
     id: "sin_extras",
     label: "Sin partes u herramientas dejadas dentro",
     descripcion: "Verificación final antes de cerrar el equipo",
-    obligatorio: false,
   },
 ];
 
@@ -75,74 +67,63 @@ const ITEMS_QA: ItemQA[] = [
 
 function ItemRow({
   item,
-  checked,
+  estado,
   onToggle,
 }: {
   item: ItemQA;
-  checked: boolean;
+  estado: EstadoItem;
   onToggle: () => void;
 }) {
+  const isOk = estado === "ok";
+  const isNoAplica = estado === "no_aplica";
+
   return (
     <button
       type="button"
       onClick={onToggle}
       className="w-full text-left flex items-start gap-3 rounded-xl px-4 py-3 transition-all"
       style={{
-        background: checked
-          ? item.obligatorio
-            ? "var(--color-success-bg)"
-            : "var(--color-bg-elevated)"
-          : "var(--color-bg-elevated)",
+        background: isOk
+          ? "var(--color-success-bg)"
+          : isNoAplica
+            ? "var(--color-bg-sunken)"
+            : "var(--color-bg-elevated)",
         border: `1.5px solid ${
-          checked
-            ? item.obligatorio
-              ? "var(--color-success)"
-              : "var(--color-border)"
-            : "var(--color-border-subtle)"
+          isOk
+            ? "var(--color-success)"
+            : isNoAplica
+              ? "var(--color-border)"
+              : "var(--color-border-subtle)"
         }`,
         cursor: "pointer",
+        opacity: isNoAplica ? 0.65 : 1,
       }}
     >
-      {checked ? (
-        <CheckCircle2
-          className="w-5 h-5 shrink-0 mt-0.5"
-          style={{
-            color: item.obligatorio
-              ? "var(--color-success)"
-              : "var(--color-text-secondary)",
-          }}
-        />
+      {isOk ? (
+        <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--color-success)" }} />
+      ) : isNoAplica ? (
+        <MinusCircle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--color-text-muted)" }} />
       ) : (
-        <Circle
-          className="w-5 h-5 shrink-0 mt-0.5"
-          style={{ color: "var(--color-border)" }}
-        />
+        <Circle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "var(--color-border)" }} />
       )}
       <div className="flex-1 min-w-0">
         <p
           className="text-sm font-medium leading-tight"
           style={{
-            color: checked
-              ? "var(--color-text-primary)"
-              : "var(--color-text-secondary)",
+            color: isNoAplica ? "var(--color-text-muted)" : "var(--color-text-primary)",
+            textDecoration: isNoAplica ? "line-through" : "none",
           }}
         >
-          {item.obligatorio && (
-            <span
-              className="mr-1"
-              style={{ color: "var(--color-danger)", fontSize: "0.65rem" }}
-            >
-              ●
-            </span>
-          )}
           {item.label}
         </p>
-        {item.descripcion && (
-          <p
-            className="text-xs mt-0.5 leading-relaxed"
-            style={{ color: "var(--color-text-muted)" }}
-          >
+        {item.descripcion && !isNoAplica && (
+          <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
             {item.descripcion}
+          </p>
+        )}
+        {isNoAplica && (
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+            No aplica a esta reparación
           </p>
         )}
       </div>
@@ -159,14 +140,23 @@ interface Props {
 }
 
 export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [estados, setEstados] = useState<Record<string, EstadoItem>>({});
 
-  const toggle = (id: string) =>
-    setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  // Ciclo: sin_verificar → ok → no_aplica → sin_verificar
+  const toggle = (id: string) => {
+    setEstados((prev) => {
+      const actual = prev[id] ?? "sin_verificar";
+      const siguiente: EstadoItem =
+        actual === "sin_verificar" ? "ok" :
+        actual === "ok" ? "no_aplica" :
+        "sin_verificar";
+      return { ...prev, [id]: siguiente };
+    });
+  };
 
-  const obligatorios = ITEMS_QA.filter((i) => i.obligatorio);
-  const todosObligatoriosOk = obligatorios.every((i) => checked[i.id]);
-  const totalChecked = Object.values(checked).filter(Boolean).length;
+  const totalOk = ITEMS_QA.filter((i) => estados[i.id] === "ok").length;
+  const totalNoAplica = ITEMS_QA.filter((i) => estados[i.id] === "no_aplica").length;
+  const totalInteractuados = totalOk + totalNoAplica;
 
   return (
     /* Overlay */
@@ -199,29 +189,20 @@ export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
             <Package className="w-5 h-5" style={{ color: "var(--color-success)" }} />
           </div>
           <div>
-            <p
-              className="text-base font-bold"
-              style={{ color: "var(--color-text-primary)" }}
-            >
+            <p className="text-base font-bold" style={{ color: "var(--color-text-primary)" }}>
               Verificación antes de entrega
             </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
-              Folio {folio} · Confirma que el equipo está listo
+              Folio {folio} · Marca lo que aplica a esta reparación
             </p>
           </div>
         </div>
 
         {/* Leyenda */}
         <div className="px-5 pt-4 pb-2">
-          <div className="flex items-center gap-2">
-            <span
-              className="w-1.5 h-1.5 rounded-full shrink-0"
-              style={{ background: "var(--color-danger)" }}
-            />
-            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-              Los ítems con punto rojo son obligatorios para continuar
-            </p>
-          </div>
+          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            Toca cada punto para marcarlo como ✓ verificado o — no aplica. Puedes confirmar con la combinación que necesites.
+          </p>
         </div>
 
         {/* Lista */}
@@ -230,27 +211,23 @@ export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
             <ItemRow
               key={item.id}
               item={item}
-              checked={!!checked[item.id]}
+              estado={estados[item.id] ?? "sin_verificar"}
               onToggle={() => toggle(item.id)}
             />
           ))}
         </div>
 
-        {/* Banner de alerta si no están todos los obligatorios */}
-        {!todosObligatoriosOk && totalChecked > 0 && (
+        {/* Resumen */}
+        {totalInteractuados > 0 && (
           <div
             className="mx-5 mb-4 rounded-lg px-4 py-2.5 flex items-center gap-2"
-            style={{
-              background: "var(--color-warning-bg)",
-              border: "1px solid var(--color-warning)",
-            }}
+            style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
           >
-            <AlertTriangle
-              className="w-4 h-4 shrink-0"
-              style={{ color: "var(--color-warning)" }}
-            />
-            <p className="text-xs" style={{ color: "var(--color-warning-text)" }}>
-              Confirma todos los puntos obligatorios antes de continuar
+            <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
+            <p className="text-xs" style={{ color: "var(--color-success-text)" }}>
+              {totalOk > 0 && `${totalOk} verificado${totalOk !== 1 ? "s" : ""}`}
+              {totalOk > 0 && totalNoAplica > 0 && " · "}
+              {totalNoAplica > 0 && `${totalNoAplica} no aplica${totalNoAplica !== 1 ? "n" : ""}`}
             </p>
           </div>
         )}
@@ -263,17 +240,11 @@ export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
           <button
             type="button"
             onClick={onConfirmar}
-            disabled={!todosObligatoriosOk}
             className="w-full flex items-center justify-center gap-2 rounded-xl text-sm font-bold py-3"
             style={{
-              background: todosObligatoriosOk
-                ? "var(--color-success)"
-                : "var(--color-bg-elevated)",
-              color: todosObligatoriosOk ? "#fff" : "var(--color-text-muted)",
-              border: todosObligatoriosOk
-                ? "none"
-                : "1px solid var(--color-border-subtle)",
-              cursor: todosObligatoriosOk ? "pointer" : "not-allowed",
+              background: "var(--color-success)",
+              color: "#fff",
+              cursor: "pointer",
               transition: "all 200ms ease",
             }}
           >

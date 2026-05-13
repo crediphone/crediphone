@@ -253,8 +253,17 @@ export function OrdenCard({
       className="rounded-xl transition-all duration-200 cursor-pointer select-none"
       style={{
         background: orden.esGarantia ? "var(--color-warning-bg)" : "var(--color-bg-surface)",
-        border: `1px solid ${orden.esGarantia ? "var(--color-warning)" : "var(--color-border-subtle)"}`,
-        boxShadow: "var(--shadow-sm)",
+        border: `1.5px solid ${
+          orden.esGarantia ? "var(--color-warning)" :
+          orden.estado === "listo_entrega" ? "var(--color-success)" :
+          orden.estado === "presupuesto" ? "var(--color-info)" :
+          orden.estado === "esperando_piezas" ? "var(--color-warning)" :
+          orden.estado === "en_reparacion" ? "var(--color-accent)" :
+          orden.estado === "cancelado" || orden.estado === "no_reparable" ? "var(--color-danger)" :
+          orden.estado === "entregado" ? "var(--color-border)" :
+          "var(--color-border-subtle)"
+        }`,
+        boxShadow: orden.estado === "listo_entrega" ? "0 0 0 1px var(--color-success)" : "var(--shadow-sm)",
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-md)";
