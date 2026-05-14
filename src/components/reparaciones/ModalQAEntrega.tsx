@@ -11,6 +11,7 @@
  */
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, MinusCircle, Circle, Package } from "lucide-react";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -158,7 +159,7 @@ export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
   const totalNoAplica = ITEMS_QA.filter((i) => estados[i.id] === "no_aplica").length;
   const totalInteractuados = totalOk + totalNoAplica;
 
-  return (
+  return createPortal(
     /* Overlay */
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
@@ -269,6 +270,7 @@ export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
