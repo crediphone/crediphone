@@ -79,7 +79,7 @@ export default function ReparacionesPage() {
   const [filteredOrdenes, setFilteredOrdenes] = useState<OrdenReparacionDetallada[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterEstado, setFilterEstado] = useState<EstadoOrdenReparacion | "todas" | "garantias" | "vencidas" | "mis_ordenes">("todas");
+  const [filterEstado, setFilterEstado] = useState<EstadoOrdenReparacion | "todas" | "activas" | "garantias" | "vencidas" | "mis_ordenes">("todas");
   const [verArchivadas, setVerArchivadas] = useState(false);
   const [diasListoEntregaMaximo, setDiasListoEntregaMaximo] = useState(30);
   const [stats, setStats] = useState({
@@ -230,7 +230,11 @@ export default function ReparacionesPage() {
     }
 
     // Filtro por estado
-    if (filterEstado === "mis_ordenes") {
+    if (filterEstado === "activas") {
+      filtered = filtered.filter(
+        (o) => !["entregado", "cancelado", "no_reparable"].includes(o.estado)
+      );
+    } else if (filterEstado === "mis_ordenes") {
       filtered = filtered.filter(
         (o) => o.tecnicoId === user?.id && !["entregado", "cancelado", "no_reparable"].includes(o.estado)
       );
@@ -374,26 +378,71 @@ export default function ReparacionesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-2">
-        {[
-          { label: "Total", value: stats.total, bg: "var(--color-bg-surface)", color: "var(--color-text-primary)", filtro: "todas" },
-          { label: "Activas", value: stats.activas, bg: "var(--color-info-bg)", color: "var(--color-info-text)", filtro: null },
-          { label: "Diagnóstico", value: stats.diagnostico, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)", filtro: "diagnostico" },
-          { label: "Esp. Piezas", value: stats.esperandoPiezas, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)", filtro: "esperando_piezas" },
-          { label: "En Reparación", value: stats.enReparacion, bg: "var(--color-accent-light)", color: "var(--color-accent)", filtro: "en_reparacion" },
-          { label: "Listas Entrega", value: stats.listasEntrega, bg: "var(--color-success-bg)", color: "var(--color-success-text)", filtro: "listo_entrega" },
-          { label: "Garantías", value: stats.garantiasActivas, bg: "var(--color-warning-bg)", color: "var(--color-warning-text)", filtro: "garantias" },
-        ].map(({ label, value, bg, color, filtro }) => (
-          <StatPill
-            key={label}
-            label={label}
-            value={value}
-            bg={bg}
-            color={color}
-            active={filtro ? filterEstado === filtro : false}
-            onClick={filtro ? () => setFilterEstado(filtro as typeof filterEstado) : undefined}
-          />
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3 mb-6">
+        <StatPill
+          label="Total"
+          value={stats.total}
+          bg="var(--color-bg-surface)"
+          color="var(--color-text-primary)"
+          active={filterEstado === "todas" && !verArchivadas}
+          onClick={() => { setFilterEstado("todas"); setVerArchivadas(false); }}
+        />
+        <StatPill
+          label="Activas"
+          value={stats.activas}
+          bg="var(--color-info-bg)"
+          color="var(--color-info-text)"
+          active={filterEstado === "activas"}
+          onClick={() => setFilterEstado("activas")}
+        />
+        <StatPill
+          label="Diagnóstico"
+          value={stats.diagnostico}
+          bg="var(--color-warning-bg)"
+          color="var(--color-warning-text)"
+          active={filterEstado === "diagnostico"}
+          onClick={() => setFilterEstado("diagnostico")}
+        />
+        <StatPill
+          label="Esp. Piezas"
+          value={stats.esperandoPiezas}
+          bg="var(--color-warning-bg)"
+          color="var(--color-warning-text)"
+          active={filterEstado === "esperando_piezas"}
+          onClick={() => setFilterEstado("esperando_piezas")}
+        />
+        <StatPill
+          label="En Reparación"
+          value={stats.enReparacion}
+          bg="var(--color-accent-light)"
+          color="var(--color-accent)"
+          active={filterEstado === "en_reparacion"}
+          onClick={() => setFilterEstado("en_reparacion")}
+        />
+        <StatPill
+          label="Listas Entrega"
+          value={stats.listasEntrega}
+          bg="var(--color-success-bg)"
+          color="var(--color-success-text)"
+          active={filterEstado === "listo_entrega"}
+          onClick={() => setFilterEstado("listo_entrega")}
+        />
+        <StatPill
+          label="Garantías"
+          value={stats.garantiasActivas}
+          bg="var(--color-warning-bg)"
+          color="var(--color-warning-text)"
+          active={filterEstado === "garantias"}
+          onClick={() => setFilterEstado("garantias")}
+        />
+        <StatPill
+          label="Entregadas"
+          value={stats.entregados}
+          bg="var(--color-bg-elevated)"
+          color="var(--color-text-secondary)"
+          active={filterEstado === "entregado"}
+          onClick={() => setFilterEstado("entregado" as typeof filterEstado)}
+        />
         {stats.vencidas > 0 && (
           <StatPill
             label={`Vencidas (+${diasListoEntregaMaximo}d)`}
@@ -413,29 +462,6 @@ export default function ReparacionesPage() {
             active={filterEstado === "mis_ordenes"}
             onClick={() => setFilterEstado("mis_ordenes")}
           />
-        )}
-      </div>
-      {/* Botón de archivadas + stat entregados */}
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => { setVerArchivadas((v) => !v); setFilterEstado("todas"); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-          style={{
-            background: verArchivadas ? "var(--color-danger-bg)" : "var(--color-bg-elevated)",
-            color: verArchivadas ? "var(--color-danger-text)" : "var(--color-text-muted)",
-            border: `1px solid ${verArchivadas ? "var(--color-danger)" : "var(--color-border)"}`,
-          }}
-        >
-          {verArchivadas ? "← Ocultar archivadas" : `Ver archivadas (${stats.entregados} entregadas)`}
-        </button>
-        {stats.entregados > 0 && (
-          <button
-            onClick={() => { setVerArchivadas(true); setFilterEstado("entregado" as typeof filterEstado); }}
-            className="text-xs"
-            style={{ color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer" }}
-          >
-            {stats.entregados} entregadas
-          </button>
         )}
       </div>
 
