@@ -252,7 +252,15 @@ export function OrdenCard({
     <div
       className="rounded-xl transition-all duration-200 cursor-pointer select-none"
       style={{
-        background: orden.esGarantia ? "var(--color-warning-bg)" : "var(--color-bg-surface)",
+        background: orden.esGarantia
+          ? "var(--color-warning-bg)"
+          : orden.estado === "listo_entrega"
+            ? "var(--color-success-bg)"
+            : orden.estado === "esperando_piezas"
+              ? "var(--color-warning-bg)"
+              : orden.estado === "cancelado" || orden.estado === "no_reparable"
+                ? "var(--color-danger-bg)"
+                : "var(--color-bg-surface)",
         border: `1.5px solid ${
           orden.esGarantia ? "var(--color-warning)" :
           orden.estado === "listo_entrega" ? "var(--color-success)" :
