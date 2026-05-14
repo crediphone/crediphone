@@ -32,7 +32,7 @@ export async function GET(
     const { data, error } = await supabase
       .from("pedidos_pieza_reparacion")
       .select(`
-        id, nombre_pieza, costo_estimado, costo_envio, estado,
+        id, nombre_pieza, costo_estimado, costo_envio, precio_cliente, estado,
         created_at, fecha_recibida, fecha_estimada_llegada, notas, producto_id,
         foto_comprobante_url, financiado_por, monto_de_caja,
         motivo_defecto, intentos_reemplazo,
@@ -55,7 +55,8 @@ export async function GET(
       fechaRecibida: p.fecha_recibida,
       fechaEstimadaLlegada: p.fecha_estimada_llegada ?? null,
       notas: p.notas,
-      productoId: p.producto_id,
+      productoId: p.producto_id ?? null,
+      precioCliente: p.precio_cliente !== null && p.precio_cliente !== undefined ? Number(p.precio_cliente) : null,
       fotoComprobanteUrl: p.foto_comprobante_url ?? null,
       financiadoPor: p.financiado_por ?? "bolsa",
       montoDeCaja: Number(p.monto_de_caja || 0),

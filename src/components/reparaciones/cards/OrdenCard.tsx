@@ -254,9 +254,13 @@ export function OrdenCard({
       style={{
         background: orden.esGarantia
           ? "var(--color-warning-bg)"
-          : orden.estado === "cancelado" || orden.estado === "no_reparable"
-            ? "var(--color-danger-bg)"
-            : "var(--color-bg-surface)",
+          : orden.estado === "listo_entrega"
+            ? "var(--color-success-bg)"
+            : orden.estado === "esperando_piezas"
+              ? "var(--color-warning-bg)"
+              : orden.estado === "cancelado" || orden.estado === "no_reparable"
+                ? "var(--color-danger-bg)"
+                : "var(--color-bg-surface)",
         border: `1.5px solid ${
           orden.esGarantia ? "var(--color-warning)" :
           orden.estado === "listo_entrega" ? "var(--color-success)" :
@@ -456,9 +460,9 @@ export function OrdenCard({
             </div>
           )}
           {(orden.piezasPorVerificar ?? 0) > 0 && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: "#fef3c7" }}>
-              <PackageCheck className="w-3 h-3" style={{ color: "#92400e" }} />
-              <span className="text-xs font-medium" style={{ color: "#92400e" }}>
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-warning)" }}>
+              <PackageCheck className="w-3 h-3" style={{ color: "var(--color-warning)" }} />
+              <span className="text-xs font-medium" style={{ color: "var(--color-warning-text)" }}>
                 {orden.piezasPorVerificar} por verificar
               </span>
             </div>

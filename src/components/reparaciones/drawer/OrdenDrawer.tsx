@@ -90,6 +90,7 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   // Pedidos de pieza
   interface PedidoPieza {
     id: string; nombrePieza: string; costoEstimado: number; costoEnvio: number;
+    precioCliente: number | null; productoId: string | null;
     estado: "pendiente" | "en_camino" | "recibida" | "verificada_ok" | "defectuosa" | "instalada" | "cancelada";
     createdAt: string; fechaRecibida: string | null; fechaEstimadaLlegada: string | null;
     motivoDefecto: string | null; intentosReemplazo: number;
@@ -119,6 +120,10 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [retrasoFecha, setRetrasoFecha] = useState("");
   const [retrasoMotivo, setRetrasoMotivo] = useState("");
   const [guardandoRetraso, setGuardandoRetraso] = useState(false);
+  // P3: Registrar pieza verificada en catálogo de inventario
+  const [ingresarInventarioPiezaId, setIngresarInventarioPiezaId] = useState<string | null>(null);
+  const [ingresarInventarioForm, setIngresarInventarioForm] = useState({ nombre: "", costo: "", precio: "" });
+  const [ingresandoInventario, setIngresandoInventario] = useState(false);
   // M3: Editar nombre de pieza (admin)
   const [editarNombrePiezaId, setEditarNombrePiezaId] = useState<string | null>(null);
   const [editarNombreValor, setEditarNombreValor] = useState("");
@@ -709,6 +714,17 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       });
       const data = await res.json();
       if (data.success) {
+        if (llegoBien) {
+          const pieza = pedidosPieza.find((pp) => pp.id === pedidoId);
+          if (pieza && !pieza.productoId) {
+            setIngresarInventarioPiezaId(pedidoId);
+            setIngresarInventarioForm({
+              nombre: pieza.nombrePieza,
+              costo: pieza.costoEstimado.toFixed(2),
+              precio: pieza.precioCliente !== null ? pieza.precioCliente.toFixed(2) : "",
+            });
+          }
+        }
         setVerifFormPedidoId(null);
         setMotivoDefectoInput("");
         fetchPedidosPieza();
@@ -718,6 +734,41 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       }
     } finally {
       setVerificandoPedido(null);
+    }
+  }
+
+  async function handleIngresarInventario(pedidoId: string) {
+    if (!orden) return;
+    setIngresandoInventario(true);
+    try {
+      const resProducto = await fetch("/api/productos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: ingresarInventarioForm.nombre.trim(),
+          costo: parseFloat(ingresarInventarioForm.costo) || 0,
+          precio: parseFloat(ingresarInventarioForm.precio) || parseFloat(ingresarInventarioForm.costo) || 0,
+          stock: 0,
+          tipo: "pieza",
+        }),
+      });
+      const dataProducto = await resProducto.json();
+      if (!dataProducto.success) {
+        alert(dataProducto.error || "Error al crear producto en catálogo");
+        return;
+      }
+      // Vincular pedido al nuevo producto
+      await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productoId: dataProducto.data.id }),
+      });
+      setIngresarInventarioPiezaId(null);
+      fetchPedidosPieza();
+    } catch {
+      alert("Error al conectar con el servidor");
+    } finally {
+      setIngresandoInventario(false);
     }
   }
 
@@ -1900,6 +1951,61 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                       >
                         Cancelar
                       </button>
+                    </div>
+                  )}
+
+                  {/* P3: Prompt para registrar en catálogo tras verificar pieza sin vínculo */}
+                  {ingresarInventarioPiezaId === p.id && (
+                    <div className="ml-5 p-3 rounded-lg space-y-2 mt-1" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-info)" }}>
+                      <p className="text-xs font-semibold" style={{ color: "var(--color-info)" }}>
+                        ¿Registrar esta pieza en el catálogo?
+                      </p>
+                      <input
+                        value={ingresarInventarioForm.nombre}
+                        onChange={(e) => setIngresarInventarioForm(f => ({ ...f, nombre: e.target.value }))}
+                        placeholder="Nombre de la pieza"
+                        className="w-full px-2 py-1.5 rounded-lg text-xs"
+                        style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          value={ingresarInventarioForm.costo}
+                          onChange={(e) => setIngresarInventarioForm(f => ({ ...f, costo: e.target.value }))}
+                          placeholder="Costo ($)"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="flex-1 px-2 py-1.5 rounded-lg text-xs"
+                          style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                        />
+                        <input
+                          value={ingresarInventarioForm.precio}
+                          onChange={(e) => setIngresarInventarioForm(f => ({ ...f, precio: e.target.value }))}
+                          placeholder="Precio venta ($)"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="flex-1 px-2 py-1.5 rounded-lg text-xs"
+                          style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleIngresarInventario(p.id)}
+                          disabled={ingresandoInventario || !ingresarInventarioForm.nombre.trim()}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+                          style={{ background: "var(--color-success)", color: "#fff", opacity: ingresandoInventario || !ingresarInventarioForm.nombre.trim() ? 0.6 : 1 }}
+                        >
+                          {ingresandoInventario ? "Guardando..." : "Guardar en catálogo"}
+                        </button>
+                        <button
+                          onClick={() => setIngresarInventarioPiezaId(null)}
+                          className="px-3 py-1.5 rounded-lg text-xs"
+                          style={{ color: "var(--color-text-muted)" }}
+                        >
+                          Omitir
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

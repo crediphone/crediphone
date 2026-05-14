@@ -167,19 +167,18 @@ export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
     >
       {/* Panel */}
       <div
-        className="w-full max-w-md rounded-2xl overflow-hidden"
+        className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
         style={{
           background: "var(--color-bg-surface)",
           border: "1px solid var(--color-border-subtle)",
           boxShadow: "var(--shadow-lg)",
           maxHeight: "90vh",
-          overflowY: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Header — fijo */}
         <div
-          className="px-5 py-4 flex items-start gap-3"
+          className="px-5 py-4 flex items-start gap-3 shrink-0"
           style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
         >
           <div
@@ -198,43 +197,46 @@ export function ModalQAEntrega({ folio, onConfirmar, onCancelar }: Props) {
           </div>
         </div>
 
-        {/* Leyenda */}
-        <div className="px-5 pt-4 pb-2">
-          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            Toca cada punto para marcarlo como ✓ verificado o — no aplica. Puedes confirmar con la combinación que necesites.
-          </p>
-        </div>
-
-        {/* Lista */}
-        <div className="px-5 pb-4 space-y-2">
-          {ITEMS_QA.map((item) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              estado={estados[item.id] ?? "sin_verificar"}
-              onToggle={() => toggle(item.id)}
-            />
-          ))}
-        </div>
-
-        {/* Resumen */}
-        {totalInteractuados > 0 && (
-          <div
-            className="mx-5 mb-4 rounded-lg px-4 py-2.5 flex items-center gap-2"
-            style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
-          >
-            <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
-            <p className="text-xs" style={{ color: "var(--color-success-text)" }}>
-              {totalOk > 0 && `${totalOk} verificado${totalOk !== 1 ? "s" : ""}`}
-              {totalOk > 0 && totalNoAplica > 0 && " · "}
-              {totalNoAplica > 0 && `${totalNoAplica} no aplica${totalNoAplica !== 1 ? "n" : ""}`}
+        {/* Cuerpo scrollable */}
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {/* Leyenda */}
+          <div className="px-5 pt-4 pb-2">
+            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              Toca cada punto para marcarlo como ✓ verificado o — no aplica. Puedes confirmar con la combinación que necesites.
             </p>
           </div>
-        )}
 
-        {/* Botones */}
+          {/* Lista */}
+          <div className="px-5 pb-4 space-y-2">
+            {ITEMS_QA.map((item) => (
+              <ItemRow
+                key={item.id}
+                item={item}
+                estado={estados[item.id] ?? "sin_verificar"}
+                onToggle={() => toggle(item.id)}
+              />
+            ))}
+          </div>
+
+          {/* Resumen */}
+          {totalInteractuados > 0 && (
+            <div
+              className="mx-5 mb-4 rounded-lg px-4 py-2.5 flex items-center gap-2"
+              style={{ background: "var(--color-success-bg)", border: "1px solid var(--color-success)" }}
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
+              <p className="text-xs" style={{ color: "var(--color-success-text)" }}>
+                {totalOk > 0 && `${totalOk} verificado${totalOk !== 1 ? "s" : ""}`}
+                {totalOk > 0 && totalNoAplica > 0 && " · "}
+                {totalNoAplica > 0 && `${totalNoAplica} no aplica${totalNoAplica !== 1 ? "n" : ""}`}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer fijo — botones siempre visibles */}
         <div
-          className="px-5 pb-5 space-y-2"
+          className="px-5 pb-5 space-y-2 shrink-0"
           style={{ borderTop: "1px solid var(--color-border-subtle)", paddingTop: "1rem" }}
         >
           <button
