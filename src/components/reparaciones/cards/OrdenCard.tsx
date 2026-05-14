@@ -254,13 +254,9 @@ export function OrdenCard({
       style={{
         background: orden.esGarantia
           ? "var(--color-warning-bg)"
-          : orden.estado === "listo_entrega"
-            ? "var(--color-success-bg)"
-            : orden.estado === "esperando_piezas"
-              ? "var(--color-warning-bg)"
-              : orden.estado === "cancelado" || orden.estado === "no_reparable"
-                ? "var(--color-danger-bg)"
-                : "var(--color-bg-surface)",
+          : orden.estado === "cancelado" || orden.estado === "no_reparable"
+            ? "var(--color-danger-bg)"
+            : "var(--color-bg-surface)",
         border: `1.5px solid ${
           orden.esGarantia ? "var(--color-warning)" :
           orden.estado === "listo_entrega" ? "var(--color-success)" :
@@ -271,14 +267,15 @@ export function OrdenCard({
           orden.estado === "entregado" ? "var(--color-border)" :
           "var(--color-border-subtle)"
         }`,
-        boxShadow: orden.estado === "listo_entrega" ? "0 0 0 1px var(--color-success)" : "var(--shadow-sm)",
+        boxShadow: orden.estado === "listo_entrega" ? "0 0 0 2px var(--color-success)" : "var(--shadow-sm)",
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-md)";
         (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-sm)";
+        (e.currentTarget as HTMLElement).style.boxShadow =
+          orden.estado === "listo_entrega" ? "0 0 0 2px var(--color-success)" : "var(--shadow-sm)";
         (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
       }}
       onClick={() => onOpenDrawer(orden)}
