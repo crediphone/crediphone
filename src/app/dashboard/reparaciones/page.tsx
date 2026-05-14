@@ -171,6 +171,18 @@ export default function ReparacionesPage() {
     }
   }
 
+  async function refreshSilencioso() {
+    try {
+      const response = await fetch("/api/reparaciones?detalladas=true");
+      const data = await response.json();
+      if (data.success) {
+        setOrdenes(data.data);
+      }
+    } catch (error) {
+      console.error("Error al refrescar órdenes:", error);
+    }
+  }
+
   function calculateStats() {
     const now = Date.now();
     const msPerDay = 86_400_000;
@@ -313,7 +325,7 @@ export default function ReparacionesPage() {
       });
       const data = await res.json();
       if (data.success) {
-        await fetchOrdenes();
+        await refreshSilencioso();
         return true;
       } else {
         alert(data.error || "Error al cambiar estado");
@@ -338,7 +350,7 @@ export default function ReparacionesPage() {
       const data = await res.json();
       if (data.success) {
         setDeleteConfirmId(null);
-        await fetchOrdenes();
+        await refreshSilencioso();
       } else {
         alert(data.error || "Error al eliminar");
       }
