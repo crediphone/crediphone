@@ -544,42 +544,46 @@ export default function ReparacionesPage() {
         </div>
       ) : (
         <>
-          {/* M6: Sección prominente Listos para Entregar (solo cuando filtro = todas o listo_entrega) */}
-          {(filterEstado === "todas" || filterEstado === "listo_entrega") && (() => {
+          {/* Sección con agrupación: listos-para-entregar al FONDO (para todas, activas, mis_ordenes, listo_entrega) */}
+          {(filterEstado === "todas" || filterEstado === "listo_entrega" || filterEstado === "activas" || filterEstado === "mis_ordenes") && (() => {
             const listasEntrega = filteredOrdenes.filter((o) => o.estado === "listo_entrega");
-            if (listasEntrega.length === 0) return null;
             const restantes = filteredOrdenes.filter((o) => o.estado !== "listo_entrega");
+            const mostrarEncabezados = listasEntrega.length > 0 && restantes.length > 0;
             return (
               <>
-                <div className="mb-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--color-success)" }} />
-                    <h3 className="text-sm font-bold" style={{ color: "var(--color-success-text)" }}>
-                      Listos para Entregar ({listasEntrega.length})
-                    </h3>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {listasEntrega.map((orden) => (
-                      <OrdenCard
-                        key={orden.id}
-                        orden={orden}
-                        userRole={user?.role || ""}
-                        onOpenDrawer={(o) => handleOpenDrawer(o)}
-                        onDiagnostico={(o) => { setSelectedOrden(o); setModalDiagnosticoOpen(true); }}
-                        onCambiarEstado={handleCambiarEstadoInline}
-                        onEliminar={(o) => { setDeleteConfirmId(o.id); setDeleteConfirmFolio(o.folio); }}
-                        onRefresh={fetchOrdenes}
-                      />
-                    ))}
-                  </div>
-                </div>
                 {restantes.length > 0 && (
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--color-text-muted)" }}>
-                      En proceso ({restantes.length})
-                    </h3>
+                  <div className="mb-6">
+                    {mostrarEncabezados && (
+                      <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--color-text-muted)" }}>
+                        En proceso ({restantes.length})
+                      </h3>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {restantes.map((orden) => (
+                        <OrdenCard
+                          key={orden.id}
+                          orden={orden}
+                          userRole={user?.role || ""}
+                          onOpenDrawer={(o) => handleOpenDrawer(o)}
+                          onDiagnostico={(o) => { setSelectedOrden(o); setModalDiagnosticoOpen(true); }}
+                          onCambiarEstado={handleCambiarEstadoInline}
+                          onEliminar={(o) => { setDeleteConfirmId(o.id); setDeleteConfirmFolio(o.folio); }}
+                          onRefresh={fetchOrdenes}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {listasEntrega.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--color-success)" }} />
+                      <h3 className="text-sm font-bold" style={{ color: "var(--color-success-text)" }}>
+                        Listos para Entregar ({listasEntrega.length})
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {listasEntrega.map((orden) => (
                         <OrdenCard
                           key={orden.id}
                           orden={orden}
@@ -597,29 +601,61 @@ export default function ReparacionesPage() {
               </>
             );
           })()}
-          {/* Grid normal cuando el filtro es específico (no "todas" ni "listo_entrega") */}
-          {filterEstado !== "todas" && filterEstado !== "listo_entrega" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredOrdenes.map((orden) => (
-              <OrdenCard
-                key={orden.id}
-                orden={orden}
-                userRole={user?.role || ""}
-                onOpenDrawer={(o) => handleOpenDrawer(o)}
-                onDiagnostico={(o) => {
-                  setSelectedOrden(o);
-                  setModalDiagnosticoOpen(true);
-                }}
-                onCambiarEstado={handleCambiarEstadoInline}
-                onEliminar={(o) => {
-                  setDeleteConfirmId(o.id);
-                  setDeleteConfirmFolio(o.folio);
-                }}
-                onRefresh={fetchOrdenes}
-              />
-            ))}
-          </div>
-          )}
+          {/* Grid plano para filtros específicos de estado — con encabezado dinámico */}
+          {filterEstado !== "todas" && filterEstado !== "listo_entrega" && filterEstado !== "activas" && filterEstado !== "mis_ordenes" && (() => {
+            const etiquetaFiltro: Record<string, string> = {
+              garantias: "Garantías activas",
+              vencidas: "Sin recoger (vencidas)",
+              recibido: "Recibido",
+              diagnostico: "En Diagnóstico",
+              presupuesto: "Presupuesto pendiente",
+              aprobado: "Aprobado",
+              esperando_piezas: "Esperando Piezas",
+              en_reparacion: "En Reparación",
+              completado: "Completado",
+              entregado: "Entregado",
+              no_reparable: "No Reparable",
+              cancelado: "Cancelado",
+            };
+            const etiqueta = etiquetaFiltro[filterEstado] ?? filterEstado;
+            return (
+              <>
+                <div className="mb-3 flex items-center gap-3">
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-muted)" }}>
+                    {etiqueta} ({filteredOrdenes.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setFilterEstado("todas")}
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{ color: "var(--color-text-muted)", border: "1px solid var(--color-border)", background: "none", cursor: "pointer" }}
+                  >
+                    × limpiar
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredOrdenes.map((orden) => (
+                    <OrdenCard
+                      key={orden.id}
+                      orden={orden}
+                      userRole={user?.role || ""}
+                      onOpenDrawer={(o) => handleOpenDrawer(o)}
+                      onDiagnostico={(o) => {
+                        setSelectedOrden(o);
+                        setModalDiagnosticoOpen(true);
+                      }}
+                      onCambiarEstado={handleCambiarEstadoInline}
+                      onEliminar={(o) => {
+                        setDeleteConfirmId(o.id);
+                        setDeleteConfirmFolio(o.folio);
+                      }}
+                      onRefresh={fetchOrdenes}
+                    />
+                  ))}
+                </div>
+              </>
+            );
+          })()}
           <p className="mt-4 text-xs text-center" style={{ color: "var(--color-text-muted)" }}>
             {filteredOrdenes.length} de {ordenes.length} órdenes
           </p>

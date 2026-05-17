@@ -2,9 +2,10 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import {
-  Search, AlertCircle, DollarSign, CheckCircle, Phone, Wrench, XCircle, Package,
+  Search, AlertCircle, DollarSign, CheckCircle, Phone, Wrench, XCircle, Package, ExternalLink,
 } from "lucide-react";
 import type { OrdenReparacionDetallada, TipoPago } from "@/types";
+import { OrdenDrawer } from "@/components/reparaciones/drawer/OrdenDrawer";
 
 interface OrdenListaCobro {
   ordenId: string;
@@ -449,6 +450,7 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
   const [procesandoAnticipo, setProcesandoAnticipo] = useState(false);
   const [procesandoCancelacion, setProcesandoCancelacion] = useState(false);
   const [mensajeExito, setMensajeExito] = useState("");
+  const [posDrawerOrdenId, setPosDrawerOrdenId] = useState<string | null>(null);
 
   const handleBuscar = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -835,6 +837,19 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
               </div>
             )}
 
+            {/* Ver orden completa */}
+            <button
+              type="button"
+              onClick={() => setPosDrawerOrdenId(orden.id)}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-sm"
+              style={{ background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", cursor: "pointer" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-primary)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = "var(--color-text-muted)"; }}
+            >
+              <ExternalLink className="w-4 h-4" />
+              Ver orden completa
+            </button>
+
             {/* Nota informativa */}
             <p className="text-xs text-center mt-4" style={{ color: "var(--color-text-muted)" }}>
               Solo se muestran órdenes con saldo pendiente o en estado activo
@@ -976,6 +991,13 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
           onCancel={() => setShowModalCancelar(false)}
         />
       )}
+
+      {/* Drawer completo de la orden desde POS */}
+      <OrdenDrawer
+        ordenId={posDrawerOrdenId}
+        onClose={() => setPosDrawerOrdenId(null)}
+        onRefresh={() => { void fetchListosParaCobrar(); }}
+      />
     </>
   );
 }

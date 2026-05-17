@@ -124,6 +124,19 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
   const [ingresarInventarioPiezaId, setIngresarInventarioPiezaId] = useState<string | null>(null);
   const [ingresarInventarioForm, setIngresarInventarioForm] = useState({ nombre: "", costo: "", precio: "" });
   const [ingresandoInventario, setIngresandoInventario] = useState(false);
+  // P6: Búsqueda en catálogo para P3 prompt (vincular a producto existente)
+  const [ingresarInvBusqueda, setIngresarInvBusqueda] = useState<Array<{ id: string; nombre: string; precio: number; stock: number }>>([]);
+  const [ingresarInvBuscando, setIngresarInvBuscando] = useState(false);
+  const ingresarInvTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // P8a: Agregar parte desde inventario en diagnóstico
+  const [mostrarFormAgregarParte, setMostrarFormAgregarParte] = useState(false);
+  const [agregarParteNombre, setAgregarParteNombre] = useState("");
+  const [agregarParteCosto, setAgregarParteCosto] = useState("");
+  const [agregarParteCantidad, setAgregarParteCantidad] = useState("1");
+  const [agregarParteBusqueda, setAgregarParteBusqueda] = useState<Array<{ id: string; nombre: string; costo: number; stock: number }>>([]);
+  const [agregarParteBuscando, setAgregarParteBuscando] = useState(false);
+  const agregarParteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [guardandoParte, setGuardandoParte] = useState(false);
   // M3: Editar nombre de pieza (admin)
   const [editarNombrePiezaId, setEditarNombrePiezaId] = useState<string | null>(null);
   const [editarNombreValor, setEditarNombreValor] = useState("");
@@ -769,6 +782,109 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
       alert("Error al conectar con el servidor");
     } finally {
       setIngresandoInventario(false);
+    }
+  }
+
+  // P6: Vincular pieza P3 a un producto ya existente (sin crear nuevo)
+  async function handleIngresarInventarioVincular(pedidoId: string, productoId: string) {
+    if (!orden) return;
+    setIngresandoInventario(true);
+    try {
+      await fetch(`/api/reparaciones/${orden.id}/pedidos-pieza/${pedidoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productoId }),
+      });
+      setIngresarInventarioPiezaId(null);
+      setIngresarInvBusqueda([]);
+      fetchPedidosPieza();
+    } catch { /* silencioso */ } finally {
+      setIngresandoInventario(false);
+    }
+  }
+
+  // P6: Búsqueda con debounce en P3 form
+  function buscarInventarioP3(nombre: string) {
+    setIngresarInventarioForm(f => ({ ...f, nombre }));
+    setIngresarInvBusqueda([]);
+    if (ingresarInvTimer.current) clearTimeout(ingresarInvTimer.current);
+    if (nombre.trim().length < 2) return;
+    ingresarInvTimer.current = setTimeout(async () => {
+      setIngresarInvBuscando(true);
+      try {
+        const res = await fetch(`/api/productos?q=${encodeURIComponent(nombre.trim())}&limit=4`);
+        const data = await res.json();
+        if (data.success) {
+          setIngresarInvBusqueda(
+            (data.data ?? []).map((p: any) => ({
+              id: p.id,
+              nombre: p.nombre,
+              precio: p.precioVenta ?? p.precio ?? 0,
+              stock: p.stock ?? 0,
+            }))
+          );
+        }
+      } catch { /* silencioso */ } finally {
+        setIngresarInvBuscando(false);
+      }
+    }, 300);
+  }
+
+  // P8a: Buscar parte para agregar al diagnóstico
+  function buscarParteInventario(nombre: string) {
+    setAgregarParteNombre(nombre);
+    setAgregarParteBusqueda([]);
+    if (agregarParteTimer.current) clearTimeout(agregarParteTimer.current);
+    if (nombre.trim().length < 2) return;
+    agregarParteTimer.current = setTimeout(async () => {
+      setAgregarParteBuscando(true);
+      try {
+        const res = await fetch(`/api/productos?q=${encodeURIComponent(nombre.trim())}&limit=4`);
+        const data = await res.json();
+        if (data.success) {
+          setAgregarParteBusqueda(
+            (data.data ?? []).map((p: any) => ({
+              id: p.id,
+              nombre: p.nombre,
+              costo: p.costoCompra ?? p.costo ?? 0,
+              stock: p.stock ?? 0,
+            }))
+          );
+        }
+      } catch { /* silencioso */ } finally {
+        setAgregarParteBuscando(false);
+      }
+    }, 300);
+  }
+
+  // P8a: Guardar nueva parte a reemplazar (PATCH diagnóstico)
+  async function handleAgregarParte() {
+    if (!orden || !agregarParteNombre.trim()) return;
+    setGuardandoParte(true);
+    try {
+      const partesActuales = orden.partesReemplazadas ?? [];
+      const nuevaParte = {
+        parte: agregarParteNombre.trim(),
+        cantidad: parseInt(agregarParteCantidad) || 1,
+        costo: parseFloat(agregarParteCosto) || 0,
+      };
+      const nuevasPartes = [...partesActuales, nuevaParte];
+      const res = await fetch(`/api/reparaciones/${orden.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ diagnostico: { partesReemplazadas: nuevasPartes } }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMostrarFormAgregarParte(false);
+        setAgregarParteNombre("");
+        setAgregarParteCosto("");
+        setAgregarParteCantidad("1");
+        setAgregarParteBusqueda([]);
+        fetchOrden();
+      }
+    } catch { /* silencioso */ } finally {
+      setGuardandoParte(false);
     }
   }
 
@@ -1470,6 +1586,49 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
     if (!orden) return null;
     return (
       <div className="space-y-4 pb-6">
+        {/* P8b: Estado al ingreso — cómo llegó el equipo */}
+        <Card title="Estado al ingreso">
+          <div className="space-y-2">
+            <div>
+              <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--color-text-muted)" }}>Problema reportado por el cliente</p>
+              <p className="text-sm" style={{ color: "var(--color-text-primary)" }}>{orden.problemaReportado || "—"}</p>
+            </div>
+            {orden.condicionesFuncionamiento && typeof orden.condicionesFuncionamiento === "object" && Object.keys(orden.condicionesFuncionamiento as Record<string, unknown>).length > 0 && (
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: "var(--color-text-muted)" }}>Fallas reportadas al ingreso</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(orden.condicionesFuncionamiento as Record<string, boolean>).map(([key, val]) => (
+                    <span
+                      key={key}
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{
+                        background: val ? "var(--color-danger-bg)" : "var(--color-success-bg)",
+                        color: val ? "var(--color-danger)" : "var(--color-success-text)",
+                        border: `1px solid ${val ? "var(--color-danger)" : "var(--color-success)"}`,
+                      }}
+                    >
+                      {val ? "✗" : "✓"} {key.replace(/_/g, " ")}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(orden.piezasCotizacion?.length ?? 0) > 0 && (
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: "var(--color-text-muted)" }}>Piezas cotizadas al crear la orden</p>
+                <div className="space-y-1">
+                  {orden.piezasCotizacion!.map((pieza) => (
+                    <div key={pieza.id} className="flex items-center justify-between text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                      <span>{pieza.nombre} × {pieza.cantidad}</span>
+                      <span className="font-mono" style={{ color: "var(--color-text-muted)" }}>${pieza.precioTotal.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
         <Card title="Diagnóstico del Técnico">
           {orden.diagnosticoTecnico ? (
             <div className="space-y-3">
@@ -1620,21 +1779,143 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
           </Card>
         )}
 
-        {orden.partesReemplazadas && orden.partesReemplazadas.length > 0 && (
-          <Card title="Partes del Diagnóstico">
-            <div className="space-y-2">
-              {orden.partesReemplazadas.map((parte: { parte?: string; cantidad?: number; costo?: number }, i: number) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b last:border-b-0" style={{ borderColor: "var(--color-border-subtle)" }}>
-                  <div>
-                    <p className="text-sm" style={{ color: "var(--color-text-primary)" }}>{parte.parte}</p>
-                    <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Cant: {parte.cantidad || 1}</p>
-                  </div>
-                  <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
-                    ${((parte.costo || 0) * (parte.cantidad || 1)).toFixed(2)}
-                  </p>
+        {/* P8a: Partes a reemplazar con inventario integrado */}
+        <Card title="Partes a reemplazar">
+          <div className="space-y-2">
+            {(orden.partesReemplazadas?.length ?? 0) === 0 && !mostrarFormAgregarParte && (
+              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Sin partes registradas</p>
+            )}
+            {(orden.partesReemplazadas ?? []).map((parte: { parte?: string; cantidad?: number; costo?: number }, i: number) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b last:border-b-0" style={{ borderColor: "var(--color-border-subtle)" }}>
+                <div>
+                  <p className="text-sm" style={{ color: "var(--color-text-primary)" }}>{parte.parte}</p>
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Cant: {parte.cantidad || 1}</p>
                 </div>
-              ))}
+                <p className="text-sm font-semibold" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-data)" }}>
+                  ${((parte.costo || 0) * (parte.cantidad || 1)).toFixed(2)}
+                </p>
+              </div>
+            ))}
+            {/* P8a: Mini-form para agregar parte desde inventario */}
+            {mostrarFormAgregarParte && (
+              <div className="rounded-lg p-3 space-y-2 mt-1" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                {/* Búsqueda */}
+                <div className="relative">
+                  <div className="flex items-center gap-1 rounded-lg px-2" style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)" }}>
+                    <input
+                      value={agregarParteNombre}
+                      onChange={(e) => buscarParteInventario(e.target.value)}
+                      placeholder="Nombre de la pieza (busca en inventario...)"
+                      className="flex-1 px-1 py-1.5 text-xs bg-transparent outline-none"
+                      style={{ color: "var(--color-text-primary)" }}
+                    />
+                    {agregarParteBuscando && <Loader2 className="w-3 h-3 animate-spin shrink-0" style={{ color: "var(--color-text-muted)" }} />}
+                  </div>
+                  {agregarParteBusqueda.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 rounded-lg overflow-hidden" style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
+                      {agregarParteBusqueda.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          className="w-full text-left flex items-center justify-between px-3 py-2 text-xs"
+                          style={{ color: "var(--color-text-primary)", background: "transparent" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          onClick={() => {
+                            setAgregarParteNombre(r.nombre);
+                            setAgregarParteCosto(r.costo > 0 ? r.costo.toFixed(2) : "");
+                            setAgregarParteBusqueda([]);
+                          }}
+                        >
+                          <span>{r.nombre}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {r.stock > 0 && (
+                              <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                                En stock: {r.stock}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs mb-0.5" style={{ color: "var(--color-text-muted)" }}>Cant.</p>
+                    <input type="number" min="1" value={agregarParteCantidad} onChange={(e) => setAgregarParteCantidad(e.target.value)} className="w-full text-xs px-2 py-1.5 rounded-lg" style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs mb-0.5" style={{ color: "var(--color-text-muted)" }}>Costo unit.</p>
+                    <input type="number" min="0" value={agregarParteCosto} onChange={(e) => setAgregarParteCosto(e.target.value)} placeholder="0.00" className="w-full text-xs px-2 py-1.5 rounded-lg font-mono" style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }} />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAgregarParte}
+                    disabled={guardandoParte || !agregarParteNombre.trim()}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: "var(--color-accent)", color: "#fff", opacity: guardandoParte || !agregarParteNombre.trim() ? 0.6 : 1, cursor: guardandoParte || !agregarParteNombre.trim() ? "not-allowed" : "pointer" }}
+                  >
+                    {guardandoParte ? "Guardando..." : "Agregar parte"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMostrarFormAgregarParte(false); setAgregarParteNombre(""); setAgregarParteCosto(""); setAgregarParteBusqueda([]); }}
+                    className="px-3 py-1.5 rounded-lg text-xs"
+                    style={{ color: "var(--color-text-muted)", border: "1px solid var(--color-border)", background: "none", cursor: "pointer" }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+            {!mostrarFormAgregarParte && !["entregado", "cancelado", "no_reparable"].includes(orden.estado) && (
+              <button
+                type="button"
+                onClick={() => setMostrarFormAgregarParte(true)}
+                className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg mt-1"
+                style={{ color: "var(--color-accent)", border: "1px dashed var(--color-accent)", background: "none", cursor: "pointer" }}
+              >
+                <Plus className="w-3 h-3" />
+                Agregar parte desde inventario
+              </button>
+            )}
+          </div>
+        </Card>
+
+        {/* P7: Piezas en proceso (read-only, derivado de pedidosPieza) */}
+        {pedidosPieza.filter(pp => pp.estado !== "cancelada").length > 0 && (
+          <Card title="Piezas pedidas al proveedor">
+            <div className="space-y-1.5">
+              {pedidosPieza.filter(pp => pp.estado !== "cancelada").map((pp) => {
+                const estadoBadge: Record<string, { label: string; color: string; bg: string }> = {
+                  pendiente:     { label: "Pendiente",  color: "var(--color-warning-text)", bg: "var(--color-warning-bg)" },
+                  en_camino:     { label: "En camino",  color: "var(--color-info)",          bg: "var(--color-info-bg)" },
+                  recibida:      { label: "Recibida",   color: "var(--color-success-text)",  bg: "var(--color-success-bg)" },
+                  verificada_ok: { label: "Verificada", color: "var(--color-success-text)",  bg: "var(--color-success-bg)" },
+                  defectuosa:    { label: "Defectuosa", color: "var(--color-danger)",         bg: "var(--color-danger-bg)" },
+                  instalada:     { label: "Instalada",  color: "var(--color-success-text)",  bg: "var(--color-success-bg)" },
+                };
+                const badge = estadoBadge[pp.estado] ?? { label: pp.estado, color: "var(--color-text-muted)", bg: "var(--color-bg-elevated)" };
+                return (
+                  <div key={pp.id} className="flex items-center justify-between text-xs">
+                    <span style={{ color: "var(--color-text-primary)" }}>{pp.nombrePieza}</span>
+                    <span className="px-1.5 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>{badge.label}</span>
+                  </div>
+                );
+              })}
             </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab("piezas")}
+              className="flex items-center gap-1.5 text-xs mt-3"
+              style={{ color: "var(--color-accent)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <Package className="w-3 h-3" />
+              Ver detalle de piezas →
+            </button>
           </Card>
         )}
 
@@ -1960,13 +2241,47 @@ export function OrdenDrawer({ ordenId, onClose, onRefresh, defaultTab = "resumen
                       <p className="text-xs font-semibold" style={{ color: "var(--color-info)" }}>
                         ¿Registrar esta pieza en el catálogo?
                       </p>
-                      <input
-                        value={ingresarInventarioForm.nombre}
-                        onChange={(e) => setIngresarInventarioForm(f => ({ ...f, nombre: e.target.value }))}
-                        placeholder="Nombre de la pieza"
-                        className="w-full px-2 py-1.5 rounded-lg text-xs"
-                        style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)", color: "var(--color-text-primary)" }}
-                      />
+                      {/* P6: Búsqueda de producto existente */}
+                      <div className="relative">
+                        <div className="flex items-center gap-1 rounded-lg px-2" style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)" }}>
+                          <input
+                            value={ingresarInventarioForm.nombre}
+                            onChange={(e) => buscarInventarioP3(e.target.value)}
+                            placeholder="Nombre de la pieza (busca existentes...)"
+                            className="flex-1 px-1 py-1.5 text-xs bg-transparent outline-none"
+                            style={{ color: "var(--color-text-primary)" }}
+                          />
+                          {ingresarInvBuscando && <Loader2 className="w-3 h-3 animate-spin shrink-0" style={{ color: "var(--color-text-muted)" }} />}
+                        </div>
+                        {ingresarInvBusqueda.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 rounded-lg overflow-hidden" style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}>
+                            <p className="text-xs px-2 pt-1.5 pb-1 font-semibold" style={{ color: "var(--color-text-muted)" }}>¿Es uno de estos?</p>
+                            {ingresarInvBusqueda.map((r) => (
+                              <button
+                                key={r.id}
+                                type="button"
+                                className="w-full text-left flex items-center justify-between px-2 py-1.5 text-xs"
+                                style={{ color: "var(--color-text-primary)", background: "transparent" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                onClick={() => handleIngresarInventarioVincular(p.id, r.id)}
+                                disabled={ingresandoInventario}
+                              >
+                                <span>{r.nombre}</span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {r.stock > 0 && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>Stock: {r.stock}</span>
+                                  )}
+                                  <span className="font-semibold" style={{ color: "var(--color-info)" }}>Vincular</span>
+                                </div>
+                              </button>
+                            ))}
+                            <p className="text-xs px-2 pb-1.5 pt-1 border-t" style={{ color: "var(--color-text-muted)", borderColor: "var(--color-border)" }}>
+                              O crea uno nuevo abajo.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <input
                           value={ingresarInventarioForm.costo}

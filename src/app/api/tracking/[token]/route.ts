@@ -200,6 +200,7 @@ export async function GET(
           partesReemplazadas: orden.partesReemplazadas,
           piezasCotizacion: orden.piezasCotizacion || [],
           snapshotCotizacionInicial: orden.snapshotCotizacionInicial ?? null,
+          condicionesFuncionamiento: orden.condicionesFuncionamiento ?? null,
           fechaRecepcion: orden.fechaRecepcion,
           fechaEstimadaEntrega: orden.fechaEstimadaEntrega,
           fechaCompletado: orden.fechaCompletado,

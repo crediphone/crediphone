@@ -254,13 +254,17 @@ export function OrdenCard({
       style={{
         background: orden.esGarantia
           ? "var(--color-warning-bg)"
-          : orden.estado === "listo_entrega"
+          : orden.estado === "listo_entrega" || orden.estado === "completado"
             ? "var(--color-success-bg)"
             : orden.estado === "esperando_piezas"
               ? "var(--color-warning-bg)"
               : orden.estado === "cancelado" || orden.estado === "no_reparable"
                 ? "var(--color-danger-bg)"
-                : "var(--color-bg-surface)",
+                : orden.estado === "diagnostico" || orden.estado === "presupuesto" || orden.estado === "aprobado"
+                  ? "var(--color-info-bg)"
+                  : orden.estado === "en_reparacion"
+                    ? "var(--color-accent-light)"
+                    : "var(--color-bg-surface)",
         border: `1.5px solid ${
           orden.esGarantia ? "var(--color-warning)" :
           orden.estado === "listo_entrega" ? "var(--color-success)" :

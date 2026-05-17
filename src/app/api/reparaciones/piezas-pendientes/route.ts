@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("pedidos_pieza_reparacion")
       .select(`
-        id, nombre_pieza, costo_estimado, costo_envio, estado,
+        id, nombre_pieza, costo_estimado, costo_envio, precio_cliente, producto_id, estado,
         created_at, notas, financiado_por, monto_de_caja,
         creadoPor:creado_por (name),
         orden:ordenes_reparacion!inner (
@@ -57,6 +57,8 @@ export async function GET(request: NextRequest) {
           nombrePieza: p.nombre_pieza,
           costoEstimado: Number(p.costo_estimado || 0),
           costoEnvio: Number(p.costo_envio || 0),
+          precioCliente: p.precio_cliente !== null && p.precio_cliente !== undefined ? Number(p.precio_cliente) : null,
+          productoId: p.producto_id ?? null,
           estado: p.estado,
           createdAt: p.created_at,
           notas: p.notas,

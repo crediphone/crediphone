@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { PackagePlus, RefreshCw, AlertCircle, ExternalLink, Clock, MessageCircle } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { PackagePlus, RefreshCw, AlertCircle, ExternalLink, Clock, MessageCircle, BookPlus, X, Check, Search } from "lucide-react";
 
 interface PedidoPendiente {
   id: string;
   nombrePieza: string;
   costoEstimado: number;
   costoEnvio: number;
+  precioCliente: number | null;
+  productoId: string | null;
   notas: string | null;
   financiadoPor: string;
   createdAt: string;
@@ -144,7 +146,7 @@ export function PiezasPendientesPanel({ onAbrirOrden }: Props) {
             </div>
             <div className="space-y-2">
               {sinCosto.map((p) => (
-                <PedidoRow key={p.id} pedido={p} urgente onAbrirOrden={onAbrirOrden} />
+                <PedidoRow key={p.id} pedido={p} urgente onAbrirOrden={onAbrirOrden} onProductoVinculado={cargar} />
               ))}
             </div>
           </div>
@@ -160,7 +162,7 @@ export function PiezasPendientesPanel({ onAbrirOrden }: Props) {
             )}
             <div className="space-y-2">
               {conCosto.map((p) => (
-                <PedidoRow key={p.id} pedido={p} urgente={false} onAbrirOrden={onAbrirOrden} />
+                <PedidoRow key={p.id} pedido={p} urgente={false} onAbrirOrden={onAbrirOrden} onProductoVinculado={cargar} />
               ))}
             </div>
           </div>
@@ -176,19 +178,110 @@ function PedidoRow({
   pedido,
   urgente,
   onAbrirOrden,
+  onProductoVinculado,
 }: {
   pedido: PedidoPendiente;
   urgente: boolean;
   onAbrirOrden?: (id: string) => void;
+  onProductoVinculado?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [mostrarFormCatalogo, setMostrarFormCatalogo] = useState(false);
+  const [catalogoNombre, setCatalogoNombre] = useState(pedido.nombrePieza);
+  const [catalogoCosto, setCatalogoCosto] = useState(pedido.costoEstimado > 0 ? pedido.costoEstimado.toFixed(2) : "");
+  const [catalogoPrecio, setCatalogoPrecio] = useState(pedido.precioCliente !== null ? pedido.precioCliente.toFixed(2) : "");
+  const [guardandoCatalogo, setGuardandoCatalogo] = useState(false);
+  const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null);
+  // Búsqueda de producto existente
+  const [busquedaResultados, setBusquedaResultados] = useState<Array<{ id: string; nombre: string; precio: number; stock: number }>>([]);
+  const [buscando, setBuscando] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const financiado = FINANCIADO_BADGE[pedido.financiadoPor] ?? FINANCIADO_BADGE.bolsa;
+
+  // Búsqueda con debounce al escribir nombre
+  function handleNombreChange(val: string) {
+    setCatalogoNombre(val);
+    setBusquedaResultados([]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val.trim().length < 2) return;
+    debounceRef.current = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const res = await fetch(`/api/productos?q=${encodeURIComponent(val.trim())}&limit=4`);
+        const data = await res.json();
+        if (data.success) {
+          setBusquedaResultados(
+            (data.data ?? []).map((p: any) => ({
+              id: p.id,
+              nombre: p.nombre,
+              precio: p.precioVenta ?? p.precio ?? 0,
+              stock: p.stock ?? 0,
+            }))
+          );
+        }
+      } catch { /* silencioso */ } finally {
+        setBuscando(false);
+      }
+    }, 300);
+  }
+
+  // Vincular producto existente
+  async function handleVincularExistente(productoId: string) {
+    if (!pedido.orden.id) return;
+    setGuardandoCatalogo(true);
+    setErrorCatalogo(null);
+    try {
+      const res = await fetch(`/api/reparaciones/${pedido.orden.id}/pedidos-pieza/${pedido.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productoId }),
+      });
+      const data = await res.json();
+      if (!data.success) { setErrorCatalogo(data.error || "Error al vincular"); return; }
+      setMostrarFormCatalogo(false);
+      onProductoVinculado?.();
+    } catch { setErrorCatalogo("Error de conexión"); } finally { setGuardandoCatalogo(false); }
+  }
+
+  // Crear nuevo producto y vincular
+  async function handleCrearYVincular() {
+    if (!pedido.orden.id || !catalogoNombre.trim()) return;
+    setGuardandoCatalogo(true);
+    setErrorCatalogo(null);
+    try {
+      const resProducto = await fetch("/api/productos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: catalogoNombre.trim(),
+          tipo: "pieza",
+          stock: 0,
+          costoCompra: parseFloat(catalogoCosto) || 0,
+          precioVenta: parseFloat(catalogoPrecio) || 0,
+        }),
+      });
+      const dataProducto = await resProducto.json();
+      if (!dataProducto.success) { setErrorCatalogo(dataProducto.error || "Error al crear"); return; }
+      const productoId = dataProducto.data?.id;
+      if (!productoId) { setErrorCatalogo("No se recibió ID del producto"); return; }
+      const resPatch = await fetch(`/api/reparaciones/${pedido.orden.id}/pedidos-pieza/${pedido.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productoId }),
+      });
+      const dataPatch = await resPatch.json();
+      if (!dataPatch.success) { setErrorCatalogo(dataPatch.error || "Error al vincular"); return; }
+      setMostrarFormCatalogo(false);
+      onProductoVinculado?.();
+    } catch { setErrorCatalogo("Error de conexión"); } finally { setGuardandoCatalogo(false); }
+  }
 
   return (
     <div
-      className="rounded-xl p-3 flex items-start gap-3"
+      className="rounded-xl p-3 flex flex-col gap-2"
       style={{
-        background: hovered ? "var(--color-bg-elevated)" : "var(--color-bg-surface)",
+        background: hovered && !mostrarFormCatalogo ? "var(--color-bg-elevated)" : "var(--color-bg-surface)",
         border: urgente
           ? "1px solid var(--color-danger)"
           : "1px solid var(--color-border)",
@@ -198,88 +291,230 @@ function PedidoRow({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Pieza info */}
-      <div className="flex-1 min-w-0 space-y-0.5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
-            {pedido.nombrePieza}
-          </span>
-          <span
-            className="text-xs px-1.5 py-0.5 rounded-full font-medium"
-            style={{ background: financiado.bg, color: financiado.color }}
-          >
-            {financiado.label}
-          </span>
-          {pedido.costoEstimado > 0 && (
-            <span className="text-xs font-mono font-semibold" style={{ color: "var(--color-success)" }}>
-              {fmtPrecio(pedido.costoEstimado + pedido.costoEnvio)}
+      {/* Fila principal */}
+      <div className="flex items-start gap-3">
+        {/* Pieza info */}
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>
+              {pedido.nombrePieza}
             </span>
+            <span
+              className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+              style={{ background: financiado.bg, color: financiado.color }}
+            >
+              {financiado.label}
+            </span>
+            {pedido.costoEstimado > 0 && (
+              <span className="text-xs font-mono font-semibold" style={{ color: "var(--color-success)" }}>
+                {fmtPrecio(pedido.costoEstimado + pedido.costoEnvio)}
+              </span>
+            )}
+            {pedido.productoId && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                En catálogo
+              </span>
+            )}
+          </div>
+
+          {/* Orden */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className="text-xs font-mono font-bold"
+              style={{ color: "var(--color-accent)", background: "none", border: "none", cursor: onAbrirOrden ? "pointer" : "default", padding: 0 }}
+              onClick={() => pedido.orden.id && onAbrirOrden?.(pedido.orden.id)}
+            >
+              {pedido.orden.folio}
+            </button>
+            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              {pedido.orden.marcaDispositivo} {pedido.orden.modeloDispositivo}
+            </span>
+            <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
+              · {pedido.orden.clienteNombre}
+            </span>
+          </div>
+
+          {pedido.notas && (
+            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              📝 {pedido.notas.slice(0, 80)}
+            </p>
+          )}
+
+          <div className="flex items-center gap-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+            <Clock className="w-3 h-3" />
+            {fmtFecha(pedido.createdAt)}
+            {pedido.creadoPorNombre && ` · ${pedido.creadoPorNombre}`}
+          </div>
+        </div>
+
+        {/* Botones de acción */}
+        <div className="flex gap-1 flex-shrink-0">
+          {!pedido.productoId && (
+            <button
+              className="p-1.5 rounded-lg"
+              style={{ color: "var(--color-info)", background: mostrarFormCatalogo ? "var(--color-info-bg)" : "transparent" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-info-bg)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = mostrarFormCatalogo ? "var(--color-info-bg)" : "transparent")}
+              onClick={() => setMostrarFormCatalogo((v) => !v)}
+              title="Agregar al catálogo"
+            >
+              <BookPlus className="w-4 h-4" />
+            </button>
+          )}
+          {pedido.orden.clienteTelefono && (
+            <button
+              className="p-1.5 rounded-lg"
+              style={{ color: "var(--color-success)", background: "transparent" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-success-bg)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              onClick={() => {
+                const clean = pedido.orden.clienteTelefono!.replace(/\D/g, "");
+                const msg = encodeURIComponent(
+                  `⏳ *ESPERA DE REFACCIÓN - CREDIPHONE*\n\nHola *${pedido.orden.clienteNombre}*, gracias por tu paciencia.\n\nTe informamos sobre tu ${pedido.orden.marcaDispositivo} ${pedido.orden.modeloDispositivo} (Folio: ${pedido.orden.folio}).\n\nLa refacción ya fue pedida al proveedor y estamos esperando su llegada. Te notificaremos en cuanto esté lista.\n\nCualquier duda estamos a tus órdenes. 📱 CREDIPHONE`
+                );
+                window.open(`https://wa.me/52${clean}?text=${msg}`, "_blank");
+              }}
+              title="WhatsApp al cliente"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </button>
+          )}
+          {onAbrirOrden && pedido.orden.id && (
+            <button
+              className="p-1.5 rounded-lg"
+              style={{ color: "var(--color-text-muted)", background: "transparent" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              onClick={() => onAbrirOrden(pedido.orden.id!)}
+              title="Abrir orden"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </button>
           )}
         </div>
+      </div>
 
-        {/* Orden */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            className="text-xs font-mono font-bold"
-            style={{ color: "var(--color-accent)", background: "none", border: "none", cursor: onAbrirOrden ? "pointer" : "default", padding: 0 }}
-            onClick={() => pedido.orden.id && onAbrirOrden?.(pedido.orden.id)}
-          >
-            {pedido.orden.folio}
-          </button>
-          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            {pedido.orden.marcaDispositivo} {pedido.orden.modeloDispositivo}
-          </span>
-          <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>
-            · {pedido.orden.clienteNombre}
-          </span>
-        </div>
-
-        {pedido.notas && (
-          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            📝 {pedido.notas.slice(0, 80)}
+      {/* Mini-form "+ Catálogo" */}
+      {mostrarFormCatalogo && (
+        <div
+          className="rounded-xl p-3 space-y-2"
+          style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-info)" }}
+        >
+          <p className="text-xs font-semibold" style={{ color: "var(--color-info)" }}>
+            + Agregar al catálogo de productos
           </p>
-        )}
 
-        <div className="flex items-center gap-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
-          <Clock className="w-3 h-3" />
-          {fmtFecha(pedido.createdAt)}
-          {pedido.creadoPorNombre && ` · ${pedido.creadoPorNombre}`}
+          {/* Nombre con búsqueda */}
+          <div className="relative">
+            <div className="flex items-center gap-1 rounded-lg px-2" style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)" }}>
+              <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+              <input
+                type="text"
+                value={catalogoNombre}
+                onChange={(e) => handleNombreChange(e.target.value)}
+                placeholder="Nombre de la pieza..."
+                className="flex-1 text-sm py-1.5 bg-transparent outline-none"
+                style={{ color: "var(--color-text-primary)" }}
+              />
+              {buscando && <div className="w-3 h-3 rounded-full border border-t-transparent animate-spin" style={{ borderColor: "var(--color-accent)", borderTopColor: "transparent" }} />}
+            </div>
+            {/* Sugerencias */}
+            {busquedaResultados.length > 0 && (
+              <div
+                className="absolute z-10 left-0 right-0 mt-1 rounded-xl overflow-hidden"
+                style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", boxShadow: "var(--shadow-md)" }}
+              >
+                <p className="text-xs px-3 pt-2 pb-1 font-semibold" style={{ color: "var(--color-text-muted)" }}>
+                  ¿Es uno de estos?
+                </p>
+                {busquedaResultados.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className="w-full text-left flex items-center justify-between px-3 py-2 text-sm"
+                    style={{ color: "var(--color-text-primary)", background: "transparent" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    onClick={() => handleVincularExistente(r.id)}
+                    disabled={guardandoCatalogo}
+                  >
+                    <span>{r.nombre}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {r.stock > 0 && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                          En stock: {r.stock}
+                        </span>
+                      )}
+                      <span className="text-xs font-mono" style={{ color: "var(--color-text-muted)" }}>
+                        {fmtPrecio(r.precio)}
+                      </span>
+                      <span className="text-xs font-semibold" style={{ color: "var(--color-info)" }}>
+                        Vincular
+                      </span>
+                    </div>
+                  </button>
+                ))}
+                <div className="px-3 pb-2 pt-1 border-t" style={{ borderColor: "var(--color-border)" }}>
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                    Si no es ninguno, completa el formulario y crea uno nuevo.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Costo y Precio */}
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <p className="text-xs mb-1" style={{ color: "var(--color-text-muted)" }}>Costo compra</p>
+              <input
+                type="number"
+                value={catalogoCosto}
+                onChange={(e) => setCatalogoCosto(e.target.value)}
+                placeholder="0.00"
+                className="w-full text-sm font-mono px-2 py-1.5 rounded-lg"
+                style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+              />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs mb-1" style={{ color: "var(--color-text-muted)" }}>Precio venta</p>
+              <input
+                type="number"
+                value={catalogoPrecio}
+                onChange={(e) => setCatalogoPrecio(e.target.value)}
+                placeholder="0.00"
+                className="w-full text-sm font-mono px-2 py-1.5 rounded-lg"
+                style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+              />
+            </div>
+          </div>
+
+          {errorCatalogo && (
+            <p className="text-xs" style={{ color: "var(--color-danger)" }}>{errorCatalogo}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleCrearYVincular}
+              disabled={guardandoCatalogo || !catalogoNombre.trim()}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{ background: "var(--color-info)", color: "#fff", cursor: guardandoCatalogo ? "not-allowed" : "pointer", opacity: !catalogoNombre.trim() ? 0.5 : 1 }}
+            >
+              <Check className="w-3.5 h-3.5" />
+              {guardandoCatalogo ? "Guardando..." : "Crear y vincular"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMostrarFormCatalogo(false); setBusquedaResultados([]); setErrorCatalogo(null); }}
+              className="px-3 py-1.5 text-xs rounded-lg"
+              style={{ background: "none", border: "1px solid var(--color-border)", color: "var(--color-text-muted)", cursor: "pointer" }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* Botones de acción */}
-      <div className="flex gap-1 flex-shrink-0">
-        {pedido.orden.clienteTelefono && (
-          <button
-            className="p-1.5 rounded-lg"
-            style={{ color: "var(--color-success)", background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-success-bg)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            onClick={() => {
-              const clean = pedido.orden.clienteTelefono!.replace(/\D/g, "");
-              const msg = encodeURIComponent(
-                `⏳ *ESPERA DE REFACCIÓN - CREDIPHONE*\n\nHola *${pedido.orden.clienteNombre}*, gracias por tu paciencia.\n\nTe informamos sobre tu ${pedido.orden.marcaDispositivo} ${pedido.orden.modeloDispositivo} (Folio: ${pedido.orden.folio}).\n\nLa refacción ya fue pedida al proveedor y estamos esperando su llegada. Te notificaremos en cuanto esté lista.\n\nCualquier duda estamos a tus órdenes. 📱 CREDIPHONE`
-              );
-              window.open(`https://wa.me/52${clean}?text=${msg}`, "_blank");
-            }}
-            title="WhatsApp al cliente"
-          >
-            <MessageCircle className="w-4 h-4" />
-          </button>
-        )}
-        {onAbrirOrden && pedido.orden.id && (
-          <button
-            className="p-1.5 rounded-lg"
-            style={{ color: "var(--color-text-muted)", background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            onClick={() => onAbrirOrden(pedido.orden.id!)}
-            title="Abrir orden"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+      )}
     </div>
   );
 }

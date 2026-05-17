@@ -42,6 +42,7 @@ interface OrdenTracking {
   costoReparacion: number;
   costoPartes: number;
   costoTotal: number;
+  condicionesFuncionamiento?: Record<string, boolean> | null;
   partesReemplazadas: ParteReemplazada[];
   piezasCotizacion: PiezaCotizacion[];
   fechaRecepcion: Date;
@@ -729,6 +730,26 @@ export default function TrackingPublicoPage() {
               <InfoRow label="IMEI" value={orden.imei} mono />
             )}
             <InfoRow label="Problema reportado" value={orden.problemaReportado} />
+            {orden.condicionesFuncionamiento && Object.keys(orden.condicionesFuncionamiento).length > 0 && (
+              <div>
+                <p className="text-xs font-medium mb-1.5" style={{ color: "var(--color-text-muted)" }}>Fallas al ingreso</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(orden.condicionesFuncionamiento).map(([key, val]) => (
+                    <span
+                      key={key}
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{
+                        background: val ? "var(--color-danger-bg)" : "var(--color-success-bg)",
+                        color: val ? "var(--color-danger)" : "var(--color-success-text)",
+                        border: `1px solid ${val ? "var(--color-danger)" : "var(--color-success)"}`,
+                      }}
+                    >
+                      {val ? "✗" : "✓"} {key.replace(/_/g, " ")}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </SectionCard>
 

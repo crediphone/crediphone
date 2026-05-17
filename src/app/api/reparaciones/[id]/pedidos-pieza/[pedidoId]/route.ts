@@ -49,9 +49,9 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Sin acceso" }, { status: 403 });
     }
 
-    // Edición de nombre o vínculo a producto: requiere admin/super_admin
-    if ((nombrePieza || productoId !== undefined) && role !== "admin" && role !== "super_admin") {
-      return NextResponse.json({ success: false, error: "Sin permisos para editar nombre o producto" }, { status: 403 });
+    // Edición de nombre: requiere admin/super_admin
+    if (nombrePieza && role !== "admin" && role !== "super_admin") {
+      return NextResponse.json({ success: false, error: "Sin permisos para editar el nombre" }, { status: 403 });
     }
 
     // Retraso: solo en estados pendiente/en_camino
