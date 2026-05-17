@@ -993,11 +993,13 @@ export function ReparacionesPOSPanel({ onCobroCompleto }: ReparacionesPOSPanelPr
       )}
 
       {/* Drawer completo de la orden desde POS */}
-      <OrdenDrawer
-        ordenId={posDrawerOrdenId}
-        onClose={() => setPosDrawerOrdenId(null)}
-        onRefresh={() => { void fetchListosParaCobrar(); }}
-      />
+      {posDrawerOrdenId && (
+        <OrdenDrawer
+          ordenId={posDrawerOrdenId}
+          onClose={() => setPosDrawerOrdenId(null)}
+          onRefresh={() => { void fetchListosParaCobrar(); }}
+        />
+      )}
     </>
   );
 }

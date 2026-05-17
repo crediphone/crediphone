@@ -663,12 +663,14 @@ export default function ReparacionesPage() {
       )}
 
       {/* ── Drawer lateral ── */}
-      <OrdenDrawer
-        ordenId={drawerOrdenId}
-        onClose={() => setDrawerOrdenId(null)}
-        onRefresh={fetchOrdenes}
-        defaultTab={drawerDefaultTab}
-      />
+      {drawerOrdenId && (
+        <OrdenDrawer
+          ordenId={drawerOrdenId}
+          onClose={() => setDrawerOrdenId(null)}
+          onRefresh={fetchOrdenes}
+          defaultTab={drawerDefaultTab}
+        />
+      )}
 
       {/* ── Modales existentes ── */}
       <ModalOrden
