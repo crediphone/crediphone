@@ -321,11 +321,11 @@ export default function TicketPage() {
         .ticket-section { margin: 4px 0; }
 
         .ticket-label {
-          font-size: 9px;
+          font-size: 10px;
           font-weight: 800;
           letter-spacing: 1.5px;
           text-transform: uppercase;
-          color: #333;
+          color: #222;
           margin-bottom: 3px;
         }
 
@@ -336,32 +336,32 @@ export default function TicketPage() {
           line-height: 1.4;
         }
         .ticket-key {
-          color: #444;
-          font-size: 10px;
+          color: #333;
+          font-size: 11px;
           font-weight: 700;
           flex-shrink: 0;
           white-space: nowrap;
         }
         .ticket-val {
           color: #000;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 600;
           word-break: break-word;
-          line-height: 1.35;
+          line-height: 1.4;
         }
-        .ticket-lg    { font-size: 13px; }
+        .ticket-lg    { font-size: 14px; }
         .ticket-bold  { font-weight: 800; }
         .ticket-mono  { letter-spacing: 0.5px; }
 
         .ticket-problema {
-          font-size: 12px;
+          font-size: 13px;
           font-weight: 700;
           color: #000;
           line-height: 1.5;
           margin-top: 3px;
           padding: 5px 7px;
           border-left: 4px solid #000;
-          background: #f0f0f0;
+          background: #ebebeb;
         }
 
         .ticket-acceso {

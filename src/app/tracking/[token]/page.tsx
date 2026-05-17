@@ -730,26 +730,49 @@ export default function TrackingPublicoPage() {
               <InfoRow label="IMEI" value={orden.imei} mono />
             )}
             <InfoRow label="Problema reportado" value={orden.problemaReportado} />
-            {orden.condicionesFuncionamiento && Object.keys(orden.condicionesFuncionamiento).length > 0 && (
-              <div>
-                <p className="text-xs font-medium mb-1.5" style={{ color: "var(--color-text-muted)" }}>Fallas al ingreso</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(orden.condicionesFuncionamiento).map(([key, val]) => (
-                    <span
-                      key={key}
-                      className="text-xs px-2 py-0.5 rounded-full"
-                      style={{
-                        background: val ? "var(--color-danger-bg)" : "var(--color-success-bg)",
-                        color: val ? "var(--color-danger)" : "var(--color-success-text)",
-                        border: `1px solid ${val ? "var(--color-danger)" : "var(--color-success)"}`,
-                      }}
-                    >
-                      {val ? "✗" : "✓"} {key.replace(/_/g, " ")}
-                    </span>
-                  ))}
+            {(() => {
+              if (!orden.condicionesFuncionamiento) return null;
+              const labelMap: Record<string, string> = {
+                pantallaTactil: "Pantalla / Táctil", camaras: "Cámaras", microfono: "Micrófono",
+                altavoz: "Altavoz", bateria: "Batería", bluetooth: "Bluetooth", wifi: "Wi-Fi",
+                botonEncendido: "Botón de encendido", botonesVolumen: "Botones de volumen",
+                llegaApagado: "Llega apagado", estaMojado: "Daño por líquido",
+                bateriaHinchada: "Batería hinchada", marco: "Marco del dispositivo",
+                pantallaFisica: "Pantalla (física)", camaraLente: "Lente de cámara",
+              };
+              const esProblema = (val: unknown) => {
+                if (typeof val === "boolean") return val === true;
+                if (typeof val === "string") return val !== "" && val !== "ok" && val !== "perfecto";
+                return false;
+              };
+              const etiqueta = (key: string, val: unknown) => {
+                const label = labelMap[key] ?? key.replace(/_/g, " ");
+                if (typeof val === "string" && val !== "falla") return `${label}: ${val}`;
+                return label;
+              };
+              const problemas = Object.entries(orden.condicionesFuncionamiento).filter(([, val]) => esProblema(val));
+              if (problemas.length === 0) return null;
+              return (
+                <div>
+                  <p className="text-xs font-medium mb-1.5" style={{ color: "var(--color-text-muted)" }}>Fallas registradas al ingreso</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {problemas.map(([key, val]) => (
+                      <span
+                        key={key}
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{
+                          background: "var(--color-danger-bg)",
+                          color: "var(--color-danger)",
+                          border: "1px solid var(--color-danger)",
+                        }}
+                      >
+                        ✗ {etiqueta(key, val)}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </SectionCard>
 

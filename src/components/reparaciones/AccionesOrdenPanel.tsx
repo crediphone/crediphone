@@ -13,16 +13,18 @@ import {
 } from "lucide-react";
 import type { EstadoOrdenReparacion, OrdenReparacionDetallada } from "@/types";
 import { ModalQAEntrega } from "./ModalQAEntrega";
+import { ModalNotificarListoEntrega } from "./ModalNotificarListoEntrega";
 
 // ─── Definición de acciones por estado ────────────────────────────────────────
 
 export type AccionTipo =
-  | "cambiar_estado"       // cambia estado directamente (con modal WA)
-  | "abrir_diagnostico"    // abre ModalDiagnostico
-  | "abrir_drawer_tab"     // abre drawer en un tab específico
-  | "nuevo_diagnostico"    // abre ModalSegundoDiagnostico (nuevo problema)
-  | "registrar_entrega"    // marca como entregado + caja
-  | "enviar_presupuesto";  // abre EnvioPresupuesto
+  | "cambiar_estado"         // cambia estado directamente (con modal WA)
+  | "abrir_diagnostico"      // abre ModalDiagnostico
+  | "abrir_drawer_tab"       // abre drawer en un tab específico
+  | "nuevo_diagnostico"      // abre ModalSegundoDiagnostico (nuevo problema)
+  | "registrar_entrega"      // marca como entregado + caja
+  | "enviar_presupuesto"     // abre EnvioPresupuesto
+  | "notificar_listo_entrega"; // abre ModalNotificarListoEntrega con resumen de servicio
 
 export interface AccionOrden {
   id: string;
@@ -199,8 +201,7 @@ function getAcciones(
           id: "notificar_listo",
           label: "Notificar cliente",
           icon: Send,
-          tipo: "abrir_drawer_tab",
-          payload: { tab: "mensajeria" },
+          tipo: "notificar_listo_entrega",
           variant: "secondary",
         },
       ];
@@ -218,8 +219,7 @@ function getAcciones(
           id: "notificar_listo2",
           label: "Recordar al cliente",
           icon: Send,
-          tipo: "abrir_drawer_tab",
-          payload: { tab: "mensajeria" },
+          tipo: "notificar_listo_entrega",
           variant: "secondary",
         },
         {
@@ -307,6 +307,7 @@ export function AccionesOrdenPanel({
 }: AccionesOrdenPanelProps) {
   const acciones = getAcciones(orden.estado, userRole);
   const [mostrarQA, setMostrarQA] = useState(false);
+  const [mostrarNotificarListo, setMostrarNotificarListo] = useState(false);
 
   if (acciones.length === 0) return null;
 
@@ -335,6 +336,9 @@ export function AccionesOrdenPanel({
         break;
       case "enviar_presupuesto":
         onAbrirDrawerTab("presupuesto");
+        break;
+      case "notificar_listo_entrega":
+        setMostrarNotificarListo(true);
         break;
     }
   }
@@ -407,6 +411,14 @@ export function AccionesOrdenPanel({
             onCambiarEstado("listo_entrega");
           }}
           onCancelar={() => setMostrarQA(false)}
+        />
+      )}
+
+      {/* Modal resumen de servicio para notificar al cliente */}
+      {mostrarNotificarListo && (
+        <ModalNotificarListoEntrega
+          orden={orden}
+          onCerrar={() => setMostrarNotificarListo(false)}
         />
       )}
     </div>
