@@ -240,7 +240,7 @@ export default function TicketPage() {
         .ticket {
           background: #fff;
           width: 58mm;
-          padding: 5mm 4mm;
+          padding: 5mm 3mm;
           border: 1px solid #ddd;
           box-shadow: 0 2px 8px rgba(0,0,0,.12);
         }
@@ -257,18 +257,19 @@ export default function TicketPage() {
           flex: 1;
         }
         .ticket-brand {
-          font-size: 16px;
+          font-size: 18px;
           font-weight: 900;
           letter-spacing: 3px;
           color: #000;
           line-height: 1.1;
         }
         .ticket-subtitle {
-          font-size: 8px;
+          font-size: 9px;
           letter-spacing: 1.5px;
           text-transform: uppercase;
-          color: #555;
+          color: #444;
           margin-top: 2px;
+          font-weight: 700;
         }
         .ticket-qr-block {
           display: flex;
@@ -291,93 +292,97 @@ export default function TicketPage() {
           margin: 5px 0 4px;
         }
         .ticket-folio-label {
-          font-size: 8px;
+          font-size: 9px;
           letter-spacing: 3px;
-          color: #777;
+          color: #555;
           text-transform: uppercase;
+          font-weight: 700;
         }
         .ticket-folio {
-          font-size: 26px;
+          font-size: 28px;
           font-weight: 900;
           letter-spacing: 1px;
           color: #000;
           line-height: 1.1;
         }
         .ticket-fecha {
-          font-size: 9px;
-          color: #444;
-          margin-top: 1px;
+          font-size: 10px;
+          color: #333;
+          font-weight: 600;
+          margin-top: 2px;
         }
 
         .ticket-sep {
-          border-top: 1.5px dashed #999;
-          margin: 5px 0;
+          border-top: 2px dashed #888;
+          margin: 6px 0;
         }
 
         /* Secciones */
-        .ticket-section { margin: 3px 0; }
+        .ticket-section { margin: 4px 0; }
 
         .ticket-label {
-          font-size: 8px;
-          font-weight: 700;
+          font-size: 9px;
+          font-weight: 800;
           letter-spacing: 1.5px;
           text-transform: uppercase;
-          color: #555;
-          margin-bottom: 2px;
+          color: #333;
+          margin-bottom: 3px;
         }
 
         .ticket-row {
           display: flex;
           gap: 3px;
-          margin: 2px 0;
+          margin: 3px 0;
           line-height: 1.4;
         }
         .ticket-key {
-          color: #555;
-          font-size: 9px;
+          color: #444;
+          font-size: 10px;
+          font-weight: 700;
           flex-shrink: 0;
           white-space: nowrap;
         }
         .ticket-val {
           color: #000;
-          font-size: 10px;
+          font-size: 11px;
+          font-weight: 600;
           word-break: break-word;
           line-height: 1.35;
         }
-        .ticket-lg    { font-size: 12px; }
-        .ticket-bold  { font-weight: 700; }
+        .ticket-lg    { font-size: 13px; }
+        .ticket-bold  { font-weight: 800; }
         .ticket-mono  { letter-spacing: 0.5px; }
 
         .ticket-problema {
-          font-size: 11px;
-          font-weight: 600;
+          font-size: 12px;
+          font-weight: 700;
           color: #000;
-          line-height: 1.45;
+          line-height: 1.5;
           margin-top: 3px;
-          padding: 4px 6px;
-          border-left: 3px solid #000;
-          background: #f8f8f8;
+          padding: 5px 7px;
+          border-left: 4px solid #000;
+          background: #f0f0f0;
         }
 
         .ticket-acceso {
           background: #fff8e1;
-          padding: 4px 6px;
-          border-left: 3px solid #f59e0b;
+          padding: 5px 7px;
+          border-left: 4px solid #f59e0b;
         }
 
         .ticket-footer-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          font-size: 10px;
-          margin-top: 3px;
+          font-size: 11px;
+          margin-top: 4px;
         }
 
         .ticket-prioridad {
-          font-size: 9px;
-          font-weight: 700;
+          font-size: 10px;
+          font-weight: 800;
           letter-spacing: 1px;
-          padding: 2px 6px;
+          padding: 2px 7px;
           border-radius: 3px;
         }
         .ticket-prioridad-normal  { background: #e5e7eb; color: #374151; }
@@ -386,25 +391,26 @@ export default function TicketPage() {
 
         .ticket-garantia {
           text-align: center;
-          font-size: 9px;
-          font-weight: 700;
+          font-size: 10px;
+          font-weight: 800;
           letter-spacing: 2px;
           color: #1d4ed8;
-          margin-top: 3px;
+          margin-top: 4px;
         }
 
         /* Firma */
         .ticket-firma-section {
-          margin: 4px 0 2px;
+          margin: 5px 0 2px;
         }
         .ticket-firma-linea {
-          border-top: 1px solid #000;
-          margin: 10px 4px 4px;
+          border-top: 1.5px solid #000;
+          margin: 12px 4px 4px;
         }
         .ticket-firma-sub {
           text-align: center;
-          font-size: 8px;
-          color: #666;
+          font-size: 9px;
+          color: #555;
+          font-weight: 600;
           letter-spacing: 0.5px;
         }
 

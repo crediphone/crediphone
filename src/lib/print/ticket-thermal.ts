@@ -155,6 +155,18 @@ export interface TicketReparacionData {
   anticipo?: number;
   urlTracking?: string;       // para el QR
   notas?: string;
+  // Campos adicionales para el técnico
+  prioridad?: string;                     // "normal" | "urgente" | "express"
+  condicionFisica?: string;               // estado físico del dispositivo
+  accesoriosEntregados?: string;          // cargador, funda, etc.
+  patronDesbloqueo?: string;              // patrón de desbloqueo
+  contrasena?: string;                    // contraseña / PIN
+  garantiaDias?: number;                  // días de garantía de la reparación
+  piezasCotizacion?: Array<{             // piezas cotizadas inicialmente
+    nombre: string;
+    cantidad?: number;
+    precio?: number;
+  }>;
 }
 
 export function buildTicketReparacion(
@@ -184,42 +196,106 @@ export function buildTicketReparacion(
   cmds.push(EscPos.text(fmtFecha(data.fechaIngreso)));
   cmds.push(EscPos.feed(1));
 
-  // ── Datos ──────────────────────────────────────────────────────────────────
+  // ── Datos cliente ──────────────────────────────────────────────────────────
   cmds.push(EscPos.align('left'));
   cmds.push(EscPos.divider('-', W));
-  cmds.push(EscPos.row('Cliente:', truncate(data.clienteNombre, W - 9), W));
-  if (data.clienteTelefono) cmds.push(EscPos.row('Tel:', data.clienteTelefono, W));
+  cmds.push(EscPos.bold(true));
+  cmds.push(EscPos.text(`Cliente: ${truncate(data.clienteNombre, W - 9)}`));
+  cmds.push(EscPos.bold(false));
+  if (data.clienteTelefono) {
+    cmds.push(EscPos.bold(true));
+    cmds.push(EscPos.row('Tel:', data.clienteTelefono, W));
+    cmds.push(EscPos.bold(false));
+  }
+
+  // ── Dispositivo ────────────────────────────────────────────────────────────
   cmds.push(EscPos.divider('-', W));
   cmds.push(EscPos.bold(true));
-  cmds.push(EscPos.text(`Equipo: ${truncate(data.equipo, W - 8)}`));
+  cmds.push(EscPos.size(1, 0));
+  cmds.push(EscPos.text(truncate(data.equipo, W * 2)));
+  cmds.push(EscPos.sizeNormal());
   cmds.push(EscPos.bold(false));
-  if (data.color) cmds.push(EscPos.row('Color:', data.color, W));
-  if (data.imei)  cmds.push(EscPos.row('IMEI:', data.imei, W));
+  if (data.color)         cmds.push(EscPos.row('Color:', data.color, W));
+  if (data.imei) {
+    cmds.push(EscPos.bold(true));
+    cmds.push(EscPos.row('IMEI:', data.imei, W));
+    cmds.push(EscPos.bold(false));
+  }
+  if (data.condicionFisica)      cmds.push(EscPos.row('Condicion:', truncate(data.condicionFisica, W - 11), W));
+  if (data.accesoriosEntregados) cmds.push(EscPos.row('Accesorios:', truncate(data.accesoriosEntregados, W - 12), W));
   cmds.push(EscPos.divider('-', W));
+
+  // ── Acceso al dispositivo ──────────────────────────────────────────────────
+  if (data.patronDesbloqueo || data.contrasena) {
+    cmds.push(EscPos.bold(true));
+    cmds.push(EscPos.text('ACCESO AL DISPOSITIVO:'));
+    if (data.patronDesbloqueo) cmds.push(EscPos.row('Patron:', data.patronDesbloqueo, W));
+    if (data.contrasena)       cmds.push(EscPos.row('Contrasena:', data.contrasena, W));
+    cmds.push(EscPos.bold(false));
+    cmds.push(EscPos.divider('-', W));
+  }
 
   // ── Problema ───────────────────────────────────────────────────────────────
   cmds.push(EscPos.bold(true));
   cmds.push(EscPos.text('PROBLEMA:'));
   cmds.push(EscPos.bold(false));
-  // Wrapping manual para el problema (puede ser texto largo)
   for (const line of wordWrap(data.problema, W)) {
     cmds.push(EscPos.text(line));
   }
 
-  if (data.tecnicoNombre) cmds.push(EscPos.row('Tecnico:', truncate(data.tecnicoNombre, W - 9), W));
+  // ── Piezas cotizadas ───────────────────────────────────────────────────────
+  if (data.piezasCotizacion && data.piezasCotizacion.length > 0) {
+    cmds.push(EscPos.divider('-', W));
+    cmds.push(EscPos.bold(true));
+    cmds.push(EscPos.text('PIEZAS COTIZADAS:'));
+    cmds.push(EscPos.bold(false));
+    for (const pieza of data.piezasCotizacion) {
+      const qty = pieza.cantidad ? `x${pieza.cantidad} ` : '';
+      const precio = pieza.precio ? ` ${fmt(pieza.precio)}` : '';
+      cmds.push(EscPos.text(truncate(`• ${qty}${pieza.nombre}${precio}`, W)));
+    }
+  }
+
+  // ── Técnico y prioridad ────────────────────────────────────────────────────
+  cmds.push(EscPos.divider('-', W));
+  if (data.tecnicoNombre) {
+    cmds.push(EscPos.bold(true));
+    cmds.push(EscPos.row('Tecnico:', truncate(data.tecnicoNombre, W - 9), W));
+    cmds.push(EscPos.bold(false));
+  }
+  if (data.prioridad && data.prioridad !== 'normal') {
+    cmds.push(EscPos.bold(true));
+    cmds.push(EscPos.row('Prioridad:', data.prioridad.toUpperCase(), W));
+    cmds.push(EscPos.bold(false));
+  }
 
   if (data.presupuesto !== undefined || data.anticipo !== undefined) {
     cmds.push(EscPos.divider('-', W));
-    if (data.presupuesto !== undefined) cmds.push(EscPos.row('Presupuesto:', fmt(data.presupuesto), W));
-    if (data.anticipo !== undefined)    cmds.push(EscPos.row('Anticipo:', fmt(data.anticipo), W));
+    if (data.presupuesto !== undefined) {
+      cmds.push(EscPos.bold(true));
+      cmds.push(EscPos.row('Presupuesto:', fmt(data.presupuesto), W));
+      cmds.push(EscPos.bold(false));
+    }
+    if (data.anticipo !== undefined) cmds.push(EscPos.row('Anticipo:', fmt(data.anticipo), W));
   }
 
   if (data.notas) {
     cmds.push(EscPos.divider('-', W));
+    cmds.push(EscPos.bold(true));
     cmds.push(EscPos.text('Notas:'));
+    cmds.push(EscPos.bold(false));
     for (const line of wordWrap(data.notas, W)) {
       cmds.push(EscPos.text(line));
     }
+  }
+
+  if (data.garantiaDias) {
+    cmds.push(EscPos.divider('-', W));
+    cmds.push(EscPos.align('center'));
+    cmds.push(EscPos.bold(true));
+    cmds.push(EscPos.text(`Garantia reparacion: ${data.garantiaDias} dias`));
+    cmds.push(EscPos.bold(false));
+    cmds.push(EscPos.align('left'));
   }
 
   // ── QR de seguimiento ──────────────────────────────────────────────────────
