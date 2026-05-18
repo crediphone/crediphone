@@ -87,7 +87,7 @@ export default function VerificarInventarioPage() {
   } | null>(null);
 
   useEffect(() => {
-    if (user && !["admin", "vendedor", "super_admin"].includes(user.role)) {
+    if (user && !["admin", "vendedor", "tecnico", "super_admin"].includes(user.role)) {
       router.push("/dashboard");
     } else if (user) {
       checkVerificacionActiva();
