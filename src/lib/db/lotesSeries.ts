@@ -207,11 +207,26 @@ export async function crearLoteSerie(
 
     if (prodBase) {
       const p = prodBase as Record<string, unknown>;
+      const stockAntes = p.stock as number;
+      const stockDespues = stockAntes + imeisValidos.length;
       // Incrementar stock del producto base
       await supabase
         .from("productos")
-        .update({ stock: (p.stock as number) + imeisValidos.length })
+        .update({ stock: stockDespues })
         .eq("id", data.productoId);
+      await supabase.from("movimientos_stock").insert({
+        producto_id: data.productoId,
+        distribuidor_id: distribuidorId,
+        tipo: "entrada_lote",
+        cantidad: imeisValidos.length,
+        stock_antes: stockAntes,
+        stock_despues: stockDespues,
+        referencia_id: loteId,
+        referencia_tipo: "lote_serie",
+        referencia_folio: folio,
+        registrado_por: userId,
+        notas: `Ingreso lote IMEI: ${imeisValidos.length} u.`,
+      });
 
       // Para productos serializados: crear una entrada por IMEI
       if (p.es_serializado) {

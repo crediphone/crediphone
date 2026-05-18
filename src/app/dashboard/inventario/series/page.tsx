@@ -369,6 +369,10 @@ function NuevoLoteModal({
       .filter((s) => s.length > 0);
   };
 
+  // Solo IMEIs con formato válido (15-17 dígitos) para enviar a la API
+  const parsearIMEIsValidos = (texto: string): string[] =>
+    parsearIMEIs(texto).filter((s) => /^\d{15,17}$/.test(s));
+
   const handlePreview = () => {
     const imeis = parsearIMEIs(form.textoBruto);
     if (!form.productoId) { setError("Selecciona un producto"); return; }
@@ -393,7 +397,7 @@ function NuevoLoteModal({
     setGuardando(true);
     setError("");
     try {
-      const imeis = parsearIMEIs(form.textoBruto);
+      const imeis = parsearIMEIsValidos(form.textoBruto);
       const h: HeadersInit = { "Content-Type": "application/json" };
       if (distribuidorActivo?.id) h["X-Distribuidor-Id"] = distribuidorActivo.id;
 

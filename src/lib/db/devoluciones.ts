@@ -301,10 +301,25 @@ export async function crearDevolucion(
         .single();
 
       if (prod) {
+        const stockAntes = prod.stock ?? 0;
+        const stockDespues = stockAntes + it.cantidadDevuelta;
         await supabase
           .from("productos")
-          .update({ stock: (prod.stock ?? 0) + it.cantidadDevuelta })
+          .update({ stock: stockDespues })
           .eq("id", it.productoId);
+        await supabase.from("movimientos_stock").insert({
+          producto_id: it.productoId,
+          distribuidor_id: distribuidorId,
+          tipo: "devolucion",
+          cantidad: it.cantidadDevuelta,
+          stock_antes: stockAntes,
+          stock_despues: stockDespues,
+          referencia_id: devolucionId,
+          referencia_tipo: "devolucion",
+          referencia_folio: folio,
+          registrado_por: procesadoPorId,
+          notas: `Devolución: ${it.cantidadDevuelta} u.`,
+        });
       }
 
       // Marcar stock_reintegrado = true en el item

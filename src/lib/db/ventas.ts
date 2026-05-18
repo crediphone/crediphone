@@ -374,9 +374,8 @@ export async function createVenta(
       });
 
     if (movimientosStock.length > 0) {
-      supabase.from("movimientos_stock").insert(movimientosStock).then(({ error }) => {
-        if (error) console.error("[createVenta] Error registrando movimientos_stock:", error);
-      });
+      const { error: movErr } = await supabase.from("movimientos_stock").insert(movimientosStock);
+      if (movErr) console.error("[createVenta] Error registrando movimientos_stock:", movErr);
     }
   }
 

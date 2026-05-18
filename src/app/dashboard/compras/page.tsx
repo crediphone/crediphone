@@ -21,8 +21,10 @@ import {
   XCircle,
   FileText,
   Package,
+  PackagePlus,
+  Loader2,
 } from "lucide-react";
-import type { OrdenCompra, EstadoOrdenCompra } from "@/types";
+import type { OrdenCompra, EstadoOrdenCompra, Producto } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,6 +83,7 @@ export default function OrdenesCompraPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<EstadoOrdenCompra | "todos">("todos");
+  const [entradaManualOpen, setEntradaManualOpen] = useState(false);
 
   // Redirigir si no tiene permiso
   useEffect(() => {
@@ -142,17 +145,29 @@ export default function OrdenesCompraPage() {
             Gestiona pedidos a proveedores · actualiza stock al recibir
           </p>
         </div>
-        <Link href="/dashboard/compras/nueva">
+        <div className="flex items-center gap-2">
           <button
+            onClick={() => setEntradaManualOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
-            style={{ background: "var(--color-accent)", color: "white", transition: "background 200ms" }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--color-accent-hover)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--color-accent)")}
+            style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)", transition: "background 200ms" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--color-bg-elevated)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--color-bg-surface)")}
           >
-            <Plus className="w-4 h-4" />
-            Nueva orden
+            <PackagePlus className="w-4 h-4" />
+            Entrada directa
           </button>
-        </Link>
+          <Link href="/dashboard/compras/nueva">
+            <button
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+              style={{ background: "var(--color-accent)", color: "white", transition: "background 200ms" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--color-accent-hover)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "var(--color-accent)")}
+            >
+              <Plus className="w-4 h-4" />
+              Nueva orden
+            </button>
+          </Link>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -361,6 +376,253 @@ export default function OrdenesCompraPage() {
           </>
         )}
       </Card>
+
+      {/* Modal entrada directa de mercancía */}
+      {entradaManualOpen && (
+        <EntradaDirectaModal
+          onClose={() => setEntradaManualOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Modal Entrada Directa ────────────────────────────────────────────────────
+
+function EntradaDirectaModal({ onClose }: { onClose: () => void }) {
+  const [busq, setBusq] = useState("");
+  const [resultados, setResultados] = useState<Producto[]>([]);
+  const [busqCargando, setBusqCargando] = useState(false);
+  const [productoSel, setProductoSel] = useState<Producto | null>(null);
+  const [cantidad, setCantidad] = useState("1");
+  const [referencia, setReferencia] = useState("");
+  const [notas, setNotas] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [exito, setExito] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const busqTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const buscarProducto = (texto: string) => {
+    setBusq(texto);
+    setResultados([]);
+    if (busqTimer.current) clearTimeout(busqTimer.current);
+    if (texto.trim().length < 2) return;
+    busqTimer.current = setTimeout(async () => {
+      setBusqCargando(true);
+      try {
+        const res = await fetch(`/api/productos?q=${encodeURIComponent(texto.trim())}&limit=6`);
+        const d = await res.json();
+        if (d.success) setResultados(d.data ?? []);
+      } catch { /* silencioso */ }
+      finally { setBusqCargando(false); }
+    }, 300);
+  };
+
+  const seleccionar = (p: Producto) => {
+    setProductoSel(p);
+    setBusq("");
+    setResultados([]);
+  };
+
+  const guardar = async () => {
+    if (!productoSel || !cantidad || Number(cantidad) <= 0) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/inventario/movimientos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productoId: productoSel.id,
+          cantidad: Number(cantidad),
+          referenciaFolio: referencia || undefined,
+          notas: notas || undefined,
+        }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        setExito(`Stock actualizado: ${d.data.stockAntes} → ${d.data.stockDespues} u.`);
+        setProductoSel(null);
+        setCantidad("1");
+        setReferencia("");
+        setNotas("");
+      } else {
+        setError(d.error || "Error al registrar entrada");
+      }
+    } catch {
+      setError("Error de conexión");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl p-6 space-y-4"
+        style={{ background: "var(--color-bg-surface)", boxShadow: "var(--shadow-xl)" }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PackagePlus className="w-5 h-5" style={{ color: "var(--color-accent)" }} />
+            <h2 className="font-bold text-base" style={{ color: "var(--color-text-primary)" }}>
+              Entrada directa de mercancía
+            </h2>
+          </div>
+          <button onClick={onClose} style={{ color: "var(--color-text-muted)" }}>
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Mensaje de éxito */}
+        {exito && (
+          <div className="px-3 py-2 rounded-lg text-sm" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+            ✓ {exito}
+          </div>
+        )}
+
+        {/* Búsqueda de producto */}
+        {!productoSel ? (
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+              Buscar producto
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "var(--color-text-muted)" }} />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Nombre, marca, modelo…"
+                value={busq}
+                onChange={(e) => buscarProducto(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl text-sm outline-none"
+                style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+              />
+              {busqCargando && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin" style={{ color: "var(--color-text-muted)" }} />}
+            </div>
+            {resultados.length > 0 && (
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-border-subtle)" }}>
+                {resultados.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => seleccionar(p)}
+                    className="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between"
+                    style={{ borderBottom: "1px solid var(--color-border-subtle)", background: "var(--color-bg-surface)", color: "var(--color-text-primary)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--color-bg-surface)")}
+                  >
+                    <div>
+                      <span className="font-medium">{p.nombre}</span>
+                      {(p.marca || p.modelo) && (
+                        <span className="ml-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                          {[p.marca, p.modelo].filter(Boolean).join(" ")}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-mono ml-3 shrink-0" style={{ color: p.stock === 0 ? "var(--color-danger)" : "var(--color-success)" }}>
+                      {p.stock} u.
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Producto seleccionado */}
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--color-bg-elevated)" }}>
+              <div>
+                <p className="font-semibold text-sm" style={{ color: "var(--color-text-primary)" }}>{productoSel.nombre}</p>
+                <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  Stock actual: <strong className="font-mono">{productoSel.stock}</strong> u.
+                </p>
+              </div>
+              <button
+                onClick={() => setProductoSel(null)}
+                className="text-xs px-2 py-1 rounded-lg"
+                style={{ color: "var(--color-accent)" }}
+              >
+                Cambiar
+              </button>
+            </div>
+
+            {/* Cantidad */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Cantidad a ingresar
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-sm font-mono outline-none"
+                style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+              />
+            </div>
+
+            {/* Referencia (opcional) */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                N° factura / referencia (opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="FAC-001, remisión…"
+                value={referencia}
+                onChange={(e) => setReferencia(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+              />
+            </div>
+
+            {/* Notas */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                Notas (opcional)
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Detalles del ingreso…"
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+                style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs" style={{ color: "var(--color-danger)" }}>{error}</p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-secondary)" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardar}
+                disabled={guardando || !cantidad || Number(cantidad) <= 0}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium"
+                style={{
+                  background: guardando ? "var(--color-bg-elevated)" : "var(--color-accent)",
+                  color: guardando ? "var(--color-text-muted)" : "#fff",
+                }}
+              >
+                {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
+                {guardando ? "Guardando…" : `Ingresar ${cantidad || 0} u.`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

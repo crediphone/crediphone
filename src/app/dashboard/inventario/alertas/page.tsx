@@ -339,7 +339,7 @@ function ModalNotas({
 // ── ProductoAlertaRow (con checkbox + acciones) ───────────────────────────────
 
 function ProductoAlertaRow({
-  producto, tipo, seleccionado, onToggle, onResurtir, onDescontinuar,
+  producto, tipo, seleccionado, onToggle, onResurtir, onDescontinuar, isAdmin,
 }: {
   producto: Producto;
   tipo: "agotado" | "bajo";
@@ -347,6 +347,7 @@ function ProductoAlertaRow({
   onToggle: () => void;
   onResurtir: (p: Producto) => void;
   onDescontinuar: (p: Producto) => void;
+  isAdmin?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -424,17 +425,19 @@ function ProductoAlertaRow({
 
         {/* Botones de acción */}
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => onResurtir(producto)}
-            title="Agregar a solicitud de resurtido"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
-            style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", border: "1px solid var(--color-accent)" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-accent)"; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-accent-light)"; e.currentTarget.style.color = "var(--color-accent)"; }}
-          >
-            <ShoppingCart className="w-3.5 h-3.5" />
-            Resurtir
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onResurtir(producto)}
+              title="Agregar a solicitud de resurtido"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", border: "1px solid var(--color-accent)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-accent)"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-accent-light)"; e.currentTarget.style.color = "var(--color-accent)"; }}
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              Resurtir
+            </button>
+          )}
           <button
             onClick={() => setExpanded((v) => !v)}
             title="Más opciones"
@@ -460,16 +463,18 @@ function ProductoAlertaRow({
             <ExternalLink className="w-3.5 h-3.5" />
             Ver en catálogo
           </a>
-          <button
-            onClick={() => onDescontinuar(producto)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-            style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)", border: "1px solid var(--color-warning-bg)" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-warning)"; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-warning-bg)"; e.currentTarget.style.color = "var(--color-warning-text)"; }}
-          >
-            <Archive className="w-3.5 h-3.5" />
-            Descontinuar producto
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onDescontinuar(producto)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={{ background: "var(--color-warning-bg)", color: "var(--color-warning-text)", border: "1px solid var(--color-warning-bg)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-warning)"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--color-warning-bg)"; e.currentTarget.style.color = "var(--color-warning-text)"; }}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              Descontinuar producto
+            </button>
+          )}
           {producto.tipo && (
             <span className="text-xs px-2 py-1 rounded-lg" style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}>
               Tipo: {producto.tipo.replace("_", " ")}
@@ -786,7 +791,7 @@ export default function AlertasPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user?.role || !["admin", "super_admin"].includes(user.role)) { router.push("/dashboard"); return; }
+    if (!user?.role || !["admin", "super_admin", "vendedor"].includes(user.role)) { router.push("/dashboard"); return; }
     fetchProductos();
     fetchAlertas();
     fetchStats();
@@ -958,7 +963,8 @@ export default function AlertasPage() {
   };
   const limpiarSeleccion = () => setSeleccionados(new Set());
 
-  if (!user?.role || !["admin", "super_admin"].includes(user.role)) return null;
+  if (!user?.role || !["admin", "super_admin", "vendedor"].includes(user.role)) return null;
+  const isAdmin = ["admin", "super_admin"].includes(user.role);
 
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8" style={{ background: "var(--color-bg-base)" }}>
@@ -1050,42 +1056,44 @@ export default function AlertasPage() {
               />
             ) : (
               <>
-                {/* Toolbar de selección */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  {/* I4: botón de OC sugerida automática */}
-                  <button
-                    onClick={handleOCSugerida}
-                    disabled={loadingSugerencias}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                    style={{ background: "var(--color-accent)", color: "#fff", opacity: loadingSugerencias ? 0.7 : 1 }}
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5" />
-                    {loadingSugerencias ? "Calculando…" : "Crear OC sugerida"}
-                  </button>
-                  <button
-                    onClick={seleccionarTodos}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                    style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}
-                  >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                    Seleccionar todos ({sinStock.length + stockBajo.length})
-                  </button>
-                  {seleccionados.size > 0 && (
-                    <>
-                      <button
-                        onClick={limpiarSeleccion}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                        style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Limpiar selección
-                      </button>
-                      <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                        {seleccionados.size} seleccionado{seleccionados.size !== 1 ? "s" : ""}
-                      </span>
-                    </>
-                  )}
-                </div>
+                {/* Toolbar de selección — solo admin puede resurtir */}
+                {isAdmin && (
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* I4: botón de OC sugerida automática */}
+                    <button
+                      onClick={handleOCSugerida}
+                      disabled={loadingSugerencias}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: "var(--color-accent)", color: "#fff", opacity: loadingSugerencias ? 0.7 : 1 }}
+                    >
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      {loadingSugerencias ? "Calculando…" : "Crear OC sugerida"}
+                    </button>
+                    <button
+                      onClick={seleccionarTodos}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                      style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      Seleccionar todos ({sinStock.length + stockBajo.length})
+                    </button>
+                    {seleccionados.size > 0 && (
+                      <>
+                        <button
+                          onClick={limpiarSeleccion}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                          style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-muted)" }}
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Limpiar selección
+                        </button>
+                        <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                          {seleccionados.size} seleccionado{seleccionados.size !== 1 ? "s" : ""}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Sin stock */}
                 {sinStock.length > 0 && (
@@ -1102,6 +1110,7 @@ export default function AlertasPage() {
                           onToggle={() => toggleSeleccion(p.id)}
                           onResurtir={handleResurtir}
                           onDescontinuar={setDescontinuarProducto}
+                          isAdmin={isAdmin}
                         />
                       ))}
                     </div>
@@ -1123,6 +1132,7 @@ export default function AlertasPage() {
                           onToggle={() => toggleSeleccion(p.id)}
                           onResurtir={handleResurtir}
                           onDescontinuar={setDescontinuarProducto}
+                          isAdmin={isAdmin}
                         />
                       ))}
                     </div>

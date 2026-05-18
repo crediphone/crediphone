@@ -104,6 +104,9 @@ export default function POSPage() {
   // Estadísticas
   const [stats, setStats] = useState<EstadisticasPOS | null>(null);
 
+  // Alerta de stock bajo post-venta
+  const [alertasStockPOS, setAlertasStockPOS] = useState<{ nombre: string; stockDespues: number; minimo: number }[]>([]);
+
   // PO2: Promociones activas visibles en el POS
   const [promociones, setPromociones] = useState<Promocion[]>([]);
 
@@ -135,6 +138,25 @@ export default function POSPage() {
   const togglePosMode = (mode: "standard" | "visual") => {
     setPosMode(mode);
     localStorage.setItem("pos_mode", mode);
+  };
+
+  // Detectar productos con stock bajo después de la venta
+  const verificarStockBajoDespuesVenta = (items: CartItem[]) => {
+    const alertas = items
+      .filter((it) => it.producto && !it.esServicio && !it.esKit)
+      .map((it) => {
+        const p = it.producto!;
+        const stockDespues = (p.stock ?? 0) - it.cantidad;
+        const minimo = p.stockMinimo ?? 0;
+        return stockDespues <= minimo && minimo >= 0
+          ? { nombre: p.nombre, stockDespues, minimo }
+          : null;
+      })
+      .filter(Boolean) as { nombre: string; stockDespues: number; minimo: number }[];
+    if (alertas.length > 0) {
+      setAlertasStockPOS(alertas);
+      setTimeout(() => setAlertasStockPOS([]), 15000);
+    }
   };
 
   // Redirect non-admin/vendedor
@@ -530,6 +552,7 @@ export default function POSPage() {
       const data = await response.json();
 
       if (data.success) {
+        verificarStockBajoDespuesVenta(cartItems);
         setVentaCompletada(data.data);
         setShowReciboModal(true);
         // Canjear puntos si se usaron
@@ -611,6 +634,7 @@ export default function POSPage() {
       });
       const data = await response.json();
       if (data.success) {
+        verificarStockBajoDespuesVenta(cartItems);
         setVentaCompletada(data.data);
         setShowReciboModal(true);
         setCartItems([]);
@@ -676,6 +700,7 @@ export default function POSPage() {
       });
       const data = await response.json();
       if (data.success) {
+        verificarStockBajoDespuesVenta(cartItems);
         setVentaCompletada(data.data);
         setShowReciboModal(true);
         setCartItems([]);
@@ -1161,6 +1186,45 @@ export default function POSPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Banner offline — indica falta de internet o ventas pendientes */}
       <OfflineBanner onSyncComplete={() => fetchEstadisticas()} />
+
+      {/* Alerta: stock bajo post-venta */}
+      {alertasStockPOS.length > 0 && (
+        <div
+          className="mb-4 p-3 rounded-xl flex items-start gap-3"
+          style={{
+            background: "var(--color-warning-bg)",
+            border: "1px solid var(--color-warning)",
+          }}
+        >
+          <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: "var(--color-warning)" }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM4 7V5a2 2 0 012-2h12a2 2 0 012 2v2" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-semibold" style={{ color: "var(--color-warning-text)" }}>
+              Stock bajo después de la venta
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {alertasStockPOS.map((a, i) => (
+                <li key={i} className="text-xs" style={{ color: "var(--color-warning-text)" }}>
+                  <span className="font-medium">{a.nombre}</span>
+                  {" — "}
+                  {a.stockDespues <= 0
+                    ? <span className="font-bold">AGOTADO</span>
+                    : <span>quedan {a.stockDespues} u. (mín. {a.minimo})</span>
+                  }
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button
+            onClick={() => setAlertasStockPOS([])}
+            className="shrink-0 p-0.5 rounded"
+            style={{ color: "var(--color-warning-text)" }}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Alerta: caja abierta por otro empleado */}
       {cajaOtroEmpleado && alertaCajaVisible && (

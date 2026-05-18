@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     // Operación especial: recibir mercancía
     if (body.action === "recibir") {
-      const orden = await recibirMercancia(id, body.recepciones ?? [], body.notasRecepcion);
+      const orden = await recibirMercancia(id, body.recepciones ?? [], body.notasRecepcion, userId);
       return NextResponse.json({ success: true, data: orden });
     }
 

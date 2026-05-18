@@ -42,6 +42,31 @@ const TIPO_BADGE_STYLE: Record<string, CSSProperties> = {
 
 const TIPOS_MAP = Object.fromEntries(TIPOS_PRODUCTO.map((t) => [t.value, t]));
 
+interface MovStock {
+  id: string;
+  tipo: string;
+  cantidad: number;
+  stock_antes: number;
+  stock_despues: number;
+  referencia_tipo?: string;
+  referencia_folio?: string;
+  notas?: string;
+  created_at: string;
+}
+
+const TIPO_MOV_LABEL: Record<string, string> = {
+  venta_pos:            "Venta POS",
+  devolucion:           "Devolución",
+  entrada_lote:         "Ingreso Lote",
+  recepcion_oc:         "Recepción OC",
+  uso_reparacion:       "Uso Reparación",
+  devolucion_reparacion:"Dev. Reparación",
+  ajuste_inventario:    "Ajuste",
+  ajuste_manual:        "Ajuste Manual",
+  entrada_manual:       "Entrada Manual",
+  salida_manual:        "Salida Manual",
+};
+
 // ─── Página principal ──────────────────────────────────────────────────────────
 
 export default function ProductosPage() {
@@ -75,6 +100,11 @@ export default function ProductosPage() {
   const [ubicacionesPage, setUbicacionesPage]         = useState<{ id: string; nombre: string; codigo: string }[]>([]);
   const [filtroUbicacionId, setFiltroUbicacionId]     = useState<string>("todos");
 
+  // Historial de movimientos por producto
+  const [historialProducto, setHistorialProducto] = useState<Producto | null>(null);
+  const [historialMovs, setHistorialMovs]         = useState<MovStock[]>([]);
+  const [historialCargando, setHistorialCargando] = useState(false);
+
   // Activar filtro de ubicación si viene desde ?ubicacion= en la URL (solo client-side)
   const handledUrlUbicacion = useRef(false);
   useEffect(() => {
@@ -86,6 +116,16 @@ export default function ProductosPage() {
   }, [ubicacionesPage]);
 
   useEffect(() => { fetchProductos(); }, []);
+
+  useEffect(() => {
+    if (!historialProducto) { setHistorialMovs([]); return; }
+    setHistorialCargando(true);
+    fetch(`/api/inventario/movimientos?productoId=${historialProducto.id}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setHistorialMovs(d.data ?? []); })
+      .catch(() => {})
+      .finally(() => setHistorialCargando(false));
+  }, [historialProducto]);
 
   // Cargar categorías, subcategorías, proveedores y ubicaciones al nivel de página
   useEffect(() => {
@@ -505,6 +545,7 @@ export default function ProductosPage() {
                       onEdit={() => handleEdit(producto)}
                       onDelete={() => handleDeleteClick(producto)}
                       onPrint={() => setEtiquetaProducto(producto)}
+                      onVerHistorial={() => setHistorialProducto(producto)}
                       seleccionado={seleccionados.has(producto.id)}
                       categoriaNombre={categoriasPage.find((c) => c.id === producto.categoriaId)?.nombre}
                       subcategoriaNombre={subcategoriasPage.find((s) => s.id === producto.subcategoriaId)?.nombre}
@@ -632,7 +673,99 @@ export default function ProductosPage() {
         productos={filteredProductos}
         onClose={() => setImprimirTodasOpen(false)}
       />
+
+      {/* Historial de movimientos de stock por producto */}
+      <HistorialMovimientosModal
+        producto={historialProducto}
+        movimientos={historialMovs}
+        cargando={historialCargando}
+        onClose={() => setHistorialProducto(null)}
+      />
     </div>
+  );
+}
+
+// ─── Historial de Movimientos de Stock ────────────────────────────────────────
+
+function HistorialMovimientosModal({ producto, movimientos, cargando, onClose }: {
+  producto: Producto | null;
+  movimientos: MovStock[];
+  cargando: boolean;
+  onClose: () => void;
+}) {
+  if (!producto) return null;
+
+  const fecha = (iso: string) =>
+    new Date(iso).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+
+  const tipoBadgeStyle = (tipo: string): CSSProperties => {
+    if (tipo.includes("venta"))    return { background: "var(--color-success-bg)", color: "var(--color-success-text)" };
+    if (tipo.includes("devolucion")) return { background: "var(--color-warning-bg)", color: "var(--color-warning-text)" };
+    if (tipo.includes("uso"))      return { background: "var(--color-danger-bg)",  color: "var(--color-danger-text)" };
+    if (tipo.includes("ajuste"))   return { background: "var(--color-accent-light)", color: "var(--color-accent)" };
+    return { background: "var(--color-info-bg)", color: "var(--color-info-text)" };
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Movimientos — ${producto.nombre}`} size="lg">
+      <div className="space-y-3">
+        {cargando ? (
+          <div className="flex justify-center py-12">
+            <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "var(--color-text-muted)" }} />
+          </div>
+        ) : movimientos.length === 0 ? (
+          <div className="flex flex-col items-center py-12 gap-2">
+            <History className="w-10 h-10" style={{ color: "var(--color-text-muted)" }} />
+            <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+              Sin movimientos registrados para este producto
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-y-auto max-h-[60vh]">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: "var(--color-bg-elevated)", borderBottom: "1px solid var(--color-border-subtle)" }}>
+                  {["Fecha", "Tipo", "Cantidad", "Stock", "Referencia", "Notas"].map((h) => (
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--color-text-muted)" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {movimientos.map((mov) => (
+                  <tr key={mov.id} style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono text-xs" style={{ color: "var(--color-text-muted)" }}>
+                      {fecha(mov.created_at)}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded text-xs font-medium" style={tipoBadgeStyle(mov.tipo)}>
+                        {TIPO_MOV_LABEL[mov.tipo] ?? mov.tipo}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono font-bold text-right" style={{ color: mov.cantidad > 0 ? "var(--color-success)" : "var(--color-danger)" }}>
+                      {mov.cantidad > 0 ? `+${mov.cantidad}` : mov.cantidad}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                      {mov.stock_antes} → {mov.stock_despues}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-xs" style={{ color: "var(--color-text-secondary)" }}>
+                      {mov.referencia_folio
+                        ? <span>{mov.referencia_tipo ? `${mov.referencia_tipo} ` : ""}<span className="font-mono">{mov.referencia_folio}</span></span>
+                        : <span style={{ color: "var(--color-text-muted)" }}>—</span>
+                      }
+                    </td>
+                    <td className="px-3 py-2 text-xs max-w-[180px] truncate" style={{ color: "var(--color-text-muted)" }}>
+                      {mov.notas ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -728,8 +861,8 @@ function StatCard({
 
 // ─── Producto Row ─────────────────────────────────────────────────────────────
 
-function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, onToggleSeleccion, categoriaNombre, subcategoriaNombre, proveedorNombre, ubicacionNombre }: {
-  producto: Producto; fmt: (n: number) => string; onEdit: () => void; onDelete: () => void; onPrint: () => void;
+function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, onVerHistorial, seleccionado, onToggleSeleccion, categoriaNombre, subcategoriaNombre, proveedorNombre, ubicacionNombre }: {
+  producto: Producto; fmt: (n: number) => string; onEdit: () => void; onDelete: () => void; onPrint: () => void; onVerHistorial: () => void;
   seleccionado?: boolean; onToggleSeleccion?: () => void; categoriaNombre?: string;
   subcategoriaNombre?: string; proveedorNombre?: string; ubicacionNombre?: string;
 }) {
@@ -920,6 +1053,16 @@ function ProductoRow({ producto, fmt, onEdit, onDelete, onPrint, seleccionado, o
       {/* Acciones */}
       <td className="px-4 py-3 whitespace-nowrap text-right">
         <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={onVerHistorial}
+            className="p-1.5 rounded-lg transition-colors"
+            title="Ver historial de movimientos"
+            style={{ color: "var(--color-text-muted)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <History className="w-4 h-4" />
+          </button>
           <button
             onClick={onPrint}
             className="p-1.5 rounded-lg transition-colors"

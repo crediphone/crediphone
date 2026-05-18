@@ -23,6 +23,9 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Search,
+  ClipboardList,
+  ExternalLink,
 } from "lucide-react";
 import type {
   VerificacionInventarioDetallada,
@@ -45,7 +48,7 @@ interface PendingItem {
   imei?: string;           // IMEI del equipo si aplica
 }
 
-type Tab = "scanner" | "contados" | "diferencias";
+type Tab = "scanner" | "contados" | "diferencias" | "historial";
 
 // ── Página ─────────────────────────────────────────────────────────────────────
 
@@ -72,13 +75,19 @@ export default function VerificarInventarioPage() {
   // UI state
   const [iniciando, setIniciando] = useState(false);
   const [ajustando, setAjustando] = useState(false);
+  const [busqFaltantes, setBusqFaltantes] = useState("");
+
+  // Historial de verificaciones pasadas
+  const [historialVers, setHistorialVers]       = useState<VerificacionInventarioDetallada[]>([]);
+  const [historialCargando, setHistorialCargando] = useState(false);
+  const [historialCargado, setHistorialCargado] = useState(false);
   const [lastScanFeedback, setLastScanFeedback] = useState<{
     tipo: "ok" | "nuevo" | "actualizado";
     texto: string;
   } | null>(null);
 
   useEffect(() => {
-    if (user && !["admin", "vendedor", "super_admin"].includes(user.role)) {
+    if (user && !["admin", "vendedor", "tecnico", "super_admin"].includes(user.role)) {
       router.push("/dashboard");
     } else if (user) {
       checkVerificacionActiva();
@@ -92,6 +101,17 @@ export default function VerificarInventarioPage() {
       setTimeout(() => cantidadRef.current?.select(), 50);
     }
   }, [pendingItem]);
+
+  // Cargar historial de verificaciones de forma lazy cuando se selecciona el tab
+  useEffect(() => {
+    if (tab !== "historial" || historialCargado) return;
+    setHistorialCargando(true);
+    fetch("/api/inventario/verificaciones")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setHistorialVers(d.data ?? []); })
+      .catch(() => {})
+      .finally(() => { setHistorialCargando(false); setHistorialCargado(true); });
+  }, [tab, historialCargado]);
 
   const checkVerificacionActiva = async () => {
     const res = await fetch("/api/inventario/verificaciones?action=activa");
@@ -357,6 +377,24 @@ export default function VerificarInventarioPage() {
     });
   }, [faltantes]);
 
+  // Faltantes filtrados por búsqueda de texto
+  const faltantesFiltrados = useMemo(() => {
+    const q = busqFaltantes.trim().toLowerCase();
+    if (!q) return faltantesPorUbicacion;
+    return faltantesPorUbicacion
+      .map(([ubicacion, prods]) => {
+        const filtrados = prods.filter((p) => {
+          const texto = [p.nombre, p.marca, p.modelo, p.sku, p.codigoBarras]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return texto.includes(q) || ubicacion.toLowerCase().includes(q);
+        });
+        return [ubicacion, filtrados] as [string, Producto[]];
+      })
+      .filter(([, prods]) => prods.length > 0);
+  }, [faltantesPorUbicacion, busqFaltantes]);
+
   // Contados agrupados por ubicación (para progreso y tab Contados)
   const contadosPorUbicacion = useMemo(() => {
     const groups = new Map<string, VerificacionItemDetallado[]>();
@@ -536,6 +574,10 @@ export default function VerificarInventarioPage() {
                   </span>
                 )}
               </TabBtn>
+              <TabBtn active={tab === "historial"} onClick={() => setTab("historial")}>
+                <ClipboardList className="w-4 h-4" />
+                Historial
+              </TabBtn>
             </div>
 
             {/* ── Tab: Escanear ───────────────────────────────────────── */}
@@ -607,6 +649,33 @@ export default function VerificarInventarioPage() {
                     </button>
                   </div>
 
+                  {/* Búsqueda en faltantes */}
+                  {faltantes.length > 0 && (
+                    <div
+                      className="px-4 py-2"
+                      style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                    >
+                      <div className="relative">
+                        <Search
+                          className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
+                          style={{ color: "var(--color-text-muted)" }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Buscar en faltantes…"
+                          value={busqFaltantes}
+                          onChange={(e) => setBusqFaltantes(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg outline-none"
+                          style={{
+                            background: "var(--color-bg-elevated)",
+                            border: "1px solid var(--color-border)",
+                            color: "var(--color-text-primary)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="overflow-y-auto max-h-80">
                     {faltantes.length === 0 ? (
                       <div className="flex flex-col items-center py-10 gap-2">
@@ -615,8 +684,15 @@ export default function VerificarInventarioPage() {
                           ¡Todos los productos escaneados!
                         </p>
                       </div>
+                    ) : faltantesFiltrados.length === 0 ? (
+                      <div className="flex flex-col items-center py-10 gap-2">
+                        <Search className="w-7 h-7" style={{ color: "var(--color-text-muted)" }} />
+                        <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                          Sin resultados para &ldquo;{busqFaltantes}&rdquo;
+                        </p>
+                      </div>
                     ) : (
-                      faltantesPorUbicacion.map(([ubicacion, prods]) => (
+                      faltantesFiltrados.map(([ubicacion, prods]) => (
                         <FaltanteGroup
                           key={ubicacion}
                           ubicacion={ubicacion}
@@ -751,6 +827,85 @@ export default function VerificarInventarioPage() {
                     {diferencias.map((d, idx) => (
                       <DiferenciaRow key={d.productoId} d={d} idx={idx} total={diferencias.length} />
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab: Historial ─────────────────────────────────────── */}
+            {tab === "historial" && (
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                  background: "var(--color-bg-surface)",
+                  border: "1px solid var(--color-border-subtle)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                <div
+                  className="px-5 py-3.5 flex items-center justify-between"
+                  style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                >
+                  <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}>
+                    <ClipboardList className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                    Verificaciones anteriores
+                  </p>
+                  <a
+                    href="/dashboard/inventario/discrepancias"
+                    className="flex items-center gap-1 text-xs font-medium"
+                    style={{ color: "var(--color-accent)" }}
+                  >
+                    Ver detalle completo
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                {historialCargando ? (
+                  <div className="flex justify-center py-12">
+                    <RefreshCw className="w-5 h-5 animate-spin" style={{ color: "var(--color-text-muted)" }} />
+                  </div>
+                ) : historialVers.length === 0 ? (
+                  <div className="flex flex-col items-center py-12 gap-2">
+                    <ClipboardList className="w-8 h-8" style={{ color: "var(--color-text-muted)" }} />
+                    <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                      Sin verificaciones previas
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-y-auto max-h-80 divide-y" style={{ borderColor: "var(--color-border-subtle)" }}>
+                    {historialVers
+                      .filter((v) => v.id !== verificacion?.id)
+                      .map((v) => {
+                        const fechaFin = v.fechaFin
+                          ? new Date(v.fechaFin).toLocaleDateString("es-MX", { dateStyle: "medium" })
+                          : "En progreso";
+                        const estadoColor = v.estado === "completada"
+                          ? "var(--color-success-text)"
+                          : v.estado === "cancelada"
+                          ? "var(--color-danger-text)"
+                          : "var(--color-warning-text)";
+                        return (
+                          <div
+                            key={v.id}
+                            className="px-5 py-3 flex items-center justify-between"
+                          >
+                            <div>
+                              <p className="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+                                {fechaFin}
+                              </p>
+                              <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
+                                {v.totalProductosEsperados ?? 0} productos · {v.totalProductosEscaneados ?? 0} contados
+                              </p>
+                            </div>
+                            <span
+                              className="px-2 py-0.5 rounded-full text-xs font-semibold capitalize"
+                              style={{ color: estadoColor, background: "var(--color-bg-elevated)" }}
+                            >
+                              {v.estado ?? "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
                   </div>
                 )}
               </div>
