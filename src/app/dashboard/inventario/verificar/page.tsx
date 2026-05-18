@@ -357,6 +357,30 @@ export default function VerificarInventarioPage() {
     });
   }, [faltantes]);
 
+  // Contados agrupados por ubicación (para progreso y tab Contados)
+  const contadosPorUbicacion = useMemo(() => {
+    const groups = new Map<string, VerificacionItemDetallado[]>();
+    for (const it of items) {
+      const key = it.producto?.ubicacionFisica?.trim() || "Sin ubicación asignada";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(it);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === "Sin ubicación asignada") return 1;
+      if (b === "Sin ubicación asignada") return -1;
+      return a.localeCompare(b, "es");
+    });
+  }, [items]);
+
+  // Mapa de cuántos ya contados hay por cada clave de ubicación
+  const contadosCountPorUbicacion = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const [key, its] of contadosPorUbicacion) {
+      map.set(key, its.length);
+    }
+    return map;
+  }, [contadosPorUbicacion]);
+
   if (!user || !["admin", "vendedor", "super_admin"].includes(user.role)) return null;
 
   const isAdmin = ["admin", "super_admin"].includes(user.role);
@@ -597,6 +621,7 @@ export default function VerificarInventarioPage() {
                           key={ubicacion}
                           ubicacion={ubicacion}
                           productos={prods}
+                          contados={contadosCountPorUbicacion.get(ubicacion) ?? 0}
                           onTap={handleTapFaltante}
                         />
                       ))
@@ -625,6 +650,7 @@ export default function VerificarInventarioPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Encabezado de columnas */}
                     <div
                       className="grid px-4 py-2 text-xs font-semibold uppercase tracking-wide"
                       style={{
@@ -640,8 +666,9 @@ export default function VerificarInventarioPage() {
                       <span className="text-right">Contado</span>
                       <span className="text-right">Dif.</span>
                     </div>
-                    {items.map((item, idx) => (
-                      <ContadoRow key={item.id} item={item} idx={idx} total={items.length} />
+                    {/* Filas agrupadas por ubicación */}
+                    {contadosPorUbicacion.map(([ubicacion, its]) => (
+                      <ContadoGroup key={ubicacion} ubicacion={ubicacion} items={its} />
                     ))}
                   </>
                 )}
@@ -952,14 +979,19 @@ function KpiMini({ icon, label, value, color }: { icon: React.ReactNode; label: 
 function FaltanteGroup({
   ubicacion,
   productos,
+  contados,
   onTap,
 }: {
   ubicacion: string;
   productos: Producto[];
+  contados: number;
   onTap: (p: Producto) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const esSinUbicacion = ubicacion === "Sin ubicación asignada";
+  const total = productos.length + contados;
+  const pct = total > 0 ? Math.round((contados / total) * 100) : 0;
+  const completa = pct === 100;
 
   return (
     <div>
@@ -969,7 +1001,7 @@ function FaltanteGroup({
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wide"
         style={{
-          background: "var(--color-bg-elevated)",
+          background: completa ? "var(--color-success-bg)" : "var(--color-bg-elevated)",
           color: esSinUbicacion ? "var(--color-text-muted)" : "var(--color-text-secondary)",
           borderBottom: "1px solid var(--color-border-subtle)",
           borderTop: "1px solid var(--color-border-subtle)",
@@ -977,21 +1009,55 @@ function FaltanteGroup({
         }}
       >
         <span className="flex items-center gap-1.5">
-          <MapPin className="w-3 h-3" style={{ color: esSinUbicacion ? "var(--color-text-muted)" : "var(--color-accent)" }} />
-          {ubicacion}
+          <MapPin className="w-3 h-3" style={{ color: completa ? "var(--color-success)" : esSinUbicacion ? "var(--color-text-muted)" : "var(--color-accent)" }} />
+          <span style={{ color: completa ? "var(--color-success-text)" : undefined }}>{ubicacion}</span>
+          {completa && (
+            <CheckCircle className="w-3 h-3" style={{ color: "var(--color-success)" }} />
+          )}
         </span>
         <span className="flex items-center gap-2">
+          {/* Progreso: X de Y */}
           <span
-            className="px-1.5 py-0.5 rounded-full font-bold"
+            className="font-bold"
             style={{
-              background: "var(--color-warning-bg)",
-              color: "var(--color-warning-text)",
               fontSize: "0.7rem",
               fontFamily: "var(--font-data)",
+              color: completa ? "var(--color-success-text)" : "var(--color-text-muted)",
             }}
           >
-            {productos.length}
+            {contados}/{total}
           </span>
+          {/* Mini barra de progreso */}
+          {total > 0 && (
+            <div
+              className="rounded-full overflow-hidden"
+              style={{ width: 40, height: 5, background: "var(--color-border-subtle)" }}
+            >
+              <div
+                style={{
+                  width: `${pct}%`,
+                  height: "100%",
+                  background: completa ? "var(--color-success)" : "var(--color-accent)",
+                  borderRadius: "9999px",
+                  transition: "width 300ms ease",
+                }}
+              />
+            </div>
+          )}
+          {/* Badge faltantes (solo si no está completa) */}
+          {!completa && (
+            <span
+              className="px-1.5 py-0.5 rounded-full font-bold"
+              style={{
+                background: "var(--color-warning-bg)",
+                color: "var(--color-warning-text)",
+                fontSize: "0.7rem",
+                fontFamily: "var(--font-data)",
+              }}
+            >
+              {productos.length}
+            </span>
+          )}
           {expanded
             ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--color-text-muted)" }} />
             : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--color-text-muted)" }} />
@@ -1128,6 +1194,54 @@ function ContadoRow({ item, idx, total }: { item: VerificacionItemDetallado; idx
           {diferencia > 0 ? `+${diferencia}` : diferencia}
         </span>
       </div>
+    </div>
+  );
+}
+
+// Agrupa los ítems contados por ubicación (mismo patrón visual que FaltanteGroup)
+function ContadoGroup({ ubicacion, items }: { ubicacion: string; items: VerificacionItemDetallado[] }) {
+  const [expanded, setExpanded] = useState(true);
+  const esSinUbicacion = ubicacion === "Sin ubicación asignada";
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold uppercase tracking-wide"
+        style={{
+          background: "var(--color-bg-elevated)",
+          color: esSinUbicacion ? "var(--color-text-muted)" : "var(--color-text-secondary)",
+          borderBottom: "1px solid var(--color-border-subtle)",
+          borderTop: "1px solid var(--color-border-subtle)",
+          cursor: "pointer",
+        }}
+      >
+        <span className="flex items-center gap-1.5">
+          <MapPin className="w-3 h-3" style={{ color: esSinUbicacion ? "var(--color-text-muted)" : "var(--color-accent)" }} />
+          {ubicacion}
+        </span>
+        <span className="flex items-center gap-2">
+          <span
+            className="px-1.5 py-0.5 rounded-full font-bold"
+            style={{
+              background: "var(--color-accent-light)",
+              color: "var(--color-accent)",
+              fontSize: "0.7rem",
+              fontFamily: "var(--font-data)",
+            }}
+          >
+            {items.length}
+          </span>
+          {expanded
+            ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--color-text-muted)" }} />
+            : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--color-text-muted)" }} />
+          }
+        </span>
+      </button>
+      {expanded && items.map((item, idx) => (
+        <ContadoRow key={item.id} item={item} idx={idx} total={items.length} />
+      ))}
     </div>
   );
 }
