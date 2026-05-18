@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { EnvioPresupuesto } from "./EnvioPresupuesto";
 import { ChecklistAperturaPanel } from "./ChecklistAperturaPanel";
-import { Zap, CheckCircle, Plus } from "lucide-react";
+import { Zap, CheckCircle, Plus, Search, Loader2 } from "lucide-react";
 import type { ParteReemplazada, OrdenReparacionDetallada, Producto, CatalogoServicioReparacion } from "@/types";
 
 interface ModalDiagnosticoProps {
@@ -68,6 +68,12 @@ export function ModalDiagnostico({
   }
   const [sugerencias, setSugerencias] = useState<SugerenciaParte[]>([]);
   const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
+
+  // Búsqueda libre en inventario (P8a — mismo patrón que OrdenDrawer)
+  const [busqTexto, setBusqTexto] = useState("");
+  const [busqResultados, setBusqResultados] = useState<Array<{ id: string; nombre: string; costo: number; stock: number }>>([]);
+  const [busqCargando, setBusqCargando] = useState(false);
+  const busqTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pre-cargar cotización existente si la orden ya tiene presupuesto del modal de recepción
   useEffect(() => {
@@ -171,6 +177,41 @@ export function ModalDiagnostico({
       { parte: sug.nombre, costo: sug.precio, cantidad: 1, productoId: sug.productoId },
     ]);
   };
+
+  function buscarEnInventario(texto: string) {
+    setBusqTexto(texto);
+    setBusqResultados([]);
+    if (busqTimer.current) clearTimeout(busqTimer.current);
+    if (texto.trim().length < 2) return;
+    busqTimer.current = setTimeout(async () => {
+      setBusqCargando(true);
+      try {
+        const res = await fetch(`/api/productos?q=${encodeURIComponent(texto.trim())}&limit=5`);
+        const data = await res.json();
+        if (data.success) {
+          setBusqResultados(
+            (data.data ?? []).map((p: Producto) => ({
+              id: p.id,
+              nombre: [p.nombre, p.marca, p.modelo].filter(Boolean).join(" — "),
+              costo: Number(p.precio ?? 0),
+              stock: Number(p.stock ?? 0),
+            }))
+          );
+        }
+      } catch { /* silent */ } finally {
+        setBusqCargando(false);
+      }
+    }, 300);
+  }
+
+  function agregarDesdeBusqueda(r: { id: string; nombre: string; costo: number; stock: number }) {
+    setPartes((prev) => [
+      ...prev.filter((p) => p.parte.trim() !== "" || p.costo > 0),
+      { parte: r.nombre, costo: r.costo, cantidad: 1, productoId: r.id },
+    ]);
+    setBusqTexto("");
+    setBusqResultados([]);
+  }
 
   // Calcular costo total de partes
   const costoTotalPartes = partes.reduce(
@@ -594,6 +635,59 @@ export function ModalDiagnostico({
               + Agregar Parte
             </Button>
           </div>
+
+          {/* Búsqueda libre en inventario */}
+          {!diagnosticoGuardado && (
+            <div className="relative mb-3">
+              <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ border: "1px solid var(--color-border)", background: "var(--color-bg-sunken)" }}>
+                <Search className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--color-text-muted)" }} />
+                <input
+                  type="text"
+                  value={busqTexto}
+                  onChange={(e) => buscarEnInventario(e.target.value)}
+                  placeholder="Buscar refacción en inventario..."
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ color: "var(--color-text-primary)" }}
+                />
+                {busqCargando && <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" style={{ color: "var(--color-text-muted)" }} />}
+                {busqTexto && !busqCargando && (
+                  <button type="button" onClick={() => { setBusqTexto(""); setBusqResultados([]); }} className="text-xs" style={{ color: "var(--color-text-muted)" }}>✕</button>
+                )}
+              </div>
+              {busqResultados.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 rounded-lg overflow-hidden" style={{ background: "var(--color-bg-surface)", border: "1px solid var(--color-border)", boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
+                  {busqResultados.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => agregarDesdeBusqueda(r)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left text-sm"
+                      style={{ color: "var(--color-text-primary)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-bg-elevated)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <span className="truncate flex-1">{r.nombre}</span>
+                      <span className="flex items-center gap-2 ml-3 flex-shrink-0">
+                        {r.stock > 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--color-success-bg)", color: "var(--color-success-text)" }}>
+                            Stock: {r.stock}
+                          </span>
+                        )}
+                        <span className="text-xs font-mono font-semibold" style={{ color: "var(--color-accent)" }}>
+                          ${r.costo.toLocaleString("es-MX")}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {busqTexto.length >= 2 && !busqCargando && busqResultados.length === 0 && (
+                <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  Sin resultados — agrega manualmente o crea nueva refacción al catálogo.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-3">
             {partes.map((parte, index) => (
