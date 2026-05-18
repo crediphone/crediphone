@@ -1,8 +1,32 @@
 # Sesión Activa — CREDIPHONE
 
-## Estado: MEJORAS INTEGRALES REPARACIONES ✅ COMPLETO (2026-05-13)
+## Estado: AUDITORÍA INVENTARIO ✅ COMPLETO (2026-05-17)
 
-**Última sesión:** 2026-05-13 — Plan completo de 13 mejoras + 4 bugs del módulo de reparaciones implementado y desplegado
+**Última sesión:** 2026-05-17 — Auditoría inventario completa + 8 fixes implementados y pusheados
+
+## Implementado 2026-05-17 — Auditoría área de inventario
+
+| Fix | Archivo | Descripción |
+|-----|---------|-------------|
+| P1 ✅ | `inventario/verificar/page.tsx` | Progreso por ubicación + tab Contados agrupado |
+| P2 ✅ | `inventario/series/page.tsx` | Validación IMEI 15-17 dígitos estricta |
+| P3 ✅ | `lib/db/ventas.ts` | movimientos_stock fire-and-forget → await |
+| P4 ✅ | `inventario/verificar/page.tsx` | Búsqueda en lista de faltantes |
+| P5 ✅ | `lib/db/devoluciones.ts` | movimientos_stock al reintegrar por devolución |
+| P6 ✅ | `lib/db/lotesSeries.ts` | movimientos_stock al ingresar IMEI por lote |
+| P7 ✅ | `lib/db/ordenes-compra.ts` | movimientos_stock al recibir mercancía de OC |
+| P8 ✅ | `lib/db/reparaciones.ts` | movimientos_stock al usar/devolver piezas |
+
+Rama: `claude/elated-kapitsa` — pendiente merge a master.
+
+**Hoyos de auditoría resueltos:** movimientos_stock ahora se registra en TODAS las operaciones de stock.
+
+**Pendiente consolidación UI (no prioritario):**
+- U1: historial de movimientos en drawer del producto
+- U2: tab Discrepancias dentro de Verificación
+- U3: catálogo unificado con filtros de tipo
+
+
 **Historial:** `ARCHIVO/HISTORIAL-SESIONES.md`
 
 ---
@@ -75,11 +99,17 @@ Contiene:
 
 ---
 
+## Implementado 2026-05-13 — P3 + correcciones UX
+
+- **P3** ✅ Prompt "¿Registrar en catálogo?" al verificar pieza sin productoId. Stock=0 (consumida). OrdenDrawer.tsx + 2 API routes.
+- **refreshSilencioso** ✅ Cambiar estado de orden ya no salta al inicio de la página (sin setLoading)
+- **OrdenCard fondos** ✅ listo_entrega=success-bg, esperando_piezas=warning-bg. Badge "por verificar" ahora con borde warning (no fondo sólido que se confundía)
+- **ModalQAEntrega scroll** ✅ Header+footer fijos, cuerpo scrollable. Botón Confirmar siempre visible en PC
+
 ## ⏳ PENDIENTE — Plan de mejoras (aprobado, no implementado)
 
 | ID | Descripción | Prioridad |
 |----|-------------|-----------|
-| P3 | Piezas verificadas → opción de ingresar al inventario | Media |
 | P4 | Venta de teléfonos en POS (contado vs crédito con IMEI) | Media |
 
 ---
