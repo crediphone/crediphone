@@ -23,6 +23,7 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Search,
 } from "lucide-react";
 import type {
   VerificacionInventarioDetallada,
@@ -72,6 +73,7 @@ export default function VerificarInventarioPage() {
   // UI state
   const [iniciando, setIniciando] = useState(false);
   const [ajustando, setAjustando] = useState(false);
+  const [busqFaltantes, setBusqFaltantes] = useState("");
   const [lastScanFeedback, setLastScanFeedback] = useState<{
     tipo: "ok" | "nuevo" | "actualizado";
     texto: string;
@@ -357,6 +359,24 @@ export default function VerificarInventarioPage() {
     });
   }, [faltantes]);
 
+  // Faltantes filtrados por búsqueda de texto
+  const faltantesFiltrados = useMemo(() => {
+    const q = busqFaltantes.trim().toLowerCase();
+    if (!q) return faltantesPorUbicacion;
+    return faltantesPorUbicacion
+      .map(([ubicacion, prods]) => {
+        const filtrados = prods.filter((p) => {
+          const texto = [p.nombre, p.marca, p.modelo, p.sku, p.codigoBarras]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return texto.includes(q) || ubicacion.toLowerCase().includes(q);
+        });
+        return [ubicacion, filtrados] as [string, Producto[]];
+      })
+      .filter(([, prods]) => prods.length > 0);
+  }, [faltantesPorUbicacion, busqFaltantes]);
+
   // Contados agrupados por ubicación (para progreso y tab Contados)
   const contadosPorUbicacion = useMemo(() => {
     const groups = new Map<string, VerificacionItemDetallado[]>();
@@ -607,6 +627,33 @@ export default function VerificarInventarioPage() {
                     </button>
                   </div>
 
+                  {/* Búsqueda en faltantes */}
+                  {faltantes.length > 0 && (
+                    <div
+                      className="px-4 py-2"
+                      style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+                    >
+                      <div className="relative">
+                        <Search
+                          className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
+                          style={{ color: "var(--color-text-muted)" }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Buscar en faltantes…"
+                          value={busqFaltantes}
+                          onChange={(e) => setBusqFaltantes(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg outline-none"
+                          style={{
+                            background: "var(--color-bg-elevated)",
+                            border: "1px solid var(--color-border)",
+                            color: "var(--color-text-primary)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="overflow-y-auto max-h-80">
                     {faltantes.length === 0 ? (
                       <div className="flex flex-col items-center py-10 gap-2">
@@ -615,8 +662,15 @@ export default function VerificarInventarioPage() {
                           ¡Todos los productos escaneados!
                         </p>
                       </div>
+                    ) : faltantesFiltrados.length === 0 ? (
+                      <div className="flex flex-col items-center py-10 gap-2">
+                        <Search className="w-7 h-7" style={{ color: "var(--color-text-muted)" }} />
+                        <p className="text-sm" style={{ color: "var(--color-text-secondary)" }}>
+                          Sin resultados para &ldquo;{busqFaltantes}&rdquo;
+                        </p>
+                      </div>
                     ) : (
-                      faltantesPorUbicacion.map(([ubicacion, prods]) => (
+                      faltantesFiltrados.map(([ubicacion, prods]) => (
                         <FaltanteGroup
                           key={ubicacion}
                           ubicacion={ubicacion}
