@@ -1566,15 +1566,37 @@ export async function agregarPiezaReparacion(
     );
   }
 
+  // Obtener distribuidor de la orden para auditoría
+  const { data: ordenBase } = await supabase
+    .from("ordenes_reparacion")
+    .select("distribuidor_id")
+    .eq("id", ordenId)
+    .single();
+
   // Descontar del stock
+  const stockAntesPieza = producto.stock;
+  const stockDespuesPieza = stockAntesPieza - cantidad;
   const { error: stockError } = await supabase
     .from("productos")
-    .update({ stock: producto.stock - cantidad })
+    .update({ stock: stockDespuesPieza })
     .eq("id", productoId);
 
   if (stockError) {
     throw new Error(`Error al actualizar stock: ${stockError.message}`);
   }
+
+  await supabase.from("movimientos_stock").insert({
+    producto_id: productoId,
+    distribuidor_id: ordenBase?.distribuidor_id ?? null,
+    tipo: "uso_reparacion",
+    cantidad: -cantidad,
+    stock_antes: stockAntesPieza,
+    stock_despues: stockDespuesPieza,
+    referencia_id: ordenId,
+    referencia_tipo: "reparacion",
+    registrado_por: tecnicoId,
+    notas: `Uso en reparación: ${cantidad} u.`,
+  });
 
   // Registrar la pieza usada
   const { data, error } = await supabase
@@ -1635,10 +1657,29 @@ export async function quitarPiezaReparacion(
     .single();
 
   if (producto) {
+    const stockAntesDev = producto.stock;
+    const stockDespuesDev = stockAntesDev + pieza.cantidad;
     await supabase
       .from("productos")
-      .update({ stock: producto.stock + pieza.cantidad })
+      .update({ stock: stockDespuesDev })
       .eq("id", pieza.producto_id);
+    // Obtener distribuidor para auditoría
+    const { data: ordenDev } = await supabase
+      .from("ordenes_reparacion")
+      .select("distribuidor_id")
+      .eq("id", ordenId)
+      .single();
+    await supabase.from("movimientos_stock").insert({
+      producto_id: pieza.producto_id,
+      distribuidor_id: ordenDev?.distribuidor_id ?? null,
+      tipo: "devolucion_reparacion",
+      cantidad: pieza.cantidad,
+      stock_antes: stockAntesDev,
+      stock_despues: stockDespuesDev,
+      referencia_id: ordenId,
+      referencia_tipo: "reparacion",
+      notas: `Devuelto al quitar pieza de reparación.`,
+    });
   }
 
   // Eliminar el registro de la pieza
@@ -1668,6 +1709,13 @@ export async function devolverTodasLasPiezas(ordenId: string): Promise<void> {
 
   if (error || !piezas || piezas.length === 0) return;
 
+  // Obtener distribuidor de la orden para auditoría
+  const { data: distribuidorOrden } = await supabase
+    .from("ordenes_reparacion")
+    .select("distribuidor_id")
+    .eq("id", ordenId)
+    .single();
+
   // Devolver stock de cada pieza
   for (const pieza of piezas) {
     const { data: producto } = await supabase
@@ -1677,10 +1725,23 @@ export async function devolverTodasLasPiezas(ordenId: string): Promise<void> {
       .single();
 
     if (producto) {
+      const stockAntesCan = producto.stock;
+      const stockDespuesCan = stockAntesCan + pieza.cantidad;
       await supabase
         .from("productos")
-        .update({ stock: producto.stock + pieza.cantidad })
+        .update({ stock: stockDespuesCan })
         .eq("id", pieza.producto_id);
+      await supabase.from("movimientos_stock").insert({
+        producto_id: pieza.producto_id,
+        distribuidor_id: distribuidorOrden?.distribuidor_id ?? null,
+        tipo: "devolucion_reparacion",
+        cantidad: pieza.cantidad,
+        stock_antes: stockAntesCan,
+        stock_despues: stockDespuesCan,
+        referencia_id: ordenId,
+        referencia_tipo: "reparacion",
+        notas: `Devuelto al cancelar reparación.`,
+      });
     }
   }
 
