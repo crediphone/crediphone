@@ -283,7 +283,8 @@ export interface RecepcionItemInput {
 export async function recibirMercancia(
   ordenId: string,
   recepciones: RecepcionItemInput[],
-  notasRecepcion?: string
+  notasRecepcion?: string,
+  registradoPor?: string
 ): Promise<OrdenCompra> {
   const supabase = createAdminClient();
 
@@ -324,10 +325,25 @@ export async function recibirMercancia(
         .eq("id", item.productoId)
         .single();
       if (prod) {
+        const stockAntes = (prod as { stock: number }).stock ?? 0;
+        const stockDespues = stockAntes + deltaRecibido;
         await supabase
           .from("productos")
-          .update({ stock: ((prod as { stock: number }).stock ?? 0) + deltaRecibido })
+          .update({ stock: stockDespues })
           .eq("id", item.productoId);
+        await supabase.from("movimientos_stock").insert({
+          producto_id: item.productoId,
+          distribuidor_id: orden.distribuidorId ?? null,
+          tipo: "recepcion_oc",
+          cantidad: deltaRecibido,
+          stock_antes: stockAntes,
+          stock_despues: stockDespues,
+          referencia_id: ordenId,
+          referencia_tipo: "orden_compra",
+          referencia_folio: orden.folio,
+          registrado_por: registradoPor ?? null,
+          notas: `Recepción OC: ${deltaRecibido} u.`,
+        });
       }
     }
   }
